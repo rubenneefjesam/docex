@@ -1,19 +1,19 @@
 # webapp/app.py
 import streamlit as st
-from tools.docex_tool import docex
+from tools.docex_tool import docex  # jouw bestaande tool
 
 st.set_page_config(page_title="Docx Suite", layout="wide")
 
-# ===== SIDEBAR: precies twee secties =====
-st.sidebar.title("Navigatie")
+# Sidebar: Navigatie + Kies tool (elk precies één keer)
+st.sidebar.header("Navigatie")
 nav_choice = st.sidebar.radio("", ["Home", "Informatie"], index=0)
 
 st.sidebar.markdown("---")
 
-st.sidebar.title("Kies tool")
-tool_choice = st.sidebar.radio("", ["Docex", "Coge"], index=0)
+st.sidebar.header("Kies tool")
+tool_choice = st.sidebar.radio("", ["(geen)", "Docex", "Coge"], index=0)
 
-# ===== HOOFDPAGINA: toon Navigatie-content (Home of Informatie) =====
+# ===== Main: toon alleen de geselecteerde navigatie-pagina =====
 if nav_choice == "Home":
     st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
     st.write(
@@ -29,17 +29,19 @@ else:
         """
         Info:
         - Docex: Document generator (je bestaande tool).
-        - Coge: Vergelijk / compare feature (voor nu een titelscherm).
+        - Coge: Vergelijk / compare feature (placeholder).
         """
     )
 
 st.markdown("---")
 
-# ===== TOOL: activeer de gekozen tool (Docex of Coge) =====
+# ===== Tool area: toon de gekozen tool **alleen** =====
 if tool_choice == "Docex":
-    # roept jouw bestaande tool aan (zorg dat tools/docex_tool/docex.run() beschikbaar is)
+    # Docex verschijnt alleen wanneer 'Docex' is geselecteerd
     docex.run()
 
-else:  # Coge
+elif tool_choice == "Coge":
+    # Placeholder Coge; hier kun je later de compare-UI toevoegen
     st.markdown("<h2 style='font-size:22px; font-weight:700'>🔍 Coge</h2>", unsafe_allow_html=True)
-    st.write("Coge — (voor nu) enkel titel / placeholder. Ik kan hier later de compare-UI toevoegen.")
+    st.write("Coge — placeholder voor compare-feature.")
+# else "(geen)" -> toon geen tool (alleen de nav content)
