@@ -59,7 +59,9 @@ def add_highlight(page: fitz.Page, text: str, color: Tuple[float, float, float])
     """Zoek text in page en highlight alle hits. Retourneert aantal hits."""
     if not text:
         return 0
-    rects = page.search_for(text, quads=False, hit_max=64)  # beperken aantal hits per snippet
+    
+    rects = page.searchrects = page.search_for(text)  # zoekt alle hits
+
     count = 0
     for r in rects:
         annot = page.add_highlight_annot(r)
