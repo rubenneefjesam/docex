@@ -1,25 +1,21 @@
 # webapp/app.py
 import streamlit as st
-import tempfile
-import difflib
-import os
-
 from tools.docex_tool import docex
-from core.docx_utils import read_docx
 
 st.set_page_config(page_title="Docx Suite", layout="wide")
 
+# Sidebar: Navigatie + simpele tool-selectie
 st.sidebar.title("Tools")
 
-# 1) Nav: Home / Info
+# Navigatie (eerst kiezen wat de hoofdpagina toont)
 nav = st.sidebar.radio("Navigatie", ["Home", "Info"], index=0)
 
 st.sidebar.markdown("---")
 
-# 2) Tool-selectie (start met '(geen)' zodat we eerst Home/Info tonen)
+# Simpele dropdown (selectbox) voor tool-keuze
 tool_choice = st.sidebar.selectbox("Kies tool", ["(geen)", "Docex", "Coge"])
 
-# If no tool selected -> show navigation page; else show the tool UI
+# --- Toon hoofdcontent (als er geen tool is gekozen) ---------------
 if tool_choice == "(geen)":
     if nav == "Home":
         st.markdown("<div style='font-size:32px; font-weight:700'>🏠 Welkom bij de DOCX Generator</div>", unsafe_allow_html=True)
@@ -45,49 +41,11 @@ if tool_choice == "(geen)":
             """
         )
 
-else:
-    # --- TOOL: Docex ----------------------------------------------------
-    if tool_choice == "Docex":
-        # roep je bestaande tool aan
-        docex.run()
+# --- TOOL: Docex (roept jouw bestaande tool aan) ---------------------
+elif tool_choice == "Docex":
+    docex.run()
 
-    # --- TOOL: Coge (compare) -------------------------------------------
-    else:  # Coge
-        st.markdown("<div style='font-size:28px; font-weight:700'>🔍 Coge — Vergelijk twee documenten</div>", unsafe_allow_html=True)
-        st.write("Upload twee documenten (.docx of .txt) en zie een tekst-diff (unified).")
-
-        col1, col2 = st.columns(2)
-        left_file = col1.file_uploader("Links (oud)", type=["docx", "txt"], key="left")
-        right_file = col2.file_uploader("Rechts (nieuw)", type=["docx", "txt"], key="right")
-
-        def _read_uploaded(uploaded):
-            if not uploaded:
-                return ""
-            # Streamlit UploadedFile: schrijf tijdelijk naar disk en gebruik read_docx for docx
-            try:
-                if uploaded.type and "document" in uploaded.type:
-                    tmpdir = tempfile.mkdtemp()
-                    path = os.path.join(tmpdir, "tmp.docx")
-                    with open(path, "wb") as f:
-                        f.write(uploaded.getbuffer())
-                    return read_docx(path)
-                else:
-                    return uploaded.read().decode("utf-8", errors="ignore")
-            except Exception:
-                # fallback: probeer als text
-                try:
-                    return uploaded.read().decode("utf-8", errors="ignore")
-                except Exception:
-                    return ""
-
-        if left_file and right_file:
-            left_text = _read_uploaded(left_file).splitlines()
-            right_text = _read_uploaded(right_file).splitlines()
-
-            diff = difflib.unified_diff(left_text, right_text, fromfile="left", tofile="right", lineterm="")
-            diff_text = "\n".join(diff)
-            if not diff_text.strip():
-                st.success("Geen verschillen gevonden 🎉")
-            else:
-                st.code(diff_text, language="diff")
-                st.download_button("Download diff als .txt", data=diff_text, file_name="diff.txt")
+# --- TOOL: Coge (slechts een titel zoals je vroeg) --------------------
+elif tool_choice == "Coge":
+    st.markdown("<div style='font-size:32px; font-weight:700'>🔍 Coge</div>", unsafe_allow_html=True)
+    st.write("Coge — eenvoudige compare / generator (titelscherm).")
