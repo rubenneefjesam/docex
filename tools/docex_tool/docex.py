@@ -12,14 +12,17 @@ from docx.enum.text import WD_BREAK
 from . import steps
 from core.docx_utils import read_docx, apply_replacements
 
-def get_groq_client():
+
+def get_groq_client(show_sidebar: bool = False):
+    ui = st.sidebar if show_sidebar else st
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if api_key:
         try:
             return Groq(api_key=api_key)
         except Exception as e:
-            st.error(f"❌ Fout bij verbinden met Groq API (env): {e}")
+            ui.error(f"❌ Fout bij verbinden met Groq API (env): {e}")
             st.stop()
+
     possible = [
         os.path.expanduser("~/.streamlit/secrets.toml"),
         os.path.join(os.getcwd(), ".streamlit", "secrets.toml"),
@@ -31,15 +34,16 @@ def get_groq_client():
         except Exception:
             api_key = ""
     if not api_key:
-        st.error(
+        ui.error(
             "❌ Groq API key niet gevonden. Zet GROQ_API_KEY als env var of maak `.streamlit/secrets.toml` met [groq] api_key = \"...\""
         )
         st.stop()
     try:
         return Groq(api_key=api_key)
     except Exception as e:
-        st.error(f"❌ Fout bij verbinden met Groq API: {e}")
+        ui.error(f"❌ Fout bij verbinden met Groq API: {e}")
         st.stop()
+
 
 def parse_groq_json_array(content: str):
     cleaned = re.sub(r"\d+\s*:\s*{", "{", content)
@@ -64,6 +68,7 @@ def parse_groq_json_array(content: str):
                     repls.append({"find": fm.group(1), "replace": rm})
         return repls
 
+
 def get_replacements_from_model(groq_client: Groq, template_text: str, context_text: str):
     prompt = (
         "Gegeven TEMPLATE en CONTEXT, lever JSON-array met objecten {find, replace}."
@@ -85,16 +90,20 @@ def get_replacements_from_model(groq_client: Groq, template_text: str, context_t
     repls = parse_groq_json_array(content)
     return [r for r in repls if r.get("find") and r.get("find") != r.get("replace")]
 
+
 def apply_replacements_to_doc_and_bytes(doc_path: str, replacements: list[dict], include_changes_overview: bool = True) -> bytes:
     doc = docx.Document(doc_path)
+
     def repl(runs):
-        if not runs: return
+        if not runs:
+            return
         txt = "".join(r.text for r in runs)
         for rp in replacements:
             txt = txt.replace(rp["find"], rp["replace"])
         runs[0].text = txt
         for r in runs[1:]:
             r.text = ""
+
     for p in doc.paragraphs:
         repl(p.runs)
     for tbl in doc.tables:
@@ -131,6 +140,7 @@ def apply_replacements_to_doc_and_bytes(doc_path: str, replacements: list[dict],
     doc.save(buf)
     return buf.getvalue()
 
+
 def _safe_read_docx_text(path: str) -> str:
     try:
         doc = docx.Document(path)
@@ -138,9 +148,21 @@ def _safe_read_docx_text(path: str) -> str:
     except Exception:
         return ""
 
-def run():
+
+def run(show_sidebar: bool = False, initial_page: str = "Generator"):
+    """
+    Run the Docex UI.
+
+    - show_sidebar: wanneer True gebruikt de tool zijn eigen sidebar (standalone mode).
+                    default False zodat geïntegreerde app geen aparte zijbalk krijgt.
+    - initial_page: in geïntegreerde mode, welke pagina tonen (standaard "Generator").
+    """
     steps.clear_steps()
+
+    # page config (ok om altijd te zetten)
     st.set_page_config(page_title="DOCX Generator", layout="wide", initial_sidebar_state="expanded")
+
+    # CSS / styling (ongewijzigd)
     st.markdown(
         """
         <style>
@@ -153,11 +175,15 @@ def run():
         unsafe_allow_html=True,
     )
 
-    groq_client = get_groq_client()
+    groq_client = get_groq_client(show_sidebar=show_sidebar)
     steps.record_step("Groq client aangemaakt")
 
-    # Gebruik hoofdgebied (geen extra sidebar) voor navigatie — voorkomt dubbele menu's
-    page = st.radio("🔖 Navigatie", ("Home", "Generator", "Info"), index=0)
+    # kies pagina: als show_sidebar True -> gebruik sidebar-radio (standalone gebruik)
+    if show_sidebar:
+        page = st.sidebar.radio("🔖 Navigatie", ("Home", "Generator", "Info"), index=0)
+    else:
+        # geïntegreerde app: toon direct de generator (of initial_page)
+        page = initial_page
 
     if page == "Home":
         st.markdown("<div class='big-header'>🏠 Welkom bij de DOCX Generator</div>", unsafe_allow_html=True)
@@ -205,7 +231,7 @@ def run():
                     steps.record_step("Context (.txt) geüpload")
                 st.text_area("Context-inhoud", context, height=250, key="ctx_pre")
 
-        # Toon uitgevoerde stappen in hoofdgebied (geen sidebar)
+        # Toon uitgevoerde stappen in het hoofdgebied (geen sidebar)
         st.markdown("### Uitgevoerde stappen")
         for s in steps.get_steps():
             st.markdown(f"- {s}")
@@ -236,6 +262,7 @@ def run():
                 )
         else:
             st.info("Upload eerst template en context om te starten.")
+
     else:
         st.markdown("<div class='big-header'>ℹ️ Info & Tips</div>", unsafe_allow_html=True)
         st.markdown(
@@ -249,5 +276,8 @@ def run():
             unsafe_allow_html=True,
         )
 
+
 if __name__ == "__main__":
-    run()
+    # Standalone run uses its own sidebar; integrated usage (webapp) should call run()
+    # with defaults (show_sidebar=False) so er geen extra zijbalk verschijnt.
+    run(show_sidebar=True)
