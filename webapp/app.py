@@ -10,6 +10,7 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 from tools.docex_tool import docex  # jouw bestaande tool
+from tools.coge_tool import coge # de nieuwe tool
 
 st.set_page_config(page_title="Docx Suite", layout="wide")
 
@@ -30,5 +31,7 @@ elif choice == "Docex":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docex</h1>", unsafe_allow_html=True)
     docex.run()
 elif choice == "Coge":
-    st.markdown("<h1 style='font-size:28px; font-weight:700'>🔍 Coge</h1>", unsafe_allow_html=True)
-    st.write("Coge — placeholder voor compare-feature.")
+    st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docex</h1>", unsafe_allow_html=True)
+    docex.run()
+
+
