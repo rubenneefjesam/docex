@@ -4,41 +4,42 @@ from tools.docex_tool import docex
 
 st.set_page_config(page_title="Docx Suite", layout="wide")
 
-st.sidebar.title("Tools")
+# ===== SIDEBAR: precies twee secties =====
+st.sidebar.title("Navigatie")
+nav_choice = st.sidebar.radio("", ["Home", "Informatie"], index=0)
 
-# Simpele keuze (radio) voor tool-keuze — geen dropdown meer
-tool_choice = st.sidebar.radio("Kies tool", ["(geen)", "Docex", "Coge"], index=0)
+st.sidebar.markdown("---")
 
-# Als geen tool gekozen -> toon Home (standaard). Info kort onderaan.
-if tool_choice == "(geen)":
-    st.markdown("<div style='font-size:32px; font-weight:700'>🏠 Welkom bij de DOCX Generator</div>", unsafe_allow_html=True)
+st.sidebar.title("Kies tool")
+tool_choice = st.sidebar.radio("", ["Docex", "Coge"], index=0)
+
+# ===== HOOFDPAGINA: toon Navigatie-content (Home of Informatie) =====
+if nav_choice == "Home":
+    st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
     st.write(
         """
-        Gebruik deze tool om snel **Word-templates** bij te werken met **nieuwe context**.
-        
-        - Upload je template en context
-        - Klik op **Genereer aangepast document**
-        - Download en behoud je opmaak!
+        Welkom bij de DOCX-app.
+        - Gebruik de sidebar om te schakelen tussen Home en Informatie.
+        - Kies een tool (Docex of Coge) in de sidebar om die te gebruiken.
+        """
+    )
+else:
+    st.markdown("<h1 style='font-size:28px; font-weight:700'>ℹ️ Informatie</h1>", unsafe_allow_html=True)
+    st.write(
+        """
+        Info:
+        - Docex: Document generator (je bestaande tool).
+        - Coge: Vergelijk / compare feature (voor nu een titelscherm).
         """
     )
 
-    st.markdown("---")
-    with st.expander("ℹ️ Info & Tips"):
-        st.write(
-            """
-            **Tips voor optimaal gebruik:**
-            - Zorg voor unieke, duidelijke tekstfragmenten.
-            - Houd context-bestanden kort en concreet.
-            - Controleer altijd de uiteindelijke output.
-            - Voor complexe documenten kun je secties apart bijwerken.
-            """
-        )
+st.markdown("---")
 
-# Docex: call jouw bestaande tool
-elif tool_choice == "Docex":
+# ===== TOOL: activeer de gekozen tool (Docex of Coge) =====
+if tool_choice == "Docex":
+    # roept jouw bestaande tool aan (zorg dat tools/docex_tool/docex.run() beschikbaar is)
     docex.run()
 
-# Coge: eenvoudige titelscherm (of later uitbreiden)
-elif tool_choice == "Coge":
-    st.markdown("<div style='font-size:32px; font-weight:700'>🔍 Coge</div>", unsafe_allow_html=True)
-    st.write("Coge — (voor nu) een eenvoudige compare / generator. Hier komt later de compare-UI.")
+else:  # Coge
+    st.markdown("<h2 style='font-size:22px; font-weight:700'>🔍 Coge</h2>", unsafe_allow_html=True)
+    st.write("Coge — (voor nu) enkel titel / placeholder. Ik kan hier later de compare-UI toevoegen.")
