@@ -66,11 +66,12 @@ def add_highlight_with_note(page, text, color, note):
         annot = page.add_highlight_annot(r)
         annot.set_colors(stroke=color)
         annot.update()
+
         # Sticky note rechtsboven highlight
         note_point = fitz.Point(r.x1, r.y0)
-        note_annot = page.add_text_annot(note_point, note)
-        note_annot.set_icon("Comment")
+        note_annot = page.add_text_annot(note_point, note, icon="Comment")
         note_annot.update()
+
         count += 1
     return count
 
