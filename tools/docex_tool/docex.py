@@ -18,7 +18,7 @@ def get_groq_client():
         try:
             return Groq(api_key=api_key)
         except Exception as e:
-            st.sidebar.error(f"❌ Fout bij verbinden met Groq API (env): {e}")
+            st.error(f"❌ Fout bij verbinden met Groq API (env): {e}")
             st.stop()
     possible = [
         os.path.expanduser("~/.streamlit/secrets.toml"),
@@ -31,14 +31,14 @@ def get_groq_client():
         except Exception:
             api_key = ""
     if not api_key:
-        st.sidebar.error(
+        st.error(
             "❌ Groq API key niet gevonden. Zet GROQ_API_KEY als env var of maak `.streamlit/secrets.toml` met [groq] api_key = \"...\""
         )
         st.stop()
     try:
         return Groq(api_key=api_key)
     except Exception as e:
-        st.sidebar.error(f"❌ Fout bij verbinden met Groq API: {e}")
+        st.error(f"❌ Fout bij verbinden met Groq API: {e}")
         st.stop()
 
 def parse_groq_json_array(content: str):
@@ -156,7 +156,8 @@ def run():
     groq_client = get_groq_client()
     steps.record_step("Groq client aangemaakt")
 
-    page = st.sidebar.radio("🔖 Navigatie", ("Home", "Generator", "Info"), index=0)
+    # Gebruik hoofdgebied (geen extra sidebar) voor navigatie — voorkomt dubbele menu's
+    page = st.radio("🔖 Navigatie", ("Home", "Generator", "Info"), index=0)
 
     if page == "Home":
         st.markdown("<div class='big-header'>🏠 Welkom bij de DOCX Generator</div>", unsafe_allow_html=True)
@@ -204,9 +205,10 @@ def run():
                     steps.record_step("Context (.txt) geüpload")
                 st.text_area("Context-inhoud", context, height=250, key="ctx_pre")
 
-        st.sidebar.markdown("### Uitgevoerde stappen")
+        # Toon uitgevoerde stappen in hoofdgebied (geen sidebar)
+        st.markdown("### Uitgevoerde stappen")
         for s in steps.get_steps():
-            st.sidebar.markdown(f"- {s}")
+            st.markdown(f"- {s}")
 
         if tpl_path and context:
             st.markdown("---")
