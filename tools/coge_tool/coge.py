@@ -2,6 +2,7 @@
 import io
 import re
 import difflib
+import base64
 from typing import List, Tuple, Dict, Optional
 
 import streamlit as st
@@ -27,7 +28,6 @@ def extract_pdf_lines(pdf_bytes: bytes) -> List[List[str]]:
     return pages
 
 def flatten_with_page_prefix(pages: List[List[str]]) -> List[str]:
-    """Maak 1 lijst met 'p{idx}:{line}' zodat we paginainfo bewaren."""
     flat: List[str] = []
     for p_idx, lines in enumerate(pages, start=1):
         for ln in lines:
@@ -35,14 +35,12 @@ def flatten_with_page_prefix(pages: List[List[str]]) -> List[str]:
     return flat
 
 def parse_prefixed(line: str) -> Tuple[int, str]:
-    """Haal (page_idx, text) uit 'p{idx}:{line}'."""
     m = re.match(r"p(\d+):(.*)", line, flags=re.DOTALL)
     if not m:
         return 1, line
     return int(m.group(1)), m.group(2).strip()
 
 def pick_search_snippet(s: str, min_len: int = 12, max_len: int = 80) -> str:
-    """Kies een substring om in de PDF te zoeken (stabieler)."""
     s = re.sub(r"\s+", " ", s).strip()
     if len(s) > max_len:
         mid = len(s) // 2
@@ -51,7 +49,6 @@ def pick_search_snippet(s: str, min_len: int = 12, max_len: int = 80) -> str:
     return s if len(s) >= min_len else s
 
 def first_title_line(pages: List[List[str]]) -> str:
-    """Eerste niet-lege regel van pagina 1 als 'titel' (heuristiek)."""
     if not pages or not pages[0]:
         return ""
     return pages[0][0].strip()
@@ -60,11 +57,10 @@ def full_text(pages: List[List[str]]) -> str:
     return "\n".join("\n".join(pg) for pg in pages)
 
 def similarity_ratio(a: str, b: str) -> float:
-    """Globale gelijkenis [0..1] met difflib ratio (snel & dependency-vrij)."""
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 # =========================
-# Domain heuristics (unknown→filled, numbers, dates, contacts)
+# Domain heuristics
 # =========================
 
 UNKNOWN_TOKENS = {"", "-", "—", "n.v.t.", "nvt", "n/a", "na", "tbd", "onbekend", "niet ingevuld"}
@@ -78,20 +74,18 @@ LABEL_REGEXES = [
     ("project",    r"\b(project|projectnaam|opdracht|titel)\b"),
 ]
 
-RE_NUMBER = re.compile(r"\b\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d+)?\b")  # 1.234,56 / 1234 / 40
+RE_NUMBER = re.compile(r"\b\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d+)?\b")
 RE_DATE   = re.compile(r"\b(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4}|\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2})\b")
 RE_EMAIL  = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 RE_PHONE  = re.compile(r"\+?\d[\d\s\-\(\)]{6,}\d")
 
 def split_label_value(s: str) -> Tuple[Optional[str], str]:
-    """Probeer 'Label: waarde' te scheiden (niet case-sensitief)."""
     if ":" in s:
         label, value = s.split(":", 1)
         return label.strip(), value.strip()
     return None, s.strip()
 
 def label_key(label: Optional[str]) -> Optional[str]:
-    """Map label naar een canonical key op basis van LABEL_REGEXES."""
     if not label:
         return None
     lower = label.lower()
@@ -119,7 +113,6 @@ def detect_date_change(old: str, new: str) -> Optional[Tuple[str, str]]:
     return None
 
 def detect_contact_filled(old: str, new: str) -> Optional[str]:
-    """Detecteer e-mail/telefoon ingevuld."""
     had_email = bool(RE_EMAIL.search(old))
     new_email = RE_EMAIL.search(new)
     if (not had_email) and new_email:
@@ -136,9 +129,8 @@ def detect_contact_filled(old: str, new: str) -> Optional[str]:
 
 def llm_describe_change(client, old: str, new: str, change_type: str) -> str:
     prompt = (
-        f"Beschrijf heel kort wat er is veranderd ({change_type}). "
-        "Geef 1 zin, concreet (bijv. 'Aantal aangepast van 20 naar 40', "
-        "'Naam toegevoegd: Heijmans'). "
+        f"Beschrijf kort wat er is veranderd ({change_type}). "
+        "Geef 1 zin, concreet (bv. 'Aantal aangepast van 20 naar 40')."
         f"\nOud: {old or '(leeg)'}\nNieuw: {new or '(leeg)'}"
     )
     try:
@@ -146,65 +138,49 @@ def llm_describe_change(client, old: str, new: str, change_type: str) -> str:
             model="llama-3.1-8b-instant",
             temperature=0,
             messages=[
-                {"role": "system", "content": "Antwoord alleen met de korte beschrijving, geen extra uitleg."},
+                {"role": "system", "content": "Antwoord alleen met de korte beschrijving."},
                 {"role": "user", "content": prompt},
             ],
         )
         return resp.choices[0].message.content.strip()
-    except Exception as e:
+    except Exception:
         return f"{change_type.capitalize()}"
 
 def describe_change(old_line: str, new_line: str) -> str:
-    """
-    Probeer eerst deterministische regels:
-      - unknown -> filled met label
-      - e-mail / telefoon ingevuld
-      - getal/datum veranderd
-    Val daarna terug op LLM voor een korte beschrijving.
-    """
     _, old_txt = parse_prefixed(old_line)
     _, new_txt = parse_prefixed(new_line)
 
-    # Label / value-parsing
     old_label, old_val = split_label_value(old_txt)
     new_label, new_val = split_label_value(new_txt)
     key = label_key(new_label or old_label)
 
-    # unknown -> filled
     if key and is_unknown_value(old_val) and not is_unknown_value(new_val) and new_val:
         return f"Veld {key} ingevuld: van onbekend → {new_val}"
 
-    # contact ingevuld
     contact_msg = detect_contact_filled(old_txt, new_txt)
     if contact_msg:
         return contact_msg
 
-    # number change
     nv = detect_number_change(old_txt, new_txt)
     if nv:
         return f"Aantal aangepast: {nv[0]} → {nv[1]}"
 
-    # date change
     dv = detect_date_change(old_txt, new_txt)
     if dv:
         return f"Datum aangepast: {dv[0]} → {dv[1]}"
 
-    # fallback LLM (korte beschrijving)
     client = get_groq_client()
     return llm_describe_change(client, old_txt, new_txt, "replace")
 
 def describe_insert(new_line: str) -> str:
-    """Insert: probeer label/value, anders LLM."""
     _, new_txt = parse_prefixed(new_line)
     label, val = split_label_value(new_txt)
     key = label_key(label)
     if key and not is_unknown_value(val) and val:
         return f"Nieuw veld: {key} = {val}"
-    # contact ingevuld in geheel nieuwe regel
     contact_msg = detect_contact_filled("", new_txt)
     if contact_msg:
         return contact_msg
-    # fallback LLM
     client = get_groq_client()
     return llm_describe_change(client, "", new_txt, "insert")
 
@@ -213,7 +189,6 @@ def describe_insert(new_line: str) -> str:
 # =========================
 
 def add_highlight_with_note(page, text, color, note):
-    """Highlight tekst en voeg sticky note toe met uitleg."""
     if not text:
         return 0
     try:
@@ -236,11 +211,10 @@ def add_highlight_with_note(page, text, color, note):
 def annotate_pdf_v2(v2_bytes: bytes,
                     inserts: List[str],
                     replaces: List[Tuple[str, str]]) -> bytes:
-    GREEN = (0.1, 0.7, 0.1)   # inserts
-    YELLOW = (0.95, 0.8, 0.2) # replaces
+    GREEN = (0.1, 0.7, 0.1)
+    YELLOW = (0.95, 0.8, 0.2)
 
     with fitz.open(stream=v2_bytes, filetype="pdf") as doc:
-        # Inserts
         for pref in inserts:
             p_idx, txt = parse_prefixed(pref)
             snippet = pick_search_snippet(txt)
@@ -248,7 +222,6 @@ def annotate_pdf_v2(v2_bytes: bytes,
             if snippet and 1 <= p_idx <= len(doc):
                 add_highlight_with_note(doc[p_idx - 1], snippet, GREEN, note)
 
-        # Replaces
         for old_pref, new_pref in replaces:
             p_idx, new_txt = parse_prefixed(new_pref)
             snippet = pick_search_snippet(new_txt)
@@ -261,12 +234,28 @@ def annotate_pdf_v2(v2_bytes: bytes,
         return out.getvalue()
 
 # =========================
-# Streamlit app (met frontend-waarschuwing)
+# UI helpers
+# =========================
+
+def show_pdf_inline(pdf_bytes: bytes, height: int = 800):
+    b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    html = f'''
+    <iframe
+        src="data:application/pdf;base64,{b64}"
+        width="100%"
+        height="{height}"
+        type="application/pdf">
+    </iframe>
+    '''
+    st.markdown(html, unsafe_allow_html=True)
+
+# =========================
+# Streamlit app
 # =========================
 
 def app():
     st.markdown("## 🔍 Coge")
-    st.caption("Contextuele annotaties in PDF v2 + frontend-waarschuwing bij ander document")
+    st.caption("Contextuele annotaties in PDF v2 + frontend-waarschuwing")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -285,23 +274,20 @@ def app():
         v1_pages = extract_pdf_lines(v1_bytes)
         v2_pages = extract_pdf_lines(v2_bytes)
 
-    # ======= FRONTEND WAARSCHUWING (géén annotatie in PDF!) =======
+    # Waarschuwing bij groot verschil
     title1 = first_title_line(v1_pages)
     title2 = first_title_line(v2_pages)
     sim_global = similarity_ratio(full_text(v1_pages), full_text(v2_pages))
-    sim_title  = similarity_ratio(title1, title2) if title1 and title2 else 0.0
+    sim_title = similarity_ratio(title1, title2) if title1 and title2 else 0.0
 
-    # Drempels kun je tunen
     if sim_global < 0.55 or sim_title < 0.5:
         st.warning(
-            f"⚠️ Deze documenten lijken sterk te verschillen.\n\n"
+            f"⚠️ Documenten lijken sterk te verschillen.\n\n"
             f"**Titel v1:** {title1 or '(onbekend)'}\n\n"
             f"**Titel v2:** {title2 or '(onbekend)'}\n\n"
-            f"**Globale gelijkenis:** {sim_global:.2f}  |  **Titelgelijkenis:** {sim_title:.2f}\n\n"
-            f"Controleer of je de juiste bestanden vergelijkt."
+            f"**Globale gelijkenis:** {sim_global:.2f} | **Titelgelijkenis:** {sim_title:.2f}"
         )
 
-    # ======= DIFF & ANNOTATE =======
     with st.spinner("Verschillen detecteren en annoteren…"):
         flat_a = flatten_with_page_prefix(v1_pages)
         flat_b = flatten_with_page_prefix(v2_pages)
@@ -316,18 +302,21 @@ def app():
             elif tag == "replace":
                 old = flat_a[i1:i2]
                 new = flat_b[j1:j2]
-                # koppel paren op lengte; overschot laten we vallen (kan later uitgebreid worden)
                 for o, n in zip(old, new):
                     replaces.append((o, n))
-            # 'delete' tonen we niet in PDF (bestaat niet in v2). Kan eventueel in UI-rapport.
 
         out_bytes = annotate_pdf_v2(v2_bytes, inserts, replaces)
 
-    # Stats + download
-    st.subheader("📊 Markeringen aangebracht")
+    # Stats
+    st.subheader("📊 Markeringen")
     st.write(f"➕ Toegevoegd (groen): **{len(inserts)}** regels")
     st.write(f"🔁 Gewijzigd (geel): **{len(replaces)}** regels")
 
+    # Inline preview
+    st.subheader("👀 Preview geannoteerde PDF")
+    show_pdf_inline(out_bytes, height=900)
+
+    # Download
     st.download_button(
         "⬇️ Download geannoteerde PDF (v2)",
         data=out_bytes,
