@@ -3,6 +3,7 @@ import io
 import tempfile
 import streamlit as st
 import docx
+from docx.enum.text import WD_BREAK
 import re
 import json
 from groq import Groq
@@ -110,7 +111,7 @@ def get_replacements(template_text: str, context_text: str) -> list[dict]:
     return [r for r in repls if r['find'] and r['find']!=r['replace']]
 
 
-def apply_replacements(doc_path: str, replacements: list[dict]) -> bytes:
+def apply_replacements(doc_path: str, replacements: list[dict], include_changes_overview: bool = True) -> bytes:
     doc = docx.Document(doc_path)
     def repl(runs):
         if not runs: return
@@ -125,6 +126,30 @@ def apply_replacements(doc_path: str, replacements: list[dict]) -> bytes:
             for cell in row.cells:
                 for p in cell.paragraphs:
                     repl(p.runs)
+
+    # Append an overview of changes so they remain visible in the downloaded document
+    if include_changes_overview and replacements:
+        # Try to add a page break (if supported) so the overview appears on a new page
+        try:
+            p_br = doc.add_paragraph()
+            run = p_br.add_run()
+            run.add_break(WD_BREAK.PAGE)
+        except Exception:
+            # ignore if the environment/style doesn't support explicit page breaks
+            pass
+        # Add heading and bullet list of replacements
+        try:
+            doc.add_paragraph('Aangepaste onderdelen', style='Heading 1')
+        except Exception:
+            doc.add_paragraph('Aangepaste onderdelen')
+        for rp in replacements:
+            para = doc.add_paragraph(f"• {rp['find']} → {rp['replace']}")
+            try:
+                para.style = 'List Bullet'
+            except Exception:
+                # fallback: keep plain paragraph with bullet character
+                pass
+
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
