@@ -27,18 +27,42 @@ st.markdown(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 🔑 Groq Client Initialization
+# 🔑 Groq Client Initialization (robust: env var first, then secrets file)
 # ─────────────────────────────────────────────────────────────────────────────
 def get_groq_client():
-    api_key = st.secrets.get("groq", {}).get("api_key", "").strip()
+    # 1) Prefer environment variable (Codespaces remoteEnv or other envs)
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if api_key:
+        try:
+            return Groq(api_key=api_key)
+        except Exception as e:
+            st.sidebar.error(f"❌ Fout bij verbinden met Groq API (env): {e}")
+            st.stop()
+
+    # 2) Only access st.secrets if a secrets.toml exists (avoid StreamlitSecretNotFoundError)
+    possible = [
+        os.path.expanduser("~/.streamlit/secrets.toml"),
+        os.path.join(os.getcwd(), ".streamlit", "secrets.toml"),
+    ]
+    if any(os.path.exists(p) for p in possible):
+        try:
+            api_key = st.secrets.get("groq", {}).get("api_key", "").strip()
+        except Exception:
+            api_key = ""
+
+    # 3) If still no key, show helpful error in the sidebar and stop
     if not api_key:
-        st.sidebar.error("❌ Voeg Groq API key toe in `.streamlit/secrets.toml` onder [groq]")
+        st.sidebar.error(
+            "❌ Groq API key niet gevonden. Zet GROQ_API_KEY als environment variable of maak `.streamlit/secrets.toml` met [groq] api_key = \"...\""
+        )
         st.stop()
+
     try:
         return Groq(api_key=api_key)
     except Exception as e:
         st.sidebar.error(f"❌ Fout bij verbinden met Groq API: {e}")
         st.stop()
+
 
 groq_client = get_groq_client()
 
