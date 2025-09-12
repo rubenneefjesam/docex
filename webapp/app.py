@@ -30,19 +30,5 @@ elif choice == "Docex":
     docex.run()
 elif choice == "Coge":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>🔍 Coge</h1>", unsafe_allow_html=True)
-    import traceback
-    from pathlib import Path
-
-    try:
-        st.write("🔧 Import check:", coge)
-        st.write("📄 coge-module file:", getattr(coge, "__file__", "n/a"))
-
-        coge_path = Path(ROOT) / "tools" / "coge_tool" / "coge.py"
-        st.write("🗂️ coge.py exists?:", coge_path.exists(), str(coge_path))
-
-        st.write("✅ calling coge.app() …")
-        coge.app()
-        st.success("coge.app() executed")
-    except Exception as e:
-        st.error(f"❌ Fout in coge.app(): {e}")
-        st.code("".join(traceback.format_exception(type(e), e, e.__traceback__)))
+    from tools.coge_tool import coge  # (mag bovenin, maar hier forceert reload soms beter)
+    coge.app()
