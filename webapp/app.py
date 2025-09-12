@@ -29,6 +29,5 @@ elif choice == "Docex":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docex</h1>", unsafe_allow_html=True)
     docex.run()
 elif choice == "Coge":
-    st.markdown("<h1 style='font-size:28px; font-weight:700'>🔍 Coge</h1>", unsafe_allow_html=True)
-    from tools.coge_tool import coge  # (mag bovenin, maar hier forceert reload soms beter)
+    # st.markdown("<h1 ...>🔍 Coge</h1>", unsafe_allow_html=True)  # weg
     coge.app()
