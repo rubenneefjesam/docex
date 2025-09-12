@@ -1,4 +1,13 @@
 # webapp/app.py (Optie A)
+
+import sys
+from pathlib import Path
+
+# ✅ Voeg project-root toe zodat 'tools' gevonden wordt
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import streamlit as st
 from tools.docex_tool import docex  # jouw bestaande tool
 
