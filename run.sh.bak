@@ -5,4 +5,4 @@ set -a
 [ -f .env ] && source .env
 set +a
 # Start Streamlit
-streamlit run webapp/app.py
+streamlit run app.py
