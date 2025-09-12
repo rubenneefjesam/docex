@@ -7,6 +7,9 @@ from typing import List, Tuple, Dict
 import streamlit as st
 import fitz  # PyMuPDF
 
+# Hergebruik client uit Docex
+from tools.docex_tool.docex import get_groq_client
+
 # -----------------------------
 # PDF helpers
 # -----------------------------
@@ -48,6 +51,34 @@ def pick_search_snippet(s: str, min_len: int = 12, max_len: int = 80) -> str:
     return s if len(s) >= min_len else s
 
 # -----------------------------
+# LLM helper
+# -----------------------------
+
+def llm_describe_change(client, old: str, new: str, change_type: str) -> str:
+    """
+    Vraag LLM om kort en concreet te beschrijven wat er is veranderd.
+    change_type = insert | delete | replace
+    """
+    prompt = (
+        f"Beschrijf heel kort wat er is veranderd ({change_type}). "
+        "Geef 1 zin, concreet (bv. 'Aantal aangepast van 20 naar 40', "
+        "'Naam toegevoegd: Heijmans'). "
+        f"\nOud: {old or '(leeg)'}\nNieuw: {new or '(leeg)'}"
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            temperature=0,
+            messages=[
+                {"role": "system", "content": "Antwoord alleen met de korte beschrijving, geen extra uitleg."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        return f"{change_type.capitalize()} (LLM-fout: {e})"
+
+# -----------------------------
 # Annotaties
 # -----------------------------
 
@@ -62,23 +93,21 @@ def add_highlight_with_note(page, text, color, note):
 
     count = 0
     for r in rects:
-        # Highlight
         annot = page.add_highlight_annot(r)
         annot.set_colors(stroke=color)
         annot.update()
 
-        # Sticky note rechtsboven highlight
         note_point = fitz.Point(r.x1, r.y0)
         note_annot = page.add_text_annot(note_point, note, icon="Comment")
         note_annot.update()
-
         count += 1
     return count
 
 def annotate_pdf_v2(v2_bytes: bytes,
                     inserts: List[str],
-                    replaces_new: List[str],
-                    deletes_by_page: Dict[int, int]) -> bytes:
+                    replaces: List[Tuple[str, str]],
+                    deletes_by_page: Dict[int, int],
+                    client) -> bytes:
     GREEN = (0.1, 0.7, 0.1)   # inserts
     YELLOW = (0.95, 0.8, 0.2) # replaces
 
@@ -86,16 +115,19 @@ def annotate_pdf_v2(v2_bytes: bytes,
         # Toevoegingen
         for pref in inserts:
             p_idx, txt = parse_prefixed(pref)
-            if 1 <= p_idx <= len(doc):
-                snippet = pick_search_snippet(txt)
-                add_highlight_with_note(doc[p_idx - 1], snippet, GREEN, "Toegevoegd in versie 2")
+            snippet = pick_search_snippet(txt)
+            desc = llm_describe_change(client, "", txt, "insert")
+            if snippet and 1 <= p_idx <= len(doc):
+                add_highlight_with_note(doc[p_idx - 1], snippet, GREEN, desc)
 
-        # Gewijzigd (nieuwe kant)
-        for pref in replaces_new:
-            p_idx, txt = parse_prefixed(pref)
-            if 1 <= p_idx <= len(doc):
-                snippet = pick_search_snippet(txt)
-                add_highlight_with_note(doc[p_idx - 1], snippet, YELLOW, "Gewijzigd t.o.v. versie 1")
+        # Gewijzigd
+        for pref_old, pref_new in replaces:
+            p_idx, txt_new = parse_prefixed(pref_new)
+            _, txt_old = parse_prefixed(pref_old)
+            snippet = pick_search_snippet(txt_new)
+            desc = llm_describe_change(client, txt_old, txt_new, "replace")
+            if snippet and 1 <= p_idx <= len(doc):
+                add_highlight_with_note(doc[p_idx - 1], snippet, YELLOW, desc)
 
         # Verwijderd → FreeText-notitie
         for p_idx, count in deletes_by_page.items():
@@ -122,7 +154,7 @@ def annotate_pdf_v2(v2_bytes: bytes,
 
 def app():
     st.markdown("## 🔍 Coge")
-    st.caption("Wijzigingen markeren in PDF v2 (highlights + opmerkingen)")
+    st.caption("Contextuele PDF-vergelijking met highlights + LLM-opmerkingen")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -145,14 +177,17 @@ def app():
         flat_b = flatten_with_page_prefix(v2_pages)
 
         sm = difflib.SequenceMatcher(None, flat_a, flat_b, autojunk=False)
-        inserts, deletes, replaces_new = [], [], []
+        inserts, deletes, replaces = [], [], []
         for tag, i1, i2, j1, j2 in sm.get_opcodes():
             if tag == "insert":
                 inserts.extend(flat_b[j1:j2])
             elif tag == "delete":
                 deletes.extend(flat_a[i1:i2])
             elif tag == "replace":
-                replaces_new.extend(flat_b[j1:j2])
+                old = flat_a[i1:i2]
+                new = flat_b[j1:j2]
+                for o, n in zip(old, new):
+                    replaces.append((o, n))
 
         # deletions per pagina tellen
         deletes_by_page: Dict[int, int] = {}
@@ -160,12 +195,13 @@ def app():
             p_idx, _ = parse_prefixed(pref)
             deletes_by_page[p_idx] = deletes_by_page.get(p_idx, 0) + 1
 
-        out_bytes = annotate_pdf_v2(v2_bytes, inserts, replaces_new, deletes_by_page)
+        client = get_groq_client()
+        out_bytes = annotate_pdf_v2(v2_bytes, inserts, replaces, deletes_by_page, client)
 
     # Stats
     st.subheader("📊 Markeringen aangebracht")
     st.write(f"➕ Toegevoegd (groen): **{len(inserts)}** regels")
-    st.write(f"🔁 Gewijzigd (geel): **{len(replaces_new)}** regels")
+    st.write(f"🔁 Gewijzigd (geel): **{len(replaces)}** regels")
     st.write(f"➖ Verwijderd (rode notitie): **{sum(deletes_by_page.values())}** regels")
 
     # Download
