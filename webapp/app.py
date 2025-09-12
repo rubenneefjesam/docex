@@ -1,47 +1,25 @@
-# webapp/app.py
+# webapp/app.py (Optie A)
 import streamlit as st
 from tools.docex_tool import docex  # jouw bestaande tool
 
 st.set_page_config(page_title="Docx Suite", layout="wide")
 
-# Sidebar: Navigatie + Kies tool (elk precies één keer)
-st.sidebar.header("Navigatie")
-nav_choice = st.sidebar.radio("", ["Home", "Informatie"], index=0)
+# ---- Sidebar: één enkele keuze ----
+with st.sidebar:
+    st.header("Navigatie / Tools")
+    choice = st.radio("", ["Home", "Informatie", "Docex", "Coge"], index=0)
+    st.markdown("---")
 
-st.sidebar.markdown("---")
-
-st.sidebar.header("Kies tool")
-tool_choice = st.sidebar.radio("", ["(geen)", "Docex", "Coge"], index=0)
-
-# ===== Main: toon alleen de geselecteerde navigatie-pagina =====
-if nav_choice == "Home":
+# ---- Main ----
+if choice == "Home":
     st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
-    st.write(
-        """
-        Welkom bij de DOCX-app.
-        - Gebruik de sidebar om te schakelen tussen Home en Informatie.
-        - Kies een tool (Docex of Coge) in de sidebar om die te gebruiken.
-        """
-    )
-else:
+    st.write("Welkom bij de DOCX-app. Kies een tool via de sidebar.")
+elif choice == "Informatie":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>ℹ️ Informatie</h1>", unsafe_allow_html=True)
-    st.write(
-        """
-        Info:
-        - Docex: Document generator (je bestaande tool).
-        - Coge: Vergelijk / compare feature (placeholder).
-        """
-    )
-
-st.markdown("---")
-
-# ===== Tool area: toon de gekozen tool **alleen** =====
-if tool_choice == "Docex":
-    # Docex verschijnt alleen wanneer 'Docex' is geselecteerd
+    st.write("Info: Docex = Document generator, Coge = compare (placeholder).")
+elif choice == "Docex":
+    st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docex</h1>", unsafe_allow_html=True)
     docex.run()
-
-elif tool_choice == "Coge":
-    # Placeholder Coge; hier kun je later de compare-UI toevoegen
-    st.markdown("<h2 style='font-size:22px; font-weight:700'>🔍 Coge</h2>", unsafe_allow_html=True)
+elif choice == "Coge":
+    st.markdown("<h1 style='font-size:28px; font-weight:700'>🔍 Coge</h1>", unsafe_allow_html=True)
     st.write("Coge — placeholder voor compare-feature.")
-# else "(geen)" -> toon geen tool (alleen de nav content)
