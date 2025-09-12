@@ -1,2 +1,7 @@
 .env
 .streamlit/secrets.toml
+# Local/temporary files
+*.bak
+tmp*
+*.docx
+.env
