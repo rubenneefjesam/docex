@@ -12,7 +12,7 @@ from docx.enum.text import WD_BREAK
 
 # Importeer interne modules
 from . import steps  # steps.py zit in dezelfde map als deze file
-from docx_utils import read_docx, apply_replacements  # core/docx_utils.py
+from .docx_utils import read_docx, apply_replacements  # core/docx_utils.py
 
 # -----------------------------
 # Groq-client ophalen
