@@ -3,14 +3,20 @@
 import sys
 from pathlib import Path
 
+# --- projectroot aan sys.path toevoegen ---
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import streamlit as st
-from tools.docgen_tool import docgen   # <-- gebruik docgen_tool
-from tools.coge_tool import coge      # <-- import coge
 
+# --- correcte imports ---
+# Docgen komt uit docex.py (pas dit aan als het in steps.py staat)
+from tools.docgen_tool.docex import docgen
+# Coge komt uit coge.py
+from tools.coge_tool.coge import coge
+
+# --- Streamlit setup ---
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
 with st.sidebar:
@@ -21,11 +27,14 @@ with st.sidebar:
 if choice == "Home":
     st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
     st.write("Welkom bij de **Docgen-app**. Kies een tool via de sidebar.")
+
 elif choice == "Informatie":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>ℹ️ Informatie</h1>", unsafe_allow_html=True)
     st.write("Info: **Docgen** = Document generator, **Coge** = compare (placeholder).")
+
 elif choice == "Docgen":
     st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docgen</h1>", unsafe_allow_html=True)
     docgen.run()
+
 elif choice == "Coge":
     coge.app()
