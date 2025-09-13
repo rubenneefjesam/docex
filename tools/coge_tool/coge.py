@@ -4,6 +4,7 @@ import re
 import difflib
 import base64
 from typing import List, Tuple, Dict, Optional
+from tools.docgen_tool.docex import get_groq_client
 
 import streamlit as st
 import fitz  # PyMuPDF
