@@ -1,4 +1,4 @@
-# tools/docdiff_tool_tool/steps.py
+# tools/dogen_tool/steps.py
 from typing import List
 _steps: List[str] = []
 
