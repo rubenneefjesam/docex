@@ -54,8 +54,32 @@ elif choice == "Informatie":
     st.write("Info: **Docgen** = Document generator, **Coge** = compare (placeholder).")
 
 elif choice == "Docgen":
-    st.markdown("<h1 style='font-size:28px; font-weight:700'>✍️ Docgen</h1>", unsafe_allow_html=True)
-    docgen.run()
+    st.markdown("<h1 style=\'font-size:28px; font-weight:700\'>✍️ Docgen</h1>", unsafe_allow_html=True)
+    docmod = load_tool_module_candidate(
+        "tools.doc_generator.docgen",
+        "tools.plan_creator.dogen",
+        "tools.doc_generator",
+        "tools.plan_creator"
+    )
+    if docmod:
+        try:
+            call_first_callable(docmod)
+        except Exception as e:
+            st.error(f"Fout bij starten Docgen: {e}")
+    else:
+        st.error("Docgen module niet gevonden (controleer tools/doc_generator of tools/plan_creator)")
 
 elif choice == "Coge":
-    coge.app()
+    st.markdown("<h1 style=\'font-size:28px; font-weight:700\'>🔍 Coge</h1>", unsafe_allow_html=True)
+    cogemod = load_tool_module_candidate(
+        "tools.doc_comparison.coge",
+        "tools.coge_tool.coge",
+        "tools.doc_comparison"
+    )
+    if cogemod:
+        try:
+            call_first_callable(cogemod)
+        except Exception as e:
+            st.error(f"Fout bij starten Coge: {e}")
+    else:
+        st.error("Coge module niet gevonden (controleer tools/doc_comparison)")
