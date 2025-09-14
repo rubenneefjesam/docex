@@ -1,160 +1,173 @@
 import streamlit as st
-from pathlib import Path
+from pathlib import Path  # handig als je later templates/assets laadt
 
-# basis config
+# -----------------------
+# Config + defaults
+# -----------------------
 st.set_page_config(page_title="Document generator-app", layout="wide")
 
-# --- Helper: init session_state defaults ---
-if "main_nav" not in st.session_state:
-    st.session_state["main_nav"] = "Home"
-if "assistant_nav" not in st.session_state:
-    st.session_state["assistant_nav"] = "General support"
-if "tool_nav" not in st.session_state:
-    st.session_state["tool_nav"] = "— Kies tool —"
+# veilige defaults (beste practice)
+st.session_state.setdefault("main_nav", "Home")
+st.session_state.setdefault("assistant_nav", "General support")
+st.session_state.setdefault("tool_nav", "— Kies tool —")
 
-# --- SIDEBAR (navigatie) ---
+# Optie: reset assistant/tool zodra je niet op 'Assistants' staat
+RESET_ASSISTANT_ON_LEAVE = True
+
+# -----------------------
+# Opties / constanten
+# -----------------------
+PAGES = ["Home", "Assistants", "Info", "Contact"]
+ASSISTANTS = [
+    "General support",
+    "Tender assistant",
+    "Risk assistant",
+    "Calculator assistant",
+    "Legal assistant",
+    "Project assistant",
+    "Sustainability advisor",
+]
+TOOLS = ["— Kies tool —", "Document generator", "Document comparison"]
+
+# -----------------------
+# Helpers
+# -----------------------
+def safe_index(options, value, default=0):
+    """Veilige index: return default als value niet in options staat."""
+    try:
+        return options.index(value)
+    except ValueError:
+        return default
+
+# kleine helper voor path naar project root (optioneel)
+ROOT = Path(__file__).resolve().parents[1]
+
+# -----------------------
+# Sidebar (navigatie)
+# -----------------------
 with st.sidebar:
     st.markdown("## Hoofdmenu")
-    page = st.radio(
-        label="",
-        options=["Home", "Assistants", "Info", "Contact"],
-        index=["Home", "Assistants", "Info", "Contact"].index(st.session_state["main_nav"]),
-        key="main_nav"
-    )
+    page_idx = safe_index(PAGES, st.session_state["main_nav"])
+    page = st.radio("", options=PAGES, index=page_idx, key="main_nav")
     st.markdown("---")
 
-    # Alleen tonen wanneer "Assistants" geselecteerd is
     if st.session_state["main_nav"] == "Assistants":
+        ass_idx = safe_index(ASSISTANTS, st.session_state["assistant_nav"])
         st.markdown("### Assistent voor:")
-        assistant = st.radio(
-            label="",
-            options=[
-                "General support",
-                "Tender assistant",
-                "Risk assistant",
-                "Calculator assistant",
-                "Legal assistant",
-                "Project assistant",
-                "Sustainability advisor"
-            ],
-            index=0 if st.session_state["assistant_nav"] not in [
-                "General support",
-                "Tender assistant",
-                "Risk assistant",
-                "Calculator assistant",
-                "Legal assistant",
-                "Project assistant",
-                "Sustainability advisor"
-            ] else [
-                "General support",
-                "Tender assistant",
-                "Risk assistant",
-                "Calculator assistant",
-                "Legal assistant",
-                "Project assistant",
-                "Sustainability advisor"
-            ].index(st.session_state["assistant_nav"]),
-            key="assistant_nav"
-        )
+        assistant = st.radio("", options=ASSISTANTS, index=ass_idx, key="assistant_nav")
 
+        tool_idx = safe_index(TOOLS, st.session_state["tool_nav"])
         st.markdown("### Kies tool:")
-        tool = st.radio(
-            label="",
-            options=["— Kies tool —", "Document generator", "Document comparison"],
-            index=["— Kies tool —", "Document generator", "Document comparison"].index(st.session_state["tool_nav"]),
-            key="tool_nav"
-        )
+        tool = st.radio("", options=TOOLS, index=tool_idx, key="tool_nav")
     else:
-        # Zorg dat sidebar-keuzes geen oude state houden als we niet op Assistants staan
-        # (optioneel: uncomment om te clearen)
-        # st.session_state["assistant_nav"] = "General support"
-        # st.session_state["tool_nav"] = "— Kies tool —"
+        # optioneel resetten zodat oude keuzes niet blijven hangen
+        if RESET_ASSISTANT_ON_LEAVE:
+            st.session_state["assistant_nav"] = ASSISTANTS[0]
+            st.session_state["tool_nav"] = TOOLS[0]
         assistant = None
         tool = None
 
-# --- MAIN RENDER FUNCTIES ---
+# -----------------------
+# Render-functies
+# -----------------------
+def render_header():
+    # indien je een vaste header wil: logo, titel, kleine uitleg etc.
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        st.write("")  # ruimte voor logo: st.image(...)
+    with col2:
+        st.markdown("## Document generator-app")
+        st.write("Kies links in het menu een pagina en, bij *Assistants*, een assistent en tool.")
+
 def render_home():
+    render_header()
     st.title("🏠 Home")
     st.write("Welkom bij de **Document generator-app**. Kies een assistent via het zijmenu.")
     st.markdown("---")
     st.subheader("Beschikbare assistenten")
-    st.write(
-        "- General support  \n"
-        "- Document generator  \n"
-        "- Document comparison  \n"
-        "- Tender assistant  \n"
-        "- Risk assistant  \n"
-        "- Calculator assistant  \n"
-        "- Legal assistant  \n"
-        "- Project assistant  \n"
-        "- Sustainability advisor"
-    )
+    for a in ASSISTANTS:
+        st.write(f"- {a}")
     st.info("Tip: ga naar *Assistants* in het zijmenu om per assistent specifieke tools en content te zien.")
 
 def render_info():
+    render_header()
     st.title("ℹ️ Info")
-    st.write("Informatie over de app, versie, changelog en instructies.")
+    st.write("Informatie over de app, versie en instructies.")
     st.write("- Versie: 1.0.0")
     st.write("- Auteur: Team X")
-    st.write("- Laatste wijziging: 2025-09-XX")
+    st.write("- Documentatie: zie repo /docs")
 
 def render_contact():
+    render_header()
     st.title("📬 Contact")
-    st.write("Neem contact op met de support of PO AI.")
+    st.write("Support en contactinformatie.")
     st.write("- E-mail: support@example.com")
     st.write("- Interne chat: #ai-innovation")
     st.write("- Telefoon: 012-3456789")
 
-# Per-assistent renderers (voorbeeldcontent)
+# voorbeeld per-assistent content (breid uit per behoefte)
 def render_general(assistant, tool):
-    st.title(f"{assistant}")
+    render_header()
+    st.title(assistant)
     st.write("Korte omschrijving van General support.")
     st.write("Gekozen tool:", tool)
+
     if tool == "Document generator":
-        st.write("Hier kun je documenten genereren — formulier/inputs ...")
-        # voorbeeldform
-        name = st.text_input("Documentnaam", value="nieuw_document.docx")
-        prompt = st.text_area("Prompt / instructies", value="Maak een samenvatting van ...")
-        if st.button("Genereer document"):
-            st.success(f"Document `{name}` gegenereerd met prompt (simulatie).")
+        with st.form("gen_form"):
+            name = st.text_input("Documentnaam", value="nieuw_document.docx")
+            prompt = st.text_area("Prompt / instructies", value="Maak een korte samenvatting van ...")
+            submit = st.form_submit_button("Genereer document")
+            if submit:
+                # hier komt je generator-logica (simulatie placeholder)
+                st.success(f"Document `{name}` gegenereerd (simulatie).")
+                st.write("Prompt gebruikt:")
+                st.code(prompt)
     elif tool == "Document comparison":
         st.write("Vergelijk twee documenten (PDF/DOCX) — upload hieronder:")
         col1, col2 = st.columns(2)
         with col1:
-            doc_a = st.file_uploader("Upload document A", type=["pdf", "docx"], key="a")
+            doc_a = st.file_uploader("Upload document A", type=["pdf", "docx"], key="file_a")
         with col2:
-            doc_b = st.file_uploader("Upload document B", type=["pdf", "docx"], key="b")
+            doc_b = st.file_uploader("Upload document B", type=["pdf", "docx"], key="file_b")
         if doc_a and doc_b:
-            st.write("Start vergelijking... (simulatie)")
-            st.success("Vergelijking klaar — wijzigingen: 3 paragrafen gewijzigd")
+            # plaats hier echte vergelijking; nu demo
+            st.info("Bestanden geüpload — vergelijking wordt uitgevoerd (simulatie).")
+            st.success("Vergelijking klaar — wijzigingen: 3 paragrafen gewijzigd (demo).")
     else:
         st.write("Selecteer een tool om verder te gaan.")
 
 def render_tender(assistant, tool):
-    st.title(f"{assistant}")
-    st.write("Specifieke workflows en templates voor tender-begeleiding.")
+    render_header()
+    st.title(assistant)
+    st.write("Workflows en templates voor tender-begeleiding.")
     st.write("Gekozen tool:", tool)
-    st.button("Open tender-template (voorbeeld)")
+    if st.button("Open tender-template (demo)"):
+        st.write("Tender-template geopend (demo).")
 
-# Dispatcher: wat renderen we in main area?
-if st.session_state["main_nav"] == "Home":
+# -----------------------
+# Dispatcher (main area)
+# -----------------------
+current_page = st.session_state.get("main_nav", "Home")
+
+if current_page == "Home":
     render_home()
-elif st.session_state["main_nav"] == "Info":
+elif current_page == "Info":
     render_info()
-elif st.session_state["main_nav"] == "Contact":
+elif current_page == "Contact":
     render_contact()
-elif st.session_state["main_nav"] == "Assistants":
-    # Safety: als assistant None is, toon instructie
-    chosen_assistant = st.session_state.get("assistant_nav", "General support")
-    chosen_tool = st.session_state.get("tool_nav", "— Kies tool —")
+elif current_page == "Assistants":
+    chosen_assistant = st.session_state.get("assistant_nav", ASSISTANTS[0])
+    chosen_tool = st.session_state.get("tool_nav", TOOLS[0])
 
-    # render per assistant
+    # kies rendering per assistent
     if chosen_assistant == "General support":
         render_general(chosen_assistant, chosen_tool)
     elif chosen_assistant == "Tender assistant":
         render_tender(chosen_assistant, chosen_tool)
     else:
+        # fallback / placeholder
+        render_header()
         st.title(chosen_assistant)
         st.write("Content nog te implementeren voor deze assistent.")
 else:
-    st.write("Onbekende pagina.")
+    st.error("Onbekende pagina geselecteerd.")
