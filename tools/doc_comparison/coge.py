@@ -4,13 +4,13 @@ import re
 import difflib
 import base64
 from typing import List, Tuple, Dict, Optional
-from tools.doc_generator.docex import get_groq_client
+from tools.doc_extractor.docex import get_groq_client
 
 import streamlit as st
 import fitz  # PyMuPDF
 
 # Hergebruik de Groq client loader uit Docex (voor fallback-beschrijvingen)
-from tools.docex_tool.docex import get_groq_client
+from tools.doc_extractor.docex import get_groq_client
 
 # =========================
 # PDF / Extract helpers
