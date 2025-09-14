@@ -126,7 +126,7 @@ with st.sidebar:
     st.header("Assistent voor:")
     top_choice = st.radio(
         "Assistent voor:",
-        ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"],
+        ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant", "Project assistant", "Sustainability advisor"],
         index=0,
         label_visibility="collapsed",
     )
