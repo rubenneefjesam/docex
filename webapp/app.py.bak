@@ -10,6 +10,45 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
+# /* CUSTOM-UI: sidebar-green */
+st.markdown(
+    """
+    <style>
+    /* Sidebar groen */
+    [data-testid="stSidebar"] > div[role="complementary"] {
+        background: linear-gradient(180deg,#16a34a 0%, #059669 100%) !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .css-1kyxreq { color: #ffffff !important; }
+
+    /* Zorg dat radio buttons/labels in de sidebar goed contrasteren */
+    [data-testid="stSidebar"] .stRadio > label, 
+    [data-testid="stSidebar"] .stText, 
+    [data-testid="stSidebar"] .stMarkdown {
+        color: #ffffff !important;
+    }
+
+    /* Main content wit en tekst zwart */
+    [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    /* Block container (voorkomt dat losse cards donker blijven) */
+    .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding-top: 1.5rem;
+    }
+    /* Kleine safety: buttons etc. */
+    .stButton>button, .stDownloadButton>button {
+        color: #000000 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# end marker
+
 # Dynamic loader helpers: probeer meerdere kandidaat-modules en callables
 import importlib
 
