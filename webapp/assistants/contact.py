@@ -1,3 +1,7 @@
+DISPLAY_NAME = "Contact"
+IS_ASSISTANT = False
+TOOLS = ["— Kies tool —"]
+
 # webapp/assistants/contact.py
 DISPLAY_NAME = "Contact"
 TOOLS = ["— Kies tool —"]  # Contact heeft meestal geen tools, maar lijst moet bestaan

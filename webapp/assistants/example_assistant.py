@@ -1,3 +1,7 @@
+DISPLAY_NAME = "Voorbeeld assistant"
+IS_ASSISTANT = False
+TOOLS = ["— Kies tool —", "Tool 1"]
+
 # voorbeeldtemplate voor een assistant-module
 DISPLAY_NAME = "Voorbeeld assistant"
 TOOLS = ["— Kies tool —", "Tool 1", "Tool 2"]

@@ -1,3 +1,7 @@
+DISPLAY_NAME = "Info"
+IS_ASSISTANT = False
+TOOLS = ["— Kies tool —"]
+
 # webapp/assistants/info.py
 DISPLAY_NAME = "Info"
 TOOLS = ["— Kies tool —"]  # geen tools, maar volg de conventie
