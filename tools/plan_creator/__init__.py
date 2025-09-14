@@ -4,4 +4,4 @@
 try:
     from .dogen import run as docgen
 except Exception:
-    Document generator = None
+    docgen = None
