@@ -99,7 +99,7 @@ st.markdown(
 
 with st.sidebar:
     st.header("Assistent voor:")
-    top_choice = st.radio("Assistent voor:", label_visibility="collapsed", ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"], index=0)
+    top_choice = st.radio("Assistent voor:", ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"], index=0, label_visibility="collapsed")
     st.markdown("---")
     sub_choice = None
 
