@@ -4,6 +4,12 @@ import sys
 from pathlib import Path
 
 ASSISTANTS_DIR = Path(__file__).parent
+# ---- BEGIN FIX: zorg dat 'webapp' op sys.path staat zodat "import assistants" werkt ----
+parent = str(ASSISTANTS_DIR.parent)  # dit is de 'webapp' map
+if parent not in sys.path:
+    sys.path.insert(0, parent)
+# ---- END FIX ----
+
 problems = []
 
 for py in sorted(ASSISTANTS_DIR.glob("*.py")):
