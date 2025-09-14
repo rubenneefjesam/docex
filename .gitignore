@@ -1,13 +1,18 @@
-.env
-.streamlit/secrets.toml
-# Local/temporary files
-*.bak
-tmp*
-*.docx
-.env
+# Python cache & env
 __pycache__/
+*.py[cod]
 *.pyc
-.vscode/
-secrets.toml
+*.pyo
+*.pyd
+
+# Env & secrets
 .env
 .env.*
+.streamlit/secrets.toml
+secrets.toml
+
+# Editor / IDE
+.vscode/
+
+# Local / temp / backups
+*.bak
