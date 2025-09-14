@@ -1,4 +1,4 @@
-# tools/riskanalyzer_tool_tool/steps.py
+# tools/risk_analyzer_tool/steps.py
 from typing import List
 _steps: List[str] = []
 

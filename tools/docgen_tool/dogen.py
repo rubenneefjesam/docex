@@ -1,4 +1,4 @@
-# tools/dogen_tool/dogen.py
+# tools/docgen_tool/dogen.py
 # AANGEPAST: commentaar per belangrijke component / functie toegevoegd (Nederlands)
 
 import os
@@ -269,7 +269,7 @@ def run(show_nav: bool = True):
     except Exception:
         import importlib
 
-        _steps_mod = importlib.import_module("tools.dogen_tool.steps")
+        _steps_mod = importlib.import_module("tools.docgen_tool.steps")
 
     # use the local reference for internal calls
     steps_mod = _steps_mod
