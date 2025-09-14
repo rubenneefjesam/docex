@@ -5,6 +5,7 @@ TOOLS = ["— Kies tool —", "Document generator", "Document comparison"]
 
 import streamlit as st
 
+# probeer renderer functies te importeren (als die bestaan)
 try:
     from .document_generator import render as _render_docgen
 except Exception:
