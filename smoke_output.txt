@@ -1,5 +1,0 @@
-2025-09-14 12:06:57.364 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
-Project root: /workspaces/docex
-gevonden tool-modules: ['doc_comparison', 'doc_extractor', 'doc_generator', 'doc_riskanalyzer', 'plan_creator', 'smoke_import']
-
-Smoke-imports OK — geen import exceptions gedetecteerd
