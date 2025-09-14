@@ -12,7 +12,7 @@ import streamlit as st
 
 # --- correcte imports ---
 # Docgen komt uit docex.py (pas dit aan als het in steps.py staat)
-from tools.docgen_tool import docgen
+from tools.plan_creator import docgen
 # Coge komt uit coge.py
 from tools.coge_tool.coge import coge
 
