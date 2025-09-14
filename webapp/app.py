@@ -17,37 +17,43 @@ RESET_ASSISTANT_ON_LEAVE = True
 # -----------------------
 # Dynamic discovery for assistants (files and packages)
 # -----------------------
-ASSISTANTS_DIR = Path(__file__).parent / "assistants"
-
 def discover_assistants() -> Dict[str, Dict[str, Any]]:
     """
     Discover assistant modules in webapp/assistants.
+    Only include modules where IS_ASSISTANT is True.
     Supports:
       - single-file assistants (assistants/foo.py)
       - package assistants (assistants/foo/__init__.py)
-
-    Returns dict {key: {"module": module, "display": display_name, "tools": [...]}}
     """
     assistants: Dict[str, Dict[str, Any]] = {}
     if not ASSISTANTS_DIR.exists():
         return assistants
+
+    def try_load(path: Path, key: str):
+        try:
+            spec = importlib.util.spec_from_file_location(f"assistants.{key}", str(path))
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[f"assistants.{key}"] = mod
+            spec.loader.exec_module(mod)
+            # must explicitly mark as assistant
+            is_assistant = getattr(mod, "IS_ASSISTANT", False)
+            if not is_assistant:
+                return None
+            display = getattr(mod, "DISPLAY_NAME", key)
+            tools = getattr(mod, "TOOLS", [])
+            return {"module": mod, "display": display, "tools": tools}
+        except Exception as e:
+            st.warning(f"Kon assistant '{path.name}' niet laden: {e}")
+            return None
 
     # 1) python files directly in the folder
     for py in sorted(ASSISTANTS_DIR.glob("*.py")):
         if py.name.startswith("_") or py.name == "validate_assistants.py":
             continue
         key = py.stem
-        try:
-            spec = importlib.util.spec_from_file_location(f"assistants.{key}", str(py))
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[f"assistants.{key}"] = mod
-            spec.loader.exec_module(mod)
-            display = getattr(mod, "DISPLAY_NAME", key)
-            tools = getattr(mod, "TOOLS", [])
-            assistants[key] = {"module": mod, "display": display, "tools": tools}
-        except Exception as e:
-            # show a clear warning in the app so you can fix the module
-            st.warning(f"Kon assistant module '{py.name}' niet laden: {e}")
+        meta = try_load(py, key)
+        if meta:
+            assistants[key] = meta
 
     # 2) directories (packages) with __init__.py
     for d in sorted([p for p in ASSISTANTS_DIR.iterdir() if p.is_dir()]):
@@ -55,35 +61,11 @@ def discover_assistants() -> Dict[str, Dict[str, Any]]:
         if not init_py.exists():
             continue
         key = d.name
-        try:
-            spec = importlib.util.spec_from_file_location(f"assistants.{key}", str(init_py))
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[f"assistants.{key}"] = mod
-            spec.loader.exec_module(mod)
-            display = getattr(mod, "DISPLAY_NAME", key)
-            tools = getattr(mod, "TOOLS", [])
-            assistants[key] = {"module": mod, "display": display, "tools": tools}
-        except Exception as e:
-            st.warning(f"Kon assistant package '{d.name}' niet laden: {e}")
+        meta = try_load(init_py, key)
+        if meta:
+            assistants[key] = meta
 
     return assistants
-
-# Discover assistants at startup
-ASSISTANTS = discover_assistants()  # dict
-
-# Map display -> key for lookup
-DISPLAY_TO_KEY = {v["display"]: k for k, v in ASSISTANTS.items()}
-
-# -----------------------
-# Safe helpers
-# -----------------------
-
-def safe_index(options, value, default=0):
-    try:
-        return options.index(value)
-    except Exception:
-        return default
-
 # -----------------------
 # Sidebar (navigation)
 # -----------------------
