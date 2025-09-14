@@ -2,7 +2,7 @@
 
  tools/doc_generator/doc_generator.py
 
-**Belangrijkste bestanden / entrypoints:** docgen,steps
+**Belangrijkste bestanden / entrypoints:** Document generator,steps
 
 ## Doel
 Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
@@ -11,9 +11,9 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.doc_generator import docgen; print(docgen.__doc__)"
+python -c "from tools.doc_generator import Document generator; print(Document generator.__doc__)"
 # of run (indien streamlit)
-# streamlit run tools/doc_generator/docgen.py
+# streamlit run tools/doc_generator/Document generator.py
 ```
 
 ## Dependencies

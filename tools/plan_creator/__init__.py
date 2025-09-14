@@ -2,6 +2,6 @@
 # Expose canonical entrypoint used by webapp
 # We import safely and fall back to None if import fails so package remains importable.
 try:
-    from .dogen import run as docgen
+    from .dogen import run as Document generator
 except Exception:
-    docgen = None
+    Document generator = None

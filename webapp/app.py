@@ -32,10 +32,10 @@ def call_first_callable(module, names=("run","app","main")):
 
 
 # --- correcte imports ---
-# Document generator komt uit tools.doc_extractor.docex (pas dit aan als het in steps.py staat)
-from tools.plan_creator import docgen
-# Document comparison komt uit tools.doc_comparison.coge
-# from tools.doc_comparison.coge import coge
+# Document generator komt uit tools.doc_extractor.Document generator (pas dit aan als het in steps.py staat)
+from tools.plan_creator import Document generator
+# Document comparison komt uit tools.doc_comparison.Document comparison
+# from tools.doc_comparison.Document comparison import Document comparison
 
 # --- Streamlit setup ---
 st.set_page_config(page_title="Document generator Suite", layout="wide")
@@ -55,7 +55,7 @@ elif choice == "Informatie":
 
 elif choice == "Document generator":
     docmod = load_tool_module_candidate(
-        "tools.doc_generator.docgen",
+        "tools.doc_generator.Document generator",
         "tools.plan_creator.dogen",
         "tools.doc_generator",
         "tools.plan_creator"
@@ -71,8 +71,8 @@ elif choice == "Document generator":
 elif choice == "Document comparison":
     st.markdown("<h1 style=\'font-size:28px; font-weight:700\'>🔍 Document comparison</h1>", unsafe_allow_html=True)
     cogemod = load_tool_module_candidate(
-        "tools.doc_comparison.coge",
-#         "tools.doc_comparison.coge",
+        "tools.doc_comparison.Document comparison",
+#         "tools.doc_comparison.Document comparison",
         "tools.doc_comparison"
     )
     if cogemod:

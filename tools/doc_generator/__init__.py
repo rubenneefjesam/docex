@@ -1,3 +1,3 @@
-from .docgen import run as docgen
+from .Document generator import run as Document generator
 
-__all__ = ["docgen"]
+__all__ = ["Document generator"]
