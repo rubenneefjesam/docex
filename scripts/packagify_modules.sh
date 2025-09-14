@@ -1,5 +1,3 @@
-mkdir -p scripts
-cat > scripts/packagify_modules.sh <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -109,6 +107,3 @@ PY
 done
 
 echo "✅ Klaar."
-BASH
-
-chmod +x scripts/packagify_modules.sh
