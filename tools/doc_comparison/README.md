@@ -1,8 +1,8 @@
 # doc_comparison
 
- tools/coge_tool/coge.py
+ tools/doc_comparison/Document comparison.py
 
-**Belangrijkste bestanden / entrypoints:** coge
+**Belangrijkste bestanden / entrypoints:** Document comparison
 
 ## Doel
 Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
@@ -11,9 +11,9 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.doc_comparison import coge; print(coge.__doc__)"
+python -c "from tools.doc_comparison import Document comparison; print(Document comparison.__doc__)"
 # of run (indien streamlit)
-# streamlit run tools/doc_comparison/coge.py
+# streamlit run tools/doc_comparison/Document comparison.py
 ```
 
 ## Dependencies

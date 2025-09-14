@@ -1,4 +1,4 @@
-# tools/docex_tool_tool/steps.py
+# tools/doc_extractor/steps/steps.py
 from typing import List
 _steps: List[str] = []
 

@@ -1,6 +1,6 @@
 # doc_generator
 
- tools/docgen_tool_tool/docgen_tool.py
+ tools/doc_generator/doc_generator.py
 
 **Belangrijkste bestanden / entrypoints:** docgen,steps
 

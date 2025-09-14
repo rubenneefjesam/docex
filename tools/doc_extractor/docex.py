@@ -1,4 +1,4 @@
-# tools/docex_tool/docex.py
+# tools/doc_extractor/docex.py
 
 import os
 import io
@@ -169,7 +169,7 @@ def run(show_nav: bool = True):
         from . import steps as _steps_mod
     except Exception:
         import importlib
-        _steps_mod = importlib.import_module("tools.docex_tool.steps")
+        _steps_mod = importlib.import_module("tools.doc_extractor.steps")
 
     steps_mod = _steps_mod
     steps_mod.clear_steps()

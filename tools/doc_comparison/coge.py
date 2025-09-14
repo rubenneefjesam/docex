@@ -1,4 +1,4 @@
-# tools/coge_tool/coge.py
+# tools/doc_comparison/coge.py
 import io
 import re
 import difflib

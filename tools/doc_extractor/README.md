@@ -1,8 +1,8 @@
 # doc_extractor
 
- tools/docex_tool/docex.py
+ tools/doc_extractor/Document generator.py
 
-**Belangrijkste bestanden / entrypoints:** docex,steps
+**Belangrijkste bestanden / entrypoints:** Document generator,steps
 
 ## Doel
 Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
@@ -11,9 +11,9 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.doc_extractor import docex; print(docex.__doc__)"
+python -c "from tools.doc_extractor import Document generator; print(Document generator.__doc__)"
 # of run (indien streamlit)
-# streamlit run tools/doc_extractor/docex.py
+# streamlit run tools/doc_extractor/Document generator.py
 ```
 
 ## Dependencies

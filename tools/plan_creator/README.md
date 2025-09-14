@@ -1,6 +1,6 @@
-# docgen_tool
+# doc_generator
 
- tools/docgen_tool/dogen.py
+ tools/doc_generator/dogen.py
 
 **Belangrijkste bestanden / entrypoints:** dogen,steps
 
@@ -11,9 +11,9 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.docgen_tool import dogen; print(dogen.__doc__)"
+python -c "from tools.doc_generator import dogen; print(dogen.__doc__)"
 # of run (indien streamlit)
-# streamlit run tools/docgen_tool/dogen.py
+# streamlit run tools/doc_generator/dogen.py
 ```
 
 ## Dependencies
