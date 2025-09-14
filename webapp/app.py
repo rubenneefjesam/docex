@@ -1,154 +1,168 @@
 import streamlit as st
-from pathlib import Path  # handig als je later templates/assets laadt
+import importlib.util
+import sys
+from pathlib import Path
+from typing import Dict, Any
 
 # -----------------------
 # Config + defaults
 # -----------------------
 st.set_page_config(page_title="Document generator-app", layout="wide")
-
-# veilige defaults (beste practice)
 st.session_state.setdefault("main_nav", "Home")
-st.session_state.setdefault("assistant_nav", "General support")
-st.session_state.setdefault("tool_nav", "— Kies tool —")
+st.session_state.setdefault("assistant_nav", None)
+st.session_state.setdefault("tool_nav", None)
 
-# Optie: reset assistant/tool zodra je niet op 'Assistants' staat
 RESET_ASSISTANT_ON_LEAVE = True
 
 # -----------------------
-# Opties / constanten
+# Dynamic discovery for assistants (files and packages)
 # -----------------------
-PAGES = ["Home", "Assistants", "Info", "Contact"]
-ASSISTANTS = [
-    "General support",
-    "Tender assistant",
-    "Risk assistant",
-    "Calculator assistant",
-    "Legal assistant",
-    "Project assistant",
-    "Sustainability advisor",
-]
-TOOLS = ["— Kies tool —", "Document generator", "Document comparison"]
+ASSISTANTS_DIR = Path(__file__).parent / "assistants"
+
+def discover_assistants() -> Dict[str, Dict[str, Any]]:
+    """
+    Discover assistant modules in webapp/assistants.
+    Supports:
+      - single-file assistants (assistants/foo.py)
+      - package assistants (assistants/foo/__init__.py)
+
+    Returns dict {key: {"module": module, "display": display_name, "tools": [...]}}
+    """
+    assistants: Dict[str, Dict[str, Any]] = {}
+    if not ASSISTANTS_DIR.exists():
+        return assistants
+
+    # 1) python files directly in the folder
+    for py in sorted(ASSISTANTS_DIR.glob("*.py")):
+        if py.name.startswith("_") or py.name == "validate_assistants.py":
+            continue
+        key = py.stem
+        try:
+            spec = importlib.util.spec_from_file_location(f"assistants.{key}", str(py))
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[f"assistants.{key}"] = mod
+            spec.loader.exec_module(mod)
+            display = getattr(mod, "DISPLAY_NAME", key)
+            tools = getattr(mod, "TOOLS", [])
+            assistants[key] = {"module": mod, "display": display, "tools": tools}
+        except Exception as e:
+            # show a clear warning in the app so you can fix the module
+            st.warning(f"Kon assistant module '{py.name}' niet laden: {e}")
+
+    # 2) directories (packages) with __init__.py
+    for d in sorted([p for p in ASSISTANTS_DIR.iterdir() if p.is_dir()]):
+        init_py = d / "__init__.py"
+        if not init_py.exists():
+            continue
+        key = d.name
+        try:
+            spec = importlib.util.spec_from_file_location(f"assistants.{key}", str(init_py))
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[f"assistants.{key}"] = mod
+            spec.loader.exec_module(mod)
+            display = getattr(mod, "DISPLAY_NAME", key)
+            tools = getattr(mod, "TOOLS", [])
+            assistants[key] = {"module": mod, "display": display, "tools": tools}
+        except Exception as e:
+            st.warning(f"Kon assistant package '{d.name}' niet laden: {e}")
+
+    return assistants
+
+# Discover assistants at startup
+ASSISTANTS = discover_assistants()  # dict
+
+# Map display -> key for lookup
+DISPLAY_TO_KEY = {v["display"]: k for k, v in ASSISTANTS.items()}
 
 # -----------------------
-# Helpers
+# Safe helpers
 # -----------------------
+
 def safe_index(options, value, default=0):
-    """Veilige index: return default als value niet in options staat."""
     try:
         return options.index(value)
-    except ValueError:
+    except Exception:
         return default
 
-# kleine helper voor path naar project root (optioneel)
-ROOT = Path(__file__).resolve().parents[1]
-
 # -----------------------
-# Sidebar (navigatie)
+# Sidebar (navigation)
 # -----------------------
+PAGES = ["Home", "Assistants", "Info", "Contact"]
 with st.sidebar:
     st.markdown("## Hoofdmenu")
-    page_idx = safe_index(PAGES, st.session_state["main_nav"])
+    page_idx = safe_index(PAGES, st.session_state.get("main_nav", "Home"))
     page = st.radio("", options=PAGES, index=page_idx, key="main_nav")
     st.markdown("---")
 
-    if st.session_state["main_nav"] == "Assistants":
-        ass_idx = safe_index(ASSISTANTS, st.session_state["assistant_nav"])
-        st.markdown("### Assistent voor:")
-        assistant = st.radio("", options=ASSISTANTS, index=ass_idx, key="assistant_nav")
+    if page == "Assistants":
+        displays = [v["display"] for v in ASSISTANTS.values()]
+        if not displays:
+            st.info("Geen assistenten gevonden in `assistants/`. Maak eerst modules aan.")
+            st.stop()
 
-        tool_idx = safe_index(TOOLS, st.session_state["tool_nav"])
-        st.markdown("### Kies tool:")
-        tool = st.radio("", options=TOOLS, index=tool_idx, key="tool_nav")
+        # ensure a sensible default in session_state
+        if st.session_state.get("assistant_nav") not in displays:
+            st.session_state["assistant_nav"] = displays[0]
+
+        ass_idx = safe_index(displays, st.session_state["assistant_nav"])
+        selected_display = st.radio("### Assistent voor:", options=displays, index=ass_idx, key="assistant_nav")
+
+        # load tools for this assistant
+        assistant_key = DISPLAY_TO_KEY[selected_display]
+        assistant_meta = ASSISTANTS[assistant_key]
+        tools_for_assistant = assistant_meta.get("tools", [])
+
+        # default tool
+        if st.session_state.get("tool_nav") not in tools_for_assistant:
+            st.session_state["tool_nav"] = tools_for_assistant[0] if tools_for_assistant else None
+
+        if tools_for_assistant:
+            st.markdown("### Kies tool:")
+            tool_idx = safe_index(tools_for_assistant, st.session_state["tool_nav"])
+            selected_tool = st.radio("", options=tools_for_assistant, index=tool_idx, key="tool_nav")
+        else:
+            st.info("Deze assistent heeft (nog) geen tools.")
+            st.session_state["tool_nav"] = None
     else:
-        # optioneel resetten zodat oude keuzes niet blijven hangen
+        # Not on Assistants page: optionally reset
         if RESET_ASSISTANT_ON_LEAVE:
-            st.session_state["assistant_nav"] = ASSISTANTS[0]
-            st.session_state["tool_nav"] = TOOLS[0]
-        assistant = None
-        tool = None
+            st.session_state["assistant_nav"] = None
+            st.session_state["tool_nav"] = None
 
 # -----------------------
-# Render-functies
+# Render helpers
 # -----------------------
+
 def render_header():
-    # indien je een vaste header wil: logo, titel, kleine uitleg etc.
     col1, col2 = st.columns([1, 6])
     with col1:
-        st.write("")  # ruimte voor logo: st.image(...)
+        st.write("")  # ruimte voor logo/image
     with col2:
-        st.markdown("## Document generator-app")
-        st.write("Kies links in het menu een pagina en, bij *Assistants*, een assistent en tool.")
+        st.markdown("<h1 style='text-align:center'>Document generator-app</h1>", unsafe_allow_html=True)
+        st.write("Kies links in het menu een pagina en, bij Assistants, een assistent en tool.")
+
 
 def render_home():
     render_header()
     st.title("🏠 Home")
-    st.write("Welkom bij de **Document generator-app**. Kies een assistent via het zijmenu.")
-    st.markdown("---")
-    st.subheader("Beschikbare assistenten")
-    for a in ASSISTANTS:
-        st.write(f"- {a}")
-    st.info("Tip: ga naar *Assistants* in het zijmenu om per assistent specifieke tools en content te zien.")
+    st.write("Welkom bij de app. Gebruik het menu links.")
+
 
 def render_info():
     render_header()
     st.title("ℹ️ Info")
-    st.write("Informatie over de app, versie en instructies.")
     st.write("- Versie: 1.0.0")
-    st.write("- Auteur: Team X")
-    st.write("- Documentatie: zie repo /docs")
+
 
 def render_contact():
     render_header()
     st.title("📬 Contact")
-    st.write("Support en contactinformatie.")
-    st.write("- E-mail: support@example.com")
-    st.write("- Interne chat: #ai-innovation")
-    st.write("- Telefoon: 012-3456789")
-
-# voorbeeld per-assistent content (breid uit per behoefte)
-def render_general(assistant, tool):
-    render_header()
-    st.title(assistant)
-    st.write("Korte omschrijving van General support.")
-    st.write("Gekozen tool:", tool)
-
-    if tool == "Document generator":
-        with st.form("gen_form"):
-            name = st.text_input("Documentnaam", value="nieuw_document.docx")
-            prompt = st.text_area("Prompt / instructies", value="Maak een korte samenvatting van ...")
-            submit = st.form_submit_button("Genereer document")
-            if submit:
-                # hier komt je generator-logica (simulatie placeholder)
-                st.success(f"Document `{name}` gegenereerd (simulatie).")
-                st.write("Prompt gebruikt:")
-                st.code(prompt)
-    elif tool == "Document comparison":
-        st.write("Vergelijk twee documenten (PDF/DOCX) — upload hieronder:")
-        col1, col2 = st.columns(2)
-        with col1:
-            doc_a = st.file_uploader("Upload document A", type=["pdf", "docx"], key="file_a")
-        with col2:
-            doc_b = st.file_uploader("Upload document B", type=["pdf", "docx"], key="file_b")
-        if doc_a and doc_b:
-            # plaats hier echte vergelijking; nu demo
-            st.info("Bestanden geüpload — vergelijking wordt uitgevoerd (simulatie).")
-            st.success("Vergelijking klaar — wijzigingen: 3 paragrafen gewijzigd (demo).")
-    else:
-        st.write("Selecteer een tool om verder te gaan.")
-
-def render_tender(assistant, tool):
-    render_header()
-    st.title(assistant)
-    st.write("Workflows en templates voor tender-begeleiding.")
-    st.write("Gekozen tool:", tool)
-    if st.button("Open tender-template (demo)"):
-        st.write("Tender-template geopend (demo).")
+    st.write("support@example.com")
 
 # -----------------------
-# Dispatcher (main area)
+# Dispatcher
 # -----------------------
 current_page = st.session_state.get("main_nav", "Home")
-
 if current_page == "Home":
     render_home()
 elif current_page == "Info":
@@ -156,18 +170,27 @@ elif current_page == "Info":
 elif current_page == "Contact":
     render_contact()
 elif current_page == "Assistants":
-    chosen_assistant = st.session_state.get("assistant_nav", ASSISTANTS[0])
-    chosen_tool = st.session_state.get("tool_nav", TOOLS[0])
+    sel_display = st.session_state.get("assistant_nav")
+    if not sel_display:
+        st.info("Kies een assistent in de sidebar.")
+        st.stop()
 
-    # kies rendering per assistent
-    if chosen_assistant == "General support":
-        render_general(chosen_assistant, chosen_tool)
-    elif chosen_assistant == "Tender assistant":
-        render_tender(chosen_assistant, chosen_tool)
+    sel_key = DISPLAY_TO_KEY.get(sel_display)
+    if not sel_key:
+        st.error("Geselecteerde assistent niet gevonden (key error).")
+        st.stop()
+
+    meta = ASSISTANTS[sel_key]
+    module = meta["module"]
+    selected_tool = st.session_state.get("tool_nav")
+
+    render_func = getattr(module, "render", None)
+    if not callable(render_func):
+        st.error(f"Assistant '{meta['display']}' heeft geen render(module) functie.")
     else:
-        # fallback / placeholder
-        render_header()
-        st.title(chosen_assistant)
-        st.write("Content nog te implementeren voor deze assistent.")
+        try:
+            render_func(selected_tool)
+        except Exception as e:
+            st.error(f"Fout in render van assistant {meta['display']}: {e}")
 else:
     st.error("Onbekende pagina geselecteerd.")
