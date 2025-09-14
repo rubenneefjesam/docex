@@ -10,13 +10,12 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
-/* CUSTOM-UI: sidebar-green */
+# /* CUSTOM-UI: sidebar-green */
 st.markdown(
     """
     <style>
     :root { --sidebar-width: 300px; }
 
-    /* draw a fixed green stripe on the left (works regardless of streamlit internal classes) */
     body::before{
         content: "";
         position: fixed;
@@ -29,129 +28,49 @@ st.markdown(
         pointer-events: none;
     }
 
-    /* Ensure app content and sidebar are above the stripe */
     .css-1d391kg, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
         position: relative;
         z-index: 1;
     }
 
-    /* Make the actual sidebar background transparent so the green stripe shows through.
-       Use several selectors to increase chance of matching across Streamlit versions */
-    [data-testid="stSidebar"] > div[role="complementary"], 
-    .css-1d391kg .css-1d391kg, 
+    [data-testid="stSidebar"] > div[role="complementary"],
+    .css-1d391kg .css-1d391kg,
     .css-1d391kg .css-hi6a2p {
         background-color: transparent !important;
         box-shadow: none !important;
     }
 
-    /* Force white text in sidebar (labels, headers, markdown) */
     [data-testid="stSidebar"] *,
     .stSidebar * {
         color: #ffffff !important;
     }
 
-    /* Make radio labels readable */
     .stRadio label, .stRadio div, [data-testid="stSidebar"] .stRadio label {
         color: #ffffff !important;
     }
 
-    /* Ensure radio button circles remain visible */
     input[type="radio"] + label, .stRadio > label {
         color: #ffffff !important;
     }
 
-    /* Keep main content white and text dark */
     [data-testid="stAppViewContainer"], .block-container {
         background-color: #ffffff !important;
         color: #000000 !important;
     }
 
-    /* Buttons contrast */
     .stButton>button, .stDownloadButton>button {
         color: #000000 !important;
     }
 
-    /* Small spacing fix so sidebar width aligns visually with stripe */
     .css-1d391kg, [data-testid="stSidebar"] {
         min-width: var(--sidebar-width) !important;
         max-width: var(--sidebar-width) !important;
     }
-
     </style>
     """,
     unsafe_allow_html=True
 )
 # end marker
-
-# /* CUSTOM-UI: sidebar-green */
-st.markdown(
-    """
-    <style>
-    /* Sidebar groen */
-    [data-testid="stSidebar"] > div[role="complementary"] {
-        background: linear-gradient(180deg,#16a34a 0%, #059669 100%) !important;
-        color: #ffffff !important;
-    }
-    [data-testid="stSidebar"] .css-1kyxreq { color: #ffffff !important; }
-
-    /* Zorg dat radio buttons/labels in de sidebar goed contrasteren */
-    [data-testid="stSidebar"] .stRadio > label, 
-    [data-testid="stSidebar"] .stText, 
-    [data-testid="stSidebar"] .stMarkdown {
-        color: #ffffff !important;
-    }
-
-    /* Main content wit en tekst zwart */
-    [data-testid="stAppViewContainer"] {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    /* Block container (voorkomt dat losse cards donker blijven) */
-    .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        padding-top: 1.5rem;
-    }
-    /* Kleine safety: buttons etc. */
-    .stButton>button, .stDownloadButton>button {
-        color: #000000 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-# end marker
-
-# Dynamic loader helpers: probeer meerdere kandidaat-modules en callables
-import importlib
-
-def load_tool_module_candidate(*candidates):
-    for cand in candidates:
-        try:
-            mod = importlib.import_module(cand)
-            return mod
-        except Exception:
-            continue
-    return None
-
-def call_first_callable(module, names=("run","app","main")):
-    for n in names:
-        fn = getattr(module, n, None)
-        if callable(fn):
-            return fn()
-    raise RuntimeError(f"No callable entrypoint found in module {module.__name__}")
-
-
-
-# --- correcte imports ---
-# Document generator komt uit tools.doc_extractor.Document generator (pas dit aan als het in steps.py staat)
-from tools.plan_creator import docgen
-# Document comparison komt uit tools.doc_comparison.Document comparison
-# from tools.doc_comparison.Document comparison import coge
-
-# --- Streamlit setup ---
-st.set_page_config(page_title="Document generator Suite", layout="wide")
-
 
 with st.sidebar:
     st.header("Assistent voor:")
