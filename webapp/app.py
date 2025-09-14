@@ -10,6 +10,79 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
+/* CUSTOM-UI: sidebar-green */
+st.markdown(
+    """
+    <style>
+    :root { --sidebar-width: 300px; }
+
+    /* draw a fixed green stripe on the left (works regardless of streamlit internal classes) */
+    body::before{
+        content: "";
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: var(--sidebar-width);
+        background: linear-gradient(180deg,#16a34a 0%, #059669 100%) !important;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    /* Ensure app content and sidebar are above the stripe */
+    .css-1d391kg, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Make the actual sidebar background transparent so the green stripe shows through.
+       Use several selectors to increase chance of matching across Streamlit versions */
+    [data-testid="stSidebar"] > div[role="complementary"], 
+    .css-1d391kg .css-1d391kg, 
+    .css-1d391kg .css-hi6a2p {
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    /* Force white text in sidebar (labels, headers, markdown) */
+    [data-testid="stSidebar"] *,
+    .stSidebar * {
+        color: #ffffff !important;
+    }
+
+    /* Make radio labels readable */
+    .stRadio label, .stRadio div, [data-testid="stSidebar"] .stRadio label {
+        color: #ffffff !important;
+    }
+
+    /* Ensure radio button circles remain visible */
+    input[type="radio"] + label, .stRadio > label {
+        color: #ffffff !important;
+    }
+
+    /* Keep main content white and text dark */
+    [data-testid="stAppViewContainer"], .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Buttons contrast */
+    .stButton>button, .stDownloadButton>button {
+        color: #000000 !important;
+    }
+
+    /* Small spacing fix so sidebar width aligns visually with stripe */
+    .css-1d391kg, [data-testid="stSidebar"] {
+        min-width: var(--sidebar-width) !important;
+        max-width: var(--sidebar-width) !important;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# end marker
+
 # /* CUSTOM-UI: sidebar-green */
 st.markdown(
     """
