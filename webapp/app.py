@@ -1,219 +1,30 @@
 # webapp/app.py
-import sys
-from pathlib import Path
-
-# --- projectroot aan sys.path toevoegen ---
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 import importlib
-import importlib.util
-import traceback
-
 import streamlit as st
-
-
-# Small helper to call a tool entrypoint defensively. Accepts either:
-# - a callable (function), or
-# - a module-like object exposing run/app/main functions.
-def call_tool(obj, name: str | None = None):
-    try:
-        if obj is None:
-            st.error(f"{name or 'Tool'}: not available")
-            return
-        # If obj itself is callable (function), call it
-        if callable(obj):
-            return obj()
-        # If obj is a module-like object, prefer run/app/main
-        for attr in ("run", "app", "main"):
-            if hasattr(obj, attr) and callable(getattr(obj, attr)):
-                return getattr(obj, attr)()
-        st.error(f"{name or 'Tool'}: no callable entrypoint found (checked run/app/main)")
-    except Exception as e:
-        # Show exception in Streamlit UI and re-raise for logs
-        try:
-            st.exception(e)
-        except Exception:
-            pass
-        raise
-
-
-# Convenience wrapper that accepts either a module or a callable and tries to run it.
-def call_first_callable(candidate, name: str | None = None):
-    # if candidate is None -> error
-    if candidate is None:
-        raise RuntimeError(f"{name or 'Tool'}: candidate is None")
-    # if it's a module path string, try to import it
-    if isinstance(candidate, str):
-        try:
-            candidate = importlib.import_module(candidate)
-        except Exception:
-            # propagate to caller so it can show a message
-            raise
-    # delegate to call_tool (which handles modules and callables)
-    return call_tool(candidate, name)
-
-
-# Try multiple module import candidates in order and return the first successfully imported module.
-def load_tool_module_candidate(human_name: str, *module_candidates: str):
-    """
-    Example:
-      load_tool_module_candidate("Document generator",
-                                 "tools.plan_creator.dogen",
-                                 "tools.plan_creator",
-                                 "tools.doc_generator.docgen")
-    Returns the imported module or None if none import.
-    """
-    for candidate in module_candidates:
-        if not candidate:
-            continue
-        # quick spec check first (so we don't execute heavy package code unless needed)
-        try:
-            spec = importlib.util.find_spec(candidate)
-        except Exception:
-            spec = None
-        if spec is None:
-            # try fallback: if candidate is a package, sometimes find_spec fails if package has errors;
-            # we'll still attempt to import and catch exceptions.
-            try:
-                mod = importlib.import_module(candidate)
-                return mod
-            except Exception:
-                # continue to next candidate
-                continue
-        else:
-            try:
-                mod = importlib.import_module(candidate)
-                return mod
-            except Exception:
-                # import failed (maybe missing deps) -> continue to next
-                continue
-    # nothing worked
-    return None
-
-
-# ===== Streamlit UI =====
+from webapp.components.sidebar import render_sidebar
+from webapp.registry import ASSISTANTS
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
+# Sidebar -> keuze ophalen
+assistant, tool = render_sidebar(default_assistant="general_support")
 
-# ---- sidebar (logo + assistant menu) ----
-with st.sidebar:
-    # logo (local) — try multiple filename cases to be tolerant
-    base_assets = Path(__file__).resolve().parent / "assets"
-    logo_candidates = [
-        base_assets / "beeldmerk.png",
-        base_assets / "Beeldmerk.png",
-        base_assets / "logo.png",
-        base_assets / "logo.svg",
-    ]
-    logo_path = None
-    for cand in logo_candidates:
-        if cand.exists():
-            logo_path = cand
-            break
-
-    if logo_path:
-        try:
-            # show the logo in the sidebar; Streamlit handles serving the local file
-            st.sidebar.image(str(logo_path), width=140)
-        except Exception as e:
-            st.sidebar.write(f"Kon logo niet laden: {e}")
-    else:
-        st.sidebar.write("Logo niet gevonden: webapp/assets/beeldmerk.png (of Beeldmerk.png)")
-
-    st.header("Assistent voor:")
-    top_choice = st.radio(
-        "Assistent voor:",
-        ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant", "Project assistant", "Sustainability advisor"],
-        index=0,
-        label_visibility="collapsed",
-    )
-    st.markdown("---")
-    sub_choice = None
-
-    if top_choice == "General support":
-        st.subheader("Actieve tools")
-        # detect which tools are available (do not raise if import fails)
-        docgen_available = (
-            importlib.util.find_spec("tools.doc_generator") is not None
-            or importlib.util.find_spec("tools.plan_creator") is not None
-            or importlib.util.find_spec("tools.docgen_tool") is not None
-        )
-        coge_available = importlib.util.find_spec("tools.doc_comparison") is not None or importlib.util.find_spec("tools.coge_tool") is not None
-
-        options = []
-        if docgen_available:
-            options.append("Document generator")
-        if coge_available:
-            options.append("Document comparison")
-
-        if options:
-            sub_choice = st.radio("Kies tool:", options, index=0)
-        else:
-            st.info("Geen tools geactiveerd voor General support.")
-    else:
-        st.info("Nog geen tools geconfigureerd voor deze assistant.")
-
-    # Map the assistant/sub-choice to the new 'choice' used by the main page logic
-    if top_choice == "General support":
-        if sub_choice == "Document generator":
-            choice = "Document generator"
-        elif sub_choice == "Document comparison":
-            choice = "Document comparison"
-        else:
-            choice = "Home"
-    else:
-        # show Home / placeholder for non-configured assistants
-        choice = "Home"
-# ---- end sidebar ----
-
-
-# --- Main page routing ---
-if choice == "Home":
-    st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
+# Fallback naar Home-kaart als er (nog) geen tool is
+if not tool or assistant not in ASSISTANTS:
+    st.markdown("## 🏠 Home")
     st.write("Welkom bij de **Document generator-app**. Kies een tool via de sidebar.")
+else:
+    # Modulepad van de pagina ophalen uit registry
+    page_module_path = ASSISTANTS[assistant]["tools"][tool]["page_module"]
 
-elif choice == "Informatie":
-    st.markdown("<h1 style='font-size:28px; font-weight:700'>ℹ️ Informatie</h1>", unsafe_allow_html=True)
-    st.write("Info: **Document generator** = Document generator, **Document comparison** = compare (placeholder).")
-
-elif choice == "Document generator":
-    # Try likely module import candidates (most specific -> generic)
-    docmod = load_tool_module_candidate(
-        "Document generator",
-        "tools.plan_creator.dogen",
-        "tools.plan_creator",
-        "tools.doc_generator.docgen",
-        "tools.doc_generator",
-        "tools.docgen_tool.dogen",
-    )
-    if docmod:
-        try:
-            # call module's run/app/main or callable
-            call_first_callable(docmod, "Document generator")
-        except Exception as e:
-            st.error(f"Fout bij starten Document generator: {e}")
-            # show a short traceback in logs (not too verbose for UI)
-            traceback.print_exc()
+    # Pagina-module importeren en renderen
+    try:
+        mod = importlib.import_module(page_module_path)
+    except Exception as e:
+        st.error(f"Kon pagina-module niet laden: `{page_module_path}`\n\n{e}")
     else:
-        st.error("Document generator module niet gevonden (controleer tools/doc_generator of tools/plan_creator)")
-
-elif choice == "Document comparison":
-    st.markdown("<h1 style='font-size:28px; font-weight:700'>🔍 Document comparison</h1>", unsafe_allow_html=True)
-    cogemod = load_tool_module_candidate(
-        "Document comparison",
-        "tools.doc_comparison.coge",
-        "tools.doc_comparison",
-        "tools.coge_tool.coge",
-        "tools.coge_tool",
-    )
-    if cogemod:
-        try:
-            call_first_callable(cogemod, "Document comparison")
-        except Exception as e:
-            st.error(f"Fout bij starten Document comparison: {e}")
-            traceback.print_exc()
-    else:
-        st.error("Document comparison module niet gevonden (controleer tools/doc_comparison)")
+        render = getattr(mod, "render", None)
+        if callable(render):
+            render()
+        else:
+            st.error(f"Pagina `{page_module_path}` heeft geen render() functie.")
