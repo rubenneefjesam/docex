@@ -35,7 +35,7 @@ def call_first_callable(module, names=("run","app","main")):
 # Docgen komt uit docex.py (pas dit aan als het in steps.py staat)
 from tools.plan_creator import docgen
 # Coge komt uit coge.py
-from tools.coge_tool.coge import coge
+# from tools.coge_tool.coge import coge
 
 # --- Streamlit setup ---
 st.set_page_config(page_title="Docgen Suite", layout="wide")
@@ -73,7 +73,7 @@ elif choice == "Coge":
     st.markdown("<h1 style=\'font-size:28px; font-weight:700\'>🔍 Coge</h1>", unsafe_allow_html=True)
     cogemod = load_tool_module_candidate(
         "tools.doc_comparison.coge",
-        "tools.coge_tool.coge",
+#         "tools.coge_tool.coge",
         "tools.doc_comparison"
     )
     if cogemod:

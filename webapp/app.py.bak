@@ -14,7 +14,7 @@ import streamlit as st
 # Docgen komt uit docex.py (pas dit aan als het in steps.py staat)
 from tools.plan_creator import docgen
 # Coge komt uit coge.py
-from tools.coge_tool.coge import coge
+# from tools.coge_tool.coge import coge
 
 # --- Streamlit setup ---
 st.set_page_config(page_title="Docgen Suite", layout="wide")
