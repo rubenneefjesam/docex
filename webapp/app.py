@@ -10,6 +10,27 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
+# Dynamic loader helpers: probeer meerdere kandidaat-modules en callables
+import importlib
+
+def load_tool_module_candidate(*candidates):
+    for cand in candidates:
+        try:
+            mod = importlib.import_module(cand)
+            return mod
+        except Exception:
+            continue
+    return None
+
+def call_first_callable(module, names=("run","app","main")):
+    for n in names:
+        fn = getattr(module, n, None)
+        if callable(fn):
+            return fn()
+    raise RuntimeError(f"No callable entrypoint found in module {module.__name__}")
+
+
+
 # --- correcte imports ---
 # Docgen komt uit docex.py (pas dit aan als het in steps.py staat)
 from tools.plan_creator import docgen
