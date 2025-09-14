@@ -11,7 +11,7 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.doc_comparison import Document comparison; print(Document comparison.__doc__)"
+python -c "from tools.doc_comparison import coge; print(Document comparison.__doc__)"
 # of run (indien streamlit)
 # streamlit run tools/doc_comparison/Document comparison.py
 ```

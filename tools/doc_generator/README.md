@@ -11,7 +11,7 @@ Beschrijf kort (1–2 regels) waarvoor deze tool bedoeld is.
 Voorbeeld:
 ```bash
 # import in Python
-python -c "from tools.doc_generator import Document generator; print(Document generator.__doc__)"
+python -c "from tools.doc_generator import docgen; print(Document generator.__doc__)"
 # of run (indien streamlit)
 # streamlit run tools/doc_generator/Document generator.py
 ```

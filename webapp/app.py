@@ -33,9 +33,9 @@ def call_first_callable(module, names=("run","app","main")):
 
 # --- correcte imports ---
 # Document generator komt uit tools.doc_extractor.Document generator (pas dit aan als het in steps.py staat)
-from tools.plan_creator import Document generator
+from tools.plan_creator import docgen
 # Document comparison komt uit tools.doc_comparison.Document comparison
-# from tools.doc_comparison.Document comparison import Document comparison
+# from tools.doc_comparison.Document comparison import coge
 
 # --- Streamlit setup ---
 st.set_page_config(page_title="Document generator Suite", layout="wide")
