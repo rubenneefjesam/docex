@@ -1,16 +1,16 @@
-# webapp/components/sidebar.py
 from pathlib import Path
 import streamlit as st
 from webapp.registry import ASSISTANTS
 
-def _qp_list(qp, key: str, default: str = ""):
-    """Normalize st.query_params[key] to a one-item list."""
+def _qp_get_str(qp, key: str, default: str = "") -> str:
     val = qp.get(key, default)
     if isinstance(val, list):
-        return val
-    if val is None:
-        return [default]
-    return [val]
+        return val[0] if val else default
+    return val if isinstance(val, str) else default
+
+def _first_tool_key(assistant_key: str) -> str:
+    tools = ASSISTANTS.get(assistant_key, {}).get("tools", {})
+    return next(iter(tools.keys()), "")
 
 def render_sidebar(default_assistant: str = "general_support",
                    default_tool: str | None = None):
@@ -24,45 +24,70 @@ def render_sidebar(default_assistant: str = "general_support",
 
     st.sidebar.header("Assistent voor:")
 
-    qp = st.query_params
-    a_qp = _qp_list(qp, "assistant", default_assistant)[0]
-    t_qp = _qp_list(qp, "tool", default_tool or "")[0]
+    # ---------- Bootstrap session_state eenmaal uit query params ----------
+    if "assistant_key" not in st.session_state or "tool_key" not in st.session_state:
+        qp = st.query_params
+        a = _qp_get_str(qp, "assistant", default_assistant)
+        if a not in ASSISTANTS:
+            a = default_assistant
+        t = _qp_get_str(qp, "tool", default_tool or "")
+        if t not in ASSISTANTS.get(a, {}).get("tools", {}):
+            t = _first_tool_key(a)
+        st.session_state.assistant_key = a
+        st.session_state.tool_key = t
 
-    # Assistent selecteren
+    # Huidige selectie uit state
+    a_key = st.session_state.assistant_key
+    t_key = st.session_state.tool_key
+
+    # ---------- Assistent kiezen ----------
     assistant_keys = list(ASSISTANTS.keys())
-    if a_qp not in assistant_keys:
-        a_qp = default_assistant
-    labels = [ASSISTANTS[k]["label"] for k in assistant_keys]
-    idx = assistant_keys.index(a_qp)
-    sel_label = st.sidebar.radio(
-        "Assistent voor:",
-        labels,
-        index=idx,
-        label_visibility="collapsed",
-    )
-    assistant = assistant_keys[labels.index(sel_label)]
+    assistant_labels = [ASSISTANTS[k]["label"] for k in assistant_keys]
+    a_idx = assistant_keys.index(a_key) if a_key in assistant_keys else 0
 
-    # Tools voor gekozen assistent
-    tools_meta = ASSISTANTS[assistant].get("tools", {})
+    sel_assistant_label = st.sidebar.radio(
+        "Assistent voor:",
+        assistant_labels,
+        index=a_idx,
+        label_visibility="collapsed",
+        key="assistant_radio",
+    )
+    new_a_key = assistant_keys[assistant_labels.index(sel_assistant_label)]
+
+    # Als assistent verandert -> tool resetten naar eerste beschikbare
+    if new_a_key != a_key:
+        t_key = _first_tool_key(new_a_key)
+
+    # ---------- Tool kiezen voor gekozen assistent ----------
+    tools_meta = ASSISTANTS[new_a_key].get("tools", {})
     tool_keys = list(tools_meta.keys())
     tool_labels = [tools_meta[k]["label"] for k in tool_keys]
 
-    # Kies default tool (eerste) als query param leeg of ongeldig is
-    if t_qp not in tool_keys:
-        t_qp = tool_keys[0] if tool_keys else ""
-
     if tool_keys:
-        sel_tool_label = st.sidebar.radio("Kies tool:", tool_labels, index=tool_keys.index(t_qp))
-        tool = tool_keys[tool_labels.index(sel_tool_label)]
+        t_idx = tool_keys.index(t_key) if t_key in tool_keys else 0
+        sel_tool_label = st.sidebar.radio(
+            "Kies tool:",
+            tool_labels,
+            index=t_idx,
+            key="tool_radio",
+        )
+        new_t_key = tool_keys[tool_labels.index(sel_tool_label)]
     else:
         st.sidebar.info("Nog geen tools geconfigureerd voor deze assistant.")
-        tool = ""
+        new_t_key = ""
 
     st.sidebar.markdown("---")
 
-    # Sync URL alleen als er iets veranderde
-    if qp.get("assistant", None) != assistant or qp.get("tool", None) != tool:
-        st.query_params["assistant"] = assistant
-        st.query_params["tool"] = tool
+    # ---------- Update state ----------
+    changed = (new_a_key != a_key) or (new_t_key != t_key)
+    if changed:
+        st.session_state.assistant_key = new_a_key
+        st.session_state.tool_key = new_t_key
 
-    return assistant, tool
+    # ---------- Sync terug naar URL (zonder flikkeren) ----------
+    qp = st.query_params
+    if qp.get("assistant", None) != new_a_key or qp.get("tool", None) != new_t_key:
+        st.query_params["assistant"] = new_a_key
+        st.query_params["tool"] = new_t_key
+
+    return new_a_key, new_t_key
