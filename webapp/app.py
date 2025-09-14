@@ -15,8 +15,20 @@ st.session_state.setdefault("tool_nav", None)
 RESET_ASSISTANT_ON_LEAVE = True
 
 # -----------------------
+# Safe helpers (zorg dat deze vóór het gebruik staan)
+# -----------------------
+def safe_index(options, value, default=0):
+    """Veilige index lookup: return default als value niet in options staat."""
+    try:
+        return options.index(value)
+    except Exception:
+        return default
+
+# -----------------------
 # Dynamic discovery for assistants (files and packages)
 # -----------------------
+ASSISTANTS_DIR = Path(__file__).parent / "assistants"
+
 def discover_assistants() -> Dict[str, Dict[str, Any]]:
     """
     Discover assistant modules in webapp/assistants.
@@ -67,13 +79,12 @@ def discover_assistants() -> Dict[str, Dict[str, Any]]:
 
     return assistants
 
-def safe_index(options, value, default=0):
-    """Veilige index lookup: return default als value niet in options staat."""
-    try:
-        return options.index(value)
-    except Exception:
-        return default
-    
+# Discover assistants at startup
+ASSISTANTS = discover_assistants()  # dict
+
+# Map display -> key for lookup
+DISPLAY_TO_KEY = {v["display"]: k for k, v in ASSISTANTS.items()}
+
 # -----------------------
 # Sidebar (navigation)
 # -----------------------
@@ -122,7 +133,6 @@ with st.sidebar:
 # -----------------------
 # Render helpers
 # -----------------------
-
 def render_header():
     col1, col2 = st.columns([1, 6])
     with col1:
@@ -131,18 +141,15 @@ def render_header():
         st.markdown("<h1 style='text-align:center'>Document generator-app</h1>", unsafe_allow_html=True)
         st.write("Kies links in het menu een pagina en, bij Assistants, een assistent en tool.")
 
-
 def render_home():
     render_header()
     st.title("🏠 Home")
     st.write("Welkom bij de app. Gebruik het menu links.")
 
-
 def render_info():
     render_header()
     st.title("ℹ️ Info")
     st.write("- Versie: 1.0.0")
-
 
 def render_contact():
     render_header()
