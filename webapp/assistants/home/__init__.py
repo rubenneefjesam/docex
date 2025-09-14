@@ -1,12 +1,14 @@
 # webapp/assistants/home/__init__.py
-# Expose the main render function for the package, mapping to home.home.render
+# Package initializer for assistants.home. Expose the main render() if available.
+
+# primary home renderer (from home.home)
 try:
     from .home import render as render
 except Exception:
-    # fallback: don't crash import if the inner module changes; provide a helpful message
     def render():
         raise ImportError("Could not import 'render' from webapp.assistants.home.home")
-# also keep references to info/contact renderers if needed
+
+# optional convenience aliases for info/contact
 try:
     from .info import render as render_info
 except Exception:
