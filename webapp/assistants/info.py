@@ -1,18 +1,15 @@
-DISPLAY_NAME = "Info"
-IS_ASSISTANT = False
-TOOLS = ["— Kies tool —"]
-
 # webapp/assistants/info.py
 DISPLAY_NAME = "Info"
-TOOLS = ["— Kies tool —"]  # geen tools, maar volg de conventie
+IS_ASSISTANT = False
+TOOLS = ["— Kies tool —"]  # alleen voor consistentie; niet gebruikt
 
 import streamlit as st
 
-def render(tool):
-    st.title(DISPLAY_NAME)
-    st.write("Algemene informatie over de app en documentatie.")
-    st.write("- Versie: 1.0.0")
-    st.write("- Documentatie: zie /docs in de repository")
-    st.write("- Auteur: Team X")
-    if tool and tool != "— Kies tool —":
-        st.warning(f"Onverwachte tool geselecteerd: {tool}")
+def render(tool=None):  # tool optioneel maken
+    st.header(DISPLAY_NAME)
+    st.write("Informatiepagina")
+    st.markdown("""
+- **Versie:** 1.0.0  
+- **Documentatie:** zie `/docs` in de repo  
+- **Auteur:** Team X
+""")
