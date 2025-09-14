@@ -40,10 +40,54 @@ from tools.plan_creator import docgen
 # --- Streamlit setup ---
 st.set_page_config(page_title="Document generator Suite", layout="wide")
 
+
 with st.sidebar:
-    st.header("Navigatie / Tools")
-    choice = st.radio("", ["Home", "Informatie", "Document generator", "Document comparison"], index=0)
+    st.header("Assistent voor:")
+    top_choice = st.radio("", ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"], index=0)
     st.markdown("---")
+    sub_choice = None
+
+    if top_choice == "General support":
+        st.subheader("Actieve tools")
+        # detect which tools are available (do not raise if import fails)
+        import importlib
+        docgen_available = False
+        coge_available = False
+        try:
+            importlib.import_module("tools.doc_generator")
+            docgen_available = True
+        except Exception:
+            docgen_available = False
+        try:
+            importlib.import_module("tools.doc_comparison")
+            coge_available = True
+        except Exception:
+            coge_available = False
+
+        options = []
+        if docgen_available:
+            options.append("Document generator")
+        if coge_available:
+            options.append("Document comparison")
+
+        if options:
+            sub_choice = st.radio("Kies tool:", options, index=0)
+        else:
+            st.info("Geen tools geactiveerd voor General support.")
+    else:
+        st.info("Nog geen tools geconfigureerd voor deze assistant.")
+
+    # Map the assistant/sub-choice to the legacy 'choice' used by the main page logic
+    if top_choice == "General support":
+        if sub_choice == "Document generator":
+            choice = "Docgen"
+        elif sub_choice == "Document comparison":
+            choice = "Coge"
+        else:
+            choice = "Home"
+    else:
+        # show Home / placeholder for non-configured assistants
+        choice = "Home"
 
 if choice == "Home":
     st.markdown("<h1 style='font-size:32px; font-weight:700'>🏠 Home</h1>", unsafe_allow_html=True)
