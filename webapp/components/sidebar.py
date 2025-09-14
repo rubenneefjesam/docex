@@ -26,23 +26,34 @@ def render_sidebar(default_assistant: str = "general_support",
     # ---------- Bootstrap session_state from query params once ----------
     if "assistant_key" not in st.session_state or "tool_key" not in st.session_state:
         qp = st.query_params
-        a_q = qp.get("assistant", [default_assistant])
-        a = a_q[0] if isinstance(a_q, list) and a_q else (a_q if isinstance(a_q, str) else default_assistant)
-        if a not in assistant_keys:
+
+        # Determine if user explicitly provided query params
+        has_qp_assistant = "assistant" in qp and qp.get("assistant") not in ([], "")
+        has_qp_tool = "tool" in qp and qp.get("tool") not in ([], "")
+
+        # assistant: from qp if present, otherwise default
+        if has_qp_assistant:
+            a_q = qp.get("assistant")
+            a = a_q[0] if isinstance(a_q, list) and a_q else (a_q if isinstance(a_q, str) else default_assistant)
+            if a not in assistant_keys:
+                a = default_assistant
+        else:
             a = default_assistant
 
-        t_q = qp.get("tool", [default_tool or ""])
-        t = t_q[0] if isinstance(t_q, list) and t_q else (t_q if isinstance(t_q, str) else default_tool or "")
-        if t not in ASSISTANTS.get(a, {}).get("tools", {}):
-            t = _first_tool_key(a)
+        # tool: only honor qp if provided; otherwise start with NO tool selected (empty)
+        if has_qp_tool:
+            t_q = qp.get("tool")
+            t = t_q[0] if isinstance(t_q, list) and t_q else (t_q if isinstance(t_q, str) else "")
+            if t not in ASSISTANTS.get(a, {}).get("tools", {}):
+                t = ""
+        else:
+            t = ""  # no tool selected by default -> Home
 
-        # store canonical keys
+        # store canonical keys + widget label placeholders
         st.session_state.assistant_key = a
         st.session_state.tool_key = t
-        # also store the radio labels so widgets have a stable value
         st.session_state.assistant_radio = ASSISTANTS[a]["label"]
-        tools_meta = ASSISTANTS[a].get("tools", {})
-        st.session_state.tool_radio = tools_meta.get(t, {}).get("label", "") if tools_meta else ""
+        st.session_state.tool_radio = ""  # we'll show a placeholder in the widget
 
     # local convenience
     current_assistant_key = st.session_state.assistant_key
@@ -51,29 +62,29 @@ def render_sidebar(default_assistant: str = "general_support",
     # ---------- callbacks ----------
     def _on_assistant_changed():
         sel_label = st.session_state.get("assistant_radio", assistant_labels[0])
-        # map label back to key
         try:
             new_a_key = assistant_keys[assistant_labels.index(sel_label)]
         except ValueError:
             new_a_key = default_assistant
-        # reset tool to first available for new assistant
-        new_t_key = _first_tool_key(new_a_key)
-        # update canonical state
+        # DO NOT auto-select a tool: require explicit user action
         st.session_state.assistant_key = new_a_key
-        st.session_state.tool_key = new_t_key
-        # update the tool_radio label so the tool widget shows correct item
-        tools_meta = ASSISTANTS[new_a_key].get("tools", {})
-        st.session_state.tool_radio = tools_meta.get(new_t_key, {}).get("label", "")
+        st.session_state.tool_key = ""
+        st.session_state.tool_radio = ""  # placeholder shown for tools
 
     def _on_tool_changed():
         sel_tool_label = st.session_state.get("tool_radio", "")
+        # tool_labels_with_placeholder is built lower; we get real labels from tools_meta
         tools_meta = ASSISTANTS[st.session_state.assistant_key].get("tools", {})
         tool_keys = list(tools_meta.keys())
         tool_labels = [tools_meta[k]["label"] for k in tool_keys]
+        # handle placeholder (we use special placeholder label at index 0)
+        if sel_tool_label == "— Kies tool —":
+            st.session_state.tool_key = ""
+            return
         try:
             new_t_key = tool_keys[tool_labels.index(sel_tool_label)]
         except ValueError:
-            new_t_key = _first_tool_key(st.session_state.assistant_key)
+            new_t_key = ""
         st.session_state.tool_key = new_t_key
 
     # ---------- Assistant radio (widget holds label) ----------
@@ -86,37 +97,45 @@ def render_sidebar(default_assistant: str = "general_support",
         label_visibility="collapsed",
         on_change=_on_assistant_changed,
     )
+
     # Determine tools for the currently selected assistant in state
     chosen_assistant = st.session_state.assistant_key
     tools_meta = ASSISTANTS.get(chosen_assistant, {}).get("tools", {})
     tool_keys = list(tools_meta.keys())
     tool_labels = [tools_meta[k]["label"] for k in tool_keys]
 
-    # ---------- Tool radio ----------
+    # ---------- Tool radio with placeholder ----------
     if tool_keys:
-        # ensure tool_radio has a sensible default label
-        if not st.session_state.get("tool_radio"):
-            st.session_state.tool_radio = tool_labels[0]
-        t_index = tool_keys.index(st.session_state.tool_key) if st.session_state.tool_key in tool_keys else 0
+        # Insert placeholder as first option so no tool is active until user chooses
+        tool_labels_with_placeholder = ["— Kies tool —"] + tool_labels
+        # Determine current label to show
+        if st.session_state.tool_key:
+            current_label = tools_meta.get(st.session_state.tool_key, {}).get("label", tool_labels_with_placeholder[0])
+            default_index = tool_labels_with_placeholder.index(current_label) if current_label in tool_labels_with_placeholder else 0
+        else:
+            default_index = 0  # placeholder selected
+            st.session_state.tool_radio = "— Kies tool —"
+
         st.sidebar.radio(
             "Kies tool:",
-            tool_labels,
-            index=t_index,
+            tool_labels_with_placeholder,
+            index=default_index,
             key="tool_radio",
             on_change=_on_tool_changed,
         )
     else:
         st.sidebar.info("Nog geen tools geconfigureerd voor deze assistant.")
-        # clear tool state
         st.session_state.tool_key = ""
         st.session_state.tool_radio = ""
 
     st.sidebar.markdown("---")
 
-    # Sync to query params (do this last; Streamlit manages widget->session_state during this run)
+    # Sync to query params (Streamlit manages widget->session_state)
     qp = st.query_params
     a_key = st.session_state.assistant_key
     t_key = st.session_state.tool_key or ""
+
+    # If tool empty -> keep tool param empty (Home); ensure assistant param present
     if qp.get("assistant", None) != a_key or qp.get("tool", None) != t_key:
         st.query_params["assistant"] = a_key
         st.query_params["tool"] = t_key
