@@ -38,6 +38,60 @@ def call_tool(obj, name: str | None = None):
 # /* CUSTOM-UI: sidebar-green */
 st.markdown(
     """
+    <style>
+    :root { --sidebar-width: 300px; }
+
+    body::before{
+        content: "";
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: var(--sidebar-width);
+        background: linear-gradient(180deg,#16a34a 0%, #059669 100%) !important;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .css-1d391kg, [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+        position: relative;
+        z-index: 1;
+    }
+
+    [data-testid="stSidebar"] > div[role="complementary"],
+    .css-1d391kg .css-1d391kg,
+    .css-1d391kg .css-hi6a2p {
+        background-color: transparent !important;
+        box-shadow: none !important;
+    }
+
+    [data-testid="stSidebar"] *,
+    .stSidebar * {
+        color: #ffffff !important;
+    }
+
+    .stRadio label, .stRadio div, [data-testid="stSidebar"] .stRadio label {
+        color: #ffffff !important;
+    }
+
+    input[type="radio"] + label, .stRadio > label {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stAppViewContainer"], .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    .stButton>button, .stDownloadButton>button {
+        color: #000000 !important;
+    }
+
+    .css-1d391kg, [data-testid="stSidebar"] {
+        min-width: var(--sidebar-width) !important;
+        max-width: var(--sidebar-width) !important;
+    }
+    </style>
     """,
     unsafe_allow_html=True
 )
