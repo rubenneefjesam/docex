@@ -5,3 +5,9 @@
 tmp*
 *.docx
 .env
+__pycache__/
+*.pyc
+.vscode/
+secrets.toml
+.env
+.env.*
