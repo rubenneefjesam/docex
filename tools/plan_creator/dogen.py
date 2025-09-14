@@ -292,8 +292,8 @@ def run(show_nav: bool = True):
     groq_client = get_groq_client()
     steps_mod.record_step("Groq client aangemaakt")
 
-    # Nav gewist: altijd pagina Docex tonen (geen zij-navigatie meer)
-    page = "Docex"
+    # Nav gewist: altijd pagina Document generator tonen (geen zij-navigatie meer)
+    page = "Document generator"
 
     if page == "Home":
 
@@ -303,7 +303,7 @@ def run(show_nav: bool = True):
             """
             Gebruik deze tool om snel **Word-templates** bij te werken met **nieuwe context**.
             
-            - Ga naar **Docex**
+            - Ga naar **Document generator**
             - Upload je **template** en **context**
             - Klik op **Genereer aangepast document**
             - Download en behoud je opmaak!
@@ -311,9 +311,9 @@ def run(show_nav: bool = True):
             unsafe_allow_html=True,
         )
 
-    elif page == "Docex":
+    elif page == "Document generator":
         # De belangrijkste gebruikersinterface: uploaden, preview en genereren
-        st.markdown("<div class='big-header'>🚀 Docex</div>", unsafe_allow_html=True)
+        st.markdown("<div class='big-header'>🚀 Document generator</div>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         tpl_path = None
         context = ""

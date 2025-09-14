@@ -9,7 +9,7 @@ from tools.doc_extractor.docex import get_groq_client
 import streamlit as st
 import fitz  # PyMuPDF
 
-# Hergebruik de Groq client loader uit Docex (voor fallback-beschrijvingen)
+# Hergebruik de Groq client loader uit Document generator (voor fallback-beschrijvingen)
 from tools.doc_extractor.docex import get_groq_client
 
 # =========================
@@ -255,7 +255,7 @@ def show_pdf_inline(pdf_bytes: bytes, height: int = 800):
 # =========================
 
 def app():
-    st.markdown("## 🔍 Coge")
+    st.markdown("## 🔍 Document comparison")
     st.caption("Contextuele annotaties in PDF v2 + frontend-waarschuwing")
 
     col1, col2 = st.columns(2)

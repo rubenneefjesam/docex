@@ -190,7 +190,7 @@ def run(show_nav: bool = True):
     groq_client = get_groq_client()
     steps_mod.record_step("Groq client aangemaakt")
 
-    st.markdown("<div class='big-header'>🚀 Docex</div>", unsafe_allow_html=True)
+    st.markdown("<div class='big-header'>🚀 Document generator</div>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     tpl_path = None
     context = ""
