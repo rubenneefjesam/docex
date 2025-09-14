@@ -1,3 +1,3 @@
-from .docex import run as docgen
+from .docgen import run as docgen
 
 __all__ = ["docgen"]
