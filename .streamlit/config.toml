@@ -1,7 +1,7 @@
 [theme]
 base = "light"
 primaryColor = "#7C3AED"
-backgroundColor = "#F8FAFC"
+backgroundColor = "#FFFFFF"        # wit pagina-achtergrond
 secondaryBackgroundColor = "#EEF2FF"
-textColor = "#0F172A"
+textColor = "#000000"             # zwart (dat wilde je)
 font = "sans serif"
