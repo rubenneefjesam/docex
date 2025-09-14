@@ -15,4 +15,5 @@ secrets.toml
 .vscode/
 
 # Local / temp / backups
-*.bak
+*.baktmp*
+*.docx
