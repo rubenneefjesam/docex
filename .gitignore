@@ -17,3 +17,6 @@ secrets.toml
 # Local / temp / backups
 *.baktmp*
 *.docx
+streamlit.log
+smoke_output.txt
+*.log
