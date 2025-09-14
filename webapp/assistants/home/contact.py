@@ -1,4 +1,4 @@
-# webapp/assistants/contact.py
+# webapp/assistants/home/contact.py
 import streamlit as st
 
 def render():
@@ -7,4 +7,4 @@ def render():
     st.markdown("---")
     st.write("- E-mail: it-support@voorbeeld.nl")
     st.write("- Telefoon: 012-3456789")
-    st.write("- Interne procedure: open een ticket via JIRA `DOCGEN`")S
+    st.write("- Interne procedure: open een ticket via JIRA `DOCGEN`")
