@@ -3,12 +3,17 @@ from pathlib import Path
 import streamlit as st
 from webapp.registry import ASSISTANTS
 
+def _qp_list(qp, key: str, default: str = ""):
+    """Normalize st.query_params[key] to a one-item list."""
+    val = qp.get(key, default)
+    if isinstance(val, list):
+        return val
+    if val is None:
+        return [default]
+    return [val]
+
 def render_sidebar(default_assistant: str = "general_support",
                    default_tool: str | None = None):
-    """
-    Bouwt de sidebar en retourneert (assistant_key, tool_key).
-    - default_* worden gebruikt als query params ontbreken of ongeldige waarden hebben.
-    """
     # Logo
     base_assets = Path(__file__).resolve().parents[1] / "assets"
     for name in ("beeldmerk.png", "Beeldmerk.png", "logo.png", "logo.svg"):
@@ -19,12 +24,11 @@ def render_sidebar(default_assistant: str = "general_support",
 
     st.sidebar.header("Assistent voor:")
 
-    # Query params (dieplinks)
     qp = st.query_params
-    a_qp = qp.get("assistant", [default_assistant])[0]
-    t_qp = qp.get("tool", [default_tool or ""])[0]
+    a_qp = _qp_list(qp, "assistant", default_assistant)[0]
+    t_qp = _qp_list(qp, "tool", default_tool or "")[0]
 
-    # Assistent radio
+    # Assistent selecteren
     assistant_keys = list(ASSISTANTS.keys())
     if a_qp not in assistant_keys:
         a_qp = default_assistant
@@ -39,12 +43,12 @@ def render_sidebar(default_assistant: str = "general_support",
     assistant = assistant_keys[labels.index(sel_label)]
 
     # Tools voor gekozen assistent
-    tools_meta = ASSISTANTS[assistant]["tools"]
+    tools_meta = ASSISTANTS[assistant].get("tools", {})
     tool_keys = list(tools_meta.keys())
     tool_labels = [tools_meta[k]["label"] for k in tool_keys]
 
+    # Kies default tool (eerste) als query param leeg of ongeldig is
     if t_qp not in tool_keys:
-        # kies eerste tool als default (indien aanwezig)
         t_qp = tool_keys[0] if tool_keys else ""
 
     if tool_keys:
@@ -55,8 +59,9 @@ def render_sidebar(default_assistant: str = "general_support",
         tool = ""
 
     st.sidebar.markdown("---")
-    # sync URL
-    if qp.get("assistant", [None])[0] != assistant or qp.get("tool", [None])[0] != tool:
+
+    # Sync URL alleen als er iets veranderde
+    if qp.get("assistant", None) != assistant or qp.get("tool", None) != tool:
         st.query_params["assistant"] = assistant
         st.query_params["tool"] = tool
 
