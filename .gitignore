@@ -29,3 +29,4 @@ __pycache__/
 # test data (optioneel: soms wil je data wel in git)
 tests/data/*
 !tests/data/.gitkeep
+*.bak
