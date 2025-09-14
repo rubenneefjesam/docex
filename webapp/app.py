@@ -10,6 +10,31 @@ if str(ROOT) not in sys.path:
 
 import streamlit as st
 
+
+# Small helper to call a tool entrypoint defensively. Accepts either:
+# - a callable (function), or
+# - a module-like object exposing run/app/main functions.
+def call_tool(obj, name: str | None = None):
+    try:
+        if obj is None:
+            st.error(f"{name or 'Tool'}: not available")
+            return
+        # If obj itself is callable (function), call it
+        if callable(obj):
+            return obj()
+        # If obj is a module-like object, prefer run/app/main
+        for attr in ("run", "app", "main"):
+            if hasattr(obj, attr) and callable(getattr(obj, attr)):
+                return getattr(obj, attr)()
+        st.error(f"{name or 'Tool'}: no callable entrypoint found (checked run/app/main)")
+    except Exception as e:
+        # Show exception in Streamlit UI and re-raise for logs
+        try:
+            st.exception(e)
+        except Exception:
+            pass
+        raise
+
 # /* CUSTOM-UI: sidebar-green */
 st.markdown(
     """
@@ -74,7 +99,7 @@ st.markdown(
 
 with st.sidebar:
     st.header("Assistent voor:")
-    top_choice = st.radio("", ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"], index=0)
+    top_choice = st.radio("Assistent voor:", label_visibility="collapsed", ["General support", "Tender assistant", "Risk assistant", "Calculator assistant", "Legal assistant"], index=0)
     st.markdown("---")
     sub_choice = None
 
