@@ -1,7 +1,7 @@
 [theme]
 base = "light"
-primaryColor = "#7C3AED"
-backgroundColor = "#FFFFFF"        # wit pagina-achtergrond
-secondaryBackgroundColor = "#EEF2FF"
-textColor = "#000000"             # zwart (dat wilde je)
+primaryColor = "#16a34a"        # groene accentkleur voor knoppen / radiobuttons
+backgroundColor = "#ffffff"     # pagina-achtergrond (wit)
+secondaryBackgroundColor = "#ecfdf5" # lichtgroene “kaartjes” / container achtergrond
+textColor = "#0f172a"           # donkere tekstkleur
 font = "sans serif"
