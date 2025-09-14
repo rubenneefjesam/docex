@@ -1,9 +1,5 @@
-2025-09-14 11:38:26.081 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
+2025-09-14 11:39:29.663 WARNING streamlit.runtime.caching.cache_data_api: No runtime found, using MemoryCacheStorageManager
 Project root: /workspaces/docex
 gevonden tool-modules: ['__pycache__', 'doc_comparison', 'doc_extractor', 'doc_generator', 'docgen_tool', 'risk_analyzer_tool', 'smoke_import']
 
-IMPORT ERRORS (eerste 50):
-- tools.doc_generator.docgen -> ModuleNotFoundError: No module named 'tools.doc_generator.docex'
-- tools.doc_generator.steps -> ModuleNotFoundError: No module named 'tools.doc_generator.docex'
-
-Totaal errors: 2
+Smoke-imports OK — geen import exceptions gedetecteerd
