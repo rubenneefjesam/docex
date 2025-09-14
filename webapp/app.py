@@ -1,5 +1,4 @@
 # webapp/app.py
-
 import sys
 from pathlib import Path
 
@@ -49,7 +48,8 @@ def call_first_callable(candidate, name: str | None = None):
     if isinstance(candidate, str):
         try:
             candidate = importlib.import_module(candidate)
-        except Exception as e:
+        except Exception:
+            # propagate to caller so it can show a message
             raise
     # delegate to call_tool (which handles modules and callables)
     return call_tool(candidate, name)
@@ -97,14 +97,31 @@ def load_tool_module_candidate(human_name: str, *module_candidates: str):
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
+
+# ---- sidebar (logo + assistant menu) ----
 with st.sidebar:
-    # logo (local)
-    logo_path = Path(__file__).resolve().parent / "assets" / "beeldmerk.png"
-    if logo_path.exists():
-        st.markdown(
-            f"<div style='text-align:center; padding:8px 0;'><img src='{logo_path.as_posix()}' width='140' alt='bedrijf-logo' style='max-width:100%; height:auto;' /></div>",
-            unsafe_allow_html=True,
-        )
+    # logo (local) — try multiple filename cases to be tolerant
+    base_assets = Path(__file__).resolve().parent / "assets"
+    logo_candidates = [
+        base_assets / "beeldmerk.png",
+        base_assets / "Beeldmerk.png",
+        base_assets / "logo.png",
+        base_assets / "logo.svg",
+    ]
+    logo_path = None
+    for cand in logo_candidates:
+        if cand.exists():
+            logo_path = cand
+            break
+
+    if logo_path:
+        try:
+            # show the logo in the sidebar; Streamlit handles serving the local file
+            st.sidebar.image(str(logo_path), width=140)
+        except Exception as e:
+            st.sidebar.write(f"Kon logo niet laden: {e}")
+    else:
+        st.sidebar.write("Logo niet gevonden: webapp/assets/beeldmerk.png (of Beeldmerk.png)")
 
     st.header("Assistent voor:")
     top_choice = st.radio(
@@ -119,8 +136,12 @@ with st.sidebar:
     if top_choice == "General support":
         st.subheader("Actieve tools")
         # detect which tools are available (do not raise if import fails)
-        docgen_available = importlib.util.find_spec("tools.doc_generator") is not None or importlib.util.find_spec("tools.plan_creator") is not None
-        coge_available = importlib.util.find_spec("tools.doc_comparison") is not None
+        docgen_available = (
+            importlib.util.find_spec("tools.doc_generator") is not None
+            or importlib.util.find_spec("tools.plan_creator") is not None
+            or importlib.util.find_spec("tools.docgen_tool") is not None
+        )
+        coge_available = importlib.util.find_spec("tools.doc_comparison") is not None or importlib.util.find_spec("tools.coge_tool") is not None
 
         options = []
         if docgen_available:
@@ -146,6 +167,8 @@ with st.sidebar:
     else:
         # show Home / placeholder for non-configured assistants
         choice = "Home"
+# ---- end sidebar ----
+
 
 # --- Main page routing ---
 if choice == "Home":
@@ -164,6 +187,7 @@ elif choice == "Document generator":
         "tools.plan_creator",
         "tools.doc_generator.docgen",
         "tools.doc_generator",
+        "tools.docgen_tool.dogen",
     )
     if docmod:
         try:
@@ -182,6 +206,8 @@ elif choice == "Document comparison":
         "Document comparison",
         "tools.doc_comparison.coge",
         "tools.doc_comparison",
+        "tools.coge_tool.coge",
+        "tools.coge_tool",
     )
     if cogemod:
         try:
