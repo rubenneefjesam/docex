@@ -66,6 +66,14 @@ def discover_assistants() -> Dict[str, Dict[str, Any]]:
             assistants[key] = meta
 
     return assistants
+
+def safe_index(options, value, default=0):
+    """Veilige index lookup: return default als value niet in options staat."""
+    try:
+        return options.index(value)
+    except Exception:
+        return default
+    
 # -----------------------
 # Sidebar (navigation)
 # -----------------------
