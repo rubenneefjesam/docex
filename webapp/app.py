@@ -98,7 +98,7 @@ if main_menu == "Home":
 
 elif main_menu == "Info":
     try:
-        info_mod = safe_import("webapp.assistants.home.info")
+        info_mod = safe_import("webapp.home.info")
         if isinstance(info_mod, Exception) or info_mod is None:
             raise info_mod or ModuleNotFoundError()
         render_info = getattr(info_mod, "render", None)
@@ -114,7 +114,7 @@ elif main_menu == "Info":
 
 elif main_menu == "Contact":
     try:
-        contact_mod = safe_import("webapp.assistants.home.contact")
+        contact_mod = safe_import("webapp.home.contact")
         if isinstance(contact_mod, Exception) or contact_mod is None:
             raise contact_mod or ModuleNotFoundError()
         render_contact = getattr(contact_mod, "render", None)
