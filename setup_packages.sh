@@ -1,4 +1,3 @@
-cat > setup_packages.sh << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -43,4 +42,3 @@ mv "$TMP_FILE" "$APP_FILE"
 echo "✅ safe_import is gepatcht."
 
 echo "🎉 Klaar! Probeer nu opnieuw te starten."
-EOF
