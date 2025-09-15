@@ -18,18 +18,17 @@ from webapp.assistants.general_support.tools.doc_generator.doc_generator import 
 # PDF / Extract helpers
 # =========================
 
-
 @st.cache_data(show_spinner=False)
 def extract_pdf_lines(pdf_bytes: bytes) -> List[List[str]]:
-"""Retourneer per pagina een lijst regels (stripped)."""
-pages: List[List[str]] = []
-with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-for page in doc:
-text = page.get_text("text")
-lines = [ln.strip() for ln in text.splitlines()]
-lines = [ln for ln in lines if ln]
-pages.append(lines)
-return pages
+    """Retourneer per pagina een lijst regels (stripped)."""
+    pages: List[List[str]] = []
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        for page in doc:
+            text = page.get_text("text")
+            lines = [ln.strip() for ln in text.splitlines()]
+            lines = [ln for ln in lines if ln]
+            pages.append(lines)
+    return pages
 
 def flatten_with_page_prefix(pages: List[List[str]]) -> List[str]:
     flat: List[str] = []
