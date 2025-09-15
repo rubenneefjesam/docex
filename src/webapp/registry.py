@@ -1,121 +1,62 @@
 # src/webapp/registry.py
 
-ASSISTANTS = {
-    "general_support": {
-        "label": "General support",
-        "tools": {
-            "document_generator": {
-                "label": "Document generator",
-                "page_module_candidates": [
-                    "webapp.assistants.general_support.tools.doc_generator.doc_generator",
-                    "webapp.assistants.general_support.tools.doc_generator",
-                ],
-            },
-            "document_comparison": {
-                "label": "Document comparison",
-                "page_module_candidates": [
-                    "webapp.assistants.general_support.tools.doc_comparison.doc_comparison",
-                    "webapp.assistants.general_support.tools.doc_comparison",
-                ],
-            },
-        },
-    },
+from pathlib import Path
 
-    "tender_manager_assistant": {
-        "label": "Tender Manager",
-        "tools": {
-            "TenderDocumentCreator": {
-                "label": "Document Creator",
-                "page_module": "tools.document_creator",
-            },
-            "DeadlineTracker": {
-                "label": "Deadline Tracker",
-                "page_module": "tools.deadline_tracker",
-            },
-            "BidScoringModel": {
-                "label": "Bid Scoring",
-                "page_module": "tools.bid_scoring",
-            },
-        },
-    },
+# Basis-map van al je assistants
+BASE = Path(__file__).parent / "assistants"
 
-    "legal_assistant": {
-        "label": "Legal Assistant",
-        "tools": {
-            "ContractAnalyzer": {
-                "label": "Contract Analyzer",
-                "page_module": "tools.contract_analyzer",
-            },
-            "ComplianceChecker": {
-                "label": "Compliance Checker",
-                "page_module": "tools.compliance_checker",
-            },
-            "CaseLawSearch": {
-                "label": "Case Law Search",
-                "page_module": "tools.case_law_search",
-            },
-        },
-    },
+# (Optioneel) hier kun je per assistant.tool key overrides definiëren:
+# OVERRIDES["general_support.document_generator"] = {
+#     "label": "My Special Doc-Gen",
+#     "page_module_candidates": [
+#         "custom.path.to.module",
+#         "another.fallback.path",
+#     ],
+# }
+OVERRIDES: dict[str, dict] = {}
 
-    "project_assistant": {
-        "label": "Project Assistant",
-        "tools": {
-            "TimelinePlanner": {
-                "label": "Timeline Planner",
-                "page_module": "tools.timeline_planner",
-            },
-            "StatusReporter": {
-                "label": "Status Reporter",
-                "page_module": "tools.status_reporter",
-            },
-            "TaskAllocator": {
-                "label": "Task Allocator",
-                "page_module": "tools.task_allocator",
-            },
-        },
-    },
+def titleize(name: str) -> str:
+    """Vervang underscores door spaties en zet elk woord met hoofdletter."""
+    return name.replace("_", " ").title()
 
-    "risk_assistant": {
-        "label": "Risk Assistant",
-        "tools": {
-            "RiskIdentifier": {
-                "label": "Risk Identifier",
-                "page_module": "tools.risk_identifier",
-            },
-            "HeatmapGenerator": {
-                "label": "Heatmap Generator",
-                "page_module": "tools.heatmap_generator",
-            },
-            "MitigationAdvisor": {
-                "label": "Mitigation Advisor",
-                "page_module": "tools.mitigation_advisor",
-            },
-        },
-    },
+def discover_assistants() -> dict:
+    assistants: dict[str, dict] = {}
+    for asst_dir in BASE.iterdir():
+        if not asst_dir.is_dir() or asst_dir.name.startswith("__"):
+            continue
 
-    "sustainability_advisor": {
-        "label": "Sustainability Advisor",
-        "tools": {
-            "CarbonCalculator": {
-                "label": "Carbon Calculator",
-                "page_module": "tools.carbon_calculator",
-            },
-            "SustainabilityReportGenerator": {
-                "label": "Report Generator",
-                "page_module": "tools.sustainability_report_generator",
-            },
-            "EcoScoreAssessor": {
-                "label": "Eco Score Assessor",
-                "page_module": "tools.eco_score_assessor",
-            },
-            "LifecycleAnalyzer": {
-                "label": "Lifecycle Analyzer",
-                "page_module": "tools.lifecycle_analyzer",
-            },
-            "RenewableEnergyAdvisor": {
-                "label": "Renewable Energy Advisor",
-                "page_module": "tools.renewable_energy_advisor",
-            },
-        },
-    },
-}
+        asst_key = asst_dir.name
+        tools_dir = asst_dir / "tools"
+        tools: dict[str, dict] = {}
+
+        if tools_dir.exists():
+            for tool_dir in tools_dir.iterdir():
+                if not tool_dir.is_dir() or tool_dir.name.startswith("__"):
+                    continue
+
+                tool_key = tool_dir.name
+                module_base = f"webapp.assistants.{asst_key}.tools.{tool_key}"
+                # standaard paden: module.py en map/
+                default_candidates = [
+                    f"{module_base}.{tool_key}",
+                    module_base
+                ]
+
+                # zie of we overrides hebben voor label of andere paden
+                ov_key = f"{asst_key}.{tool_key}"
+                override = OVERRIDES.get(ov_key, {})
+
+                tools[tool_key] = {
+                    "label": override.get("label", titleize(tool_key)),
+                    "page_module_candidates": override.get("page_module_candidates", default_candidates)
+                }
+
+        assistants[asst_key] = {
+            "label": titleize(asst_key),
+            "tools": tools
+        }
+
+    return assistants
+
+# Dit is je nieuwe registry:
+ASSISTANTS = discover_assistants()
