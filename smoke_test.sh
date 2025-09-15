@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Zet src/ op de module-zoekweg
+export PYTHONPATH="$(pwd)/src"
+
 # Lijst van modules om te testen (moet overeenkomen met je registry)
 MODULES=(
   "tools.doc_comparison"
