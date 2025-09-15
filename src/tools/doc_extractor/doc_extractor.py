@@ -1,4 +1,4 @@
-# tools/doc_extractor/Document generator.py
+# tools/doc_extractor/doc.extractor.py
 
 import os
 import io
