@@ -60,7 +60,10 @@ else:
         try:
             call_first_callable(mod, meta["label"])
         except Exception:
-            st.error(f"Fout bij starten '{meta['label']}':\n{traceback.format_exc()}")
+            error_text = traceback.format_exc()
+            st.error(f"Fout bij starten '{meta['label']}':\n{error_text}")
+            # Print the full traceback to the console for debugging
+            print(error_text)
 
     else:
         # Should never happen if sidebar restricts keys correctly
