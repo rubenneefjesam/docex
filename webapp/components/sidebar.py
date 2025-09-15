@@ -25,9 +25,9 @@ def render_sidebar(default_assistant: str = "general_support",
     # init session_state voor main_menu
     if "main_menu" not in st.session_state:
         qp = st.query_params
-        page_q = qp.get("page", ["Assistenten"])
-        page = page_q[0] if isinstance(page_q, list) and page_q else "Assistenten"
-        st.session_state.main_menu = page if page in main_options else "Assistenten"
+        page_q = qp.get("page", ["Home"])
+        page = page_q[0] if isinstance(page_q, list) and page_q else "Home"
+        st.session_state.main_menu = page if page in main_options else "Home"
 
     main_menu = st.sidebar.radio(
         label="Hoofdmenu",
