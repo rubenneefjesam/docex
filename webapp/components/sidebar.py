@@ -25,10 +25,9 @@ def render_sidebar(default_assistant: str = "general_support",
     # init session_state voor main_menu
     if "main_menu" not in st.session_state:
         qp = st.query_params
-        page_q = qp.get("page", ["Assistenten"])[0]
-        if page_q not in main_options:
-            page_q = "Assistenten"
-        st.session_state.main_menu = page_q
+        page_q = qp.get("page", ["Assistenten"])
+        page = page_q[0] if isinstance(page_q, list) and page_q else "Assistenten"
+        st.session_state.main_menu = page if page in main_options else "Assistenten"
 
     main_menu = st.sidebar.radio(
         label="Hoofdmenu",
@@ -45,7 +44,8 @@ def render_sidebar(default_assistant: str = "general_support",
         if "assistant_key" not in st.session_state:
             st.session_state.assistant_key = default_assistant
         if "tool_key" not in st.session_state:
-            st.session_state.tool_key = ""
+            st.session_state.tool_key = default_tool or ""
+        # URL sync
         st.query_params["page"] = main_menu
         return main_menu, st.session_state.assistant_key, st.session_state.tool_key
 
@@ -57,16 +57,16 @@ def render_sidebar(default_assistant: str = "general_support",
     # init session_state voor assistant/tool
     if "assistant_key" not in st.session_state or "tool_key" not in st.session_state:
         qp = st.query_params
-        a = qp.get("assistant", [default_assistant])[0]
-        if a not in assistant_keys:
-            a = default_assistant
-        # tool uit query param of leeg
-        t = qp.get("tool", [""])[0]
-        if t not in ASSISTANTS.get(a, {}).get("tools", {}):
-            t = ""
-        st.session_state.assistant_key = a
-        st.session_state.tool_key = t
-        st.session_state.assistant_radio = ASSISTANTS[a]["label"]
+        # ASSISTANT
+        a_q = qp.get("assistant", [])
+        a = a_q[0] if isinstance(a_q, list) and a_q else default_assistant
+        st.session_state.assistant_key = a if a in assistant_keys else default_assistant
+        # TOOL (veilige extractie)
+        t_q = qp.get("tool", [])
+        t = t_q[0] if isinstance(t_q, list) and t_q else ""
+        st.session_state.tool_key = t if t in ASSISTANTS[st.session_state.assistant_key]["tools"] else ""
+        # Sync radios
+        st.session_state.assistant_radio = ASSISTANTS[st.session_state.assistant_key]["label"]
         st.session_state.tool_radio = ""
 
     def _on_assistant_changed():
@@ -97,18 +97,20 @@ def render_sidebar(default_assistant: str = "general_support",
 
     if tool_keys:
         placeholder = ["— Kies tool —"] + tool_labels
-        default_idx = 0
         if st.session_state.tool_key in tool_keys:
-            current_label = tools_meta[st.session_state.tool_key]["label"]
-            default_idx = placeholder.index(current_label)
+            curr_label = tools_meta[st.session_state.tool_key]["label"]
+            default_idx = placeholder.index(curr_label)
+        else:
+            default_idx = 0
+            st.session_state.tool_radio = placeholder[0]
 
         def _on_tool_changed():
             sel = st.session_state.tool_radio
-            if sel == "— Kies tool —":
+            if sel == placeholder[0]:
                 st.session_state.tool_key = ""
             else:
-                idx = placeholder.index(sel) - 1
-                st.session_state.tool_key = tool_keys[idx]
+                # placeholder[0] is the dummy, so subtract 1
+                st.session_state.tool_key = tool_keys[placeholder.index(sel) - 1]
             st.query_params["page"] = "Assistenten"
 
         st.sidebar.radio(
@@ -125,9 +127,9 @@ def render_sidebar(default_assistant: str = "general_support",
         st.session_state.tool_radio = ""
 
     st.sidebar.markdown("---")
-    # Zorg dat URL sync
+    # URL sync
     st.query_params["assistant"] = st.session_state.assistant_key
-    st.query_params["tool"] = st.session_state.tool_key or ""
-    st.query_params["page"] = "Assistenten"
+    st.query_params["tool"]      = st.session_state.tool_key or ""
+    st.query_params["page"]      = "Assistenten"
 
     return "Assistenten", st.session_state.assistant_key, st.session_state.tool_key
