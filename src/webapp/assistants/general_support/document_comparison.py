@@ -9,8 +9,8 @@ def render():
     cogemod = load_tool_module_candidate(
       "Geen module voor Document comparison gevonden.\n"
       "Geprobeerd: tools.doc_comparison.doc_comparison, "
-      "tools.doc_comparison, "
-      "tools.coge_tool.coge, "
+      "tools.doc_comparison,"
+      "tools.coge_tool.coge,"
       "tools.coge_tool"
     )
 
