@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Zet src/ op de module-zoekweg
+# Zorg dat src/ op de module-zoekweg staat
 export PYTHONPATH="$(pwd)/src"
 
 # Lijst van modules om te testen (moet overeenkomen met je registry)
@@ -25,9 +25,12 @@ try:
         sys.exit(1)
     print("✅ $m: OK (render() gevonden)")
 except Exception as e:
-    print("❌ $m: kon niet importeren:", e)
+    print(f"❌ {m}: kon niet importeren: {e}")
     sys.exit(1)
 EOF
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
 done
 
 echo "🎉 Alle imports en render()-checks geslaagd!"
