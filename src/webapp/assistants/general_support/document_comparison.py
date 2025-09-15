@@ -7,11 +7,11 @@ def render():
     st.caption("Vergelijk documenten en zie contextuele wijzigingen.")
 
     cogemod = load_tool_module_candidate(
-      "Document comparison",
-      "tools.doc_comparison.doc_comparison",  # <- geen leading dot
-      "tools.doc_comparison",
-      "tools.coge_tool.coge",
-      "tools.coge_tool",
+      "Geen module voor Document comparison gevonden.\n"
+      "Geprobeerd: tools.doc_comparison.doc_comparison, "
+      "tools.doc_comparison, "
+      "tools.coge_tool.coge, "
+      "tools.coge_tool"
     )
 
     if cogemod:
