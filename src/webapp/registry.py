@@ -4,10 +4,13 @@ ASSISTANTS = {
     "general_support": {
         "label": "General support",
         "tools": {
+            # UI/glue voor document generator (legt alleen de Streamlit-glue vast,
+            # de echte implementatie zit in tools/doc_generator/doc_generator.py)
             "document_generator": {
                 "label": "Document generator",
                 "page_module": "webapp.assistants.general_support.document_generator",
             },
+            # UI/glue voor document comparison
             "document_comparison": {
                 "label": "Document comparison",
                 "page_module": "webapp.assistants.general_support.document_comparison",
@@ -15,7 +18,6 @@ ASSISTANTS = {
         },
     },
 
-    # --- Voeg hier de Tender Manager Assistant toe ---
     "tender_manager_assistant": {
         "label": "Tender Manager",
         "tools": {
@@ -34,7 +36,6 @@ ASSISTANTS = {
         },
     },
 
-    # --- Vul op dezelfde manier de andere modules in ---
     "legal_assistant": {
         "label": "Legal Assistant",
         "tools": {
