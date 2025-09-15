@@ -6,11 +6,11 @@ ASSISTANTS = {
         "tools": {
             "document_generator": {
                 "label": "Document generator",
-                "page_module":"tools.document_generator",
+                "page_module": "webapp.assistants.general_support.document_generator",
             },
             "document_comparison": {
                 "label": "Document comparison",
-                "page_module":"tools.document_comparison",
+                "page_module": "webapp.assistants.general_support.document_comparison",
             },
         },
     },
@@ -21,15 +21,15 @@ ASSISTANTS = {
         "tools": {
             "TenderDocumentCreator": {
                 "label": "Document Creator",
-                "page_module":"tools.document_creator",
+                "page_module": "tools.document_creator",
             },
             "DeadlineTracker": {
                 "label": "Deadline Tracker",
-                "page_module":"tools.deadline_tracker",
+                "page_module": "tools.deadline_tracker",
             },
             "BidScoringModel": {
                 "label": "Bid Scoring",
-                "page_module":"tools.bid_scoring",
+                "page_module": "tools.bid_scoring",
             },
         },
     },
@@ -40,15 +40,15 @@ ASSISTANTS = {
         "tools": {
             "ContractAnalyzer": {
                 "label": "Contract Analyzer",
-                "page_module":"tools.contract_analyzer",
+                "page_module": "tools.contract_analyzer",
             },
             "ComplianceChecker": {
                 "label": "Compliance Checker",
-                "page_module":"tools.compliance_checker",
+                "page_module": "tools.compliance_checker",
             },
             "CaseLawSearch": {
                 "label": "Case Law Search",
-                "page_module":"tools.case_law_search",
+                "page_module": "tools.case_law_search",
             },
         },
     },
@@ -58,15 +58,15 @@ ASSISTANTS = {
         "tools": {
             "TimelinePlanner": {
                 "label": "Timeline Planner",
-                "page_module":"tools.timeline_planner",
+                "page_module": "tools.timeline_planner",
             },
             "StatusReporter": {
                 "label": "Status Reporter",
-                "page_module":"tools.status_reporter",
+                "page_module": "tools.status_reporter",
             },
             "TaskAllocator": {
                 "label": "Task Allocator",
-                "page_module":"tools.task_allocator",
+                "page_module": "tools.task_allocator",
             },
         },
     },
@@ -76,15 +76,15 @@ ASSISTANTS = {
         "tools": {
             "RiskIdentifier": {
                 "label": "Risk Identifier",
-                "page_module":"tools.risk_identifier",
+                "page_module": "tools.risk_identifier",
             },
             "HeatmapGenerator": {
                 "label": "Heatmap Generator",
-                "page_module":"tools.heatmap_generator",
+                "page_module": "tools.heatmap_generator",
             },
             "MitigationAdvisor": {
                 "label": "Mitigation Advisor",
-                "page_module":"tools.mitigation_advisor",
+                "page_module": "tools.mitigation_advisor",
             },
         },
     },
@@ -94,23 +94,23 @@ ASSISTANTS = {
         "tools": {
             "CarbonCalculator": {
                 "label": "Carbon Calculator",
-                "page_module":"tools.carbon_calculator",
+                "page_module": "tools.carbon_calculator",
             },
             "SustainabilityReportGenerator": {
                 "label": "Report Generator",
-                "page_module":"tools.sustainability_report_generator",
+                "page_module": "tools.sustainability_report_generator",
             },
             "EcoScoreAssessor": {
-                "label": "Eco ssssssssssssssssssssssssssssssddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddScore Assessor",
-                "page_module":"tools.eco_score_assessor",
+                "label": "Eco Score Assessor",
+                "page_module": "tools.eco_score_assessor",
             },
             "LifecycleAnalyzer": {
                 "label": "Lifecycle Analyzer",
-                "page_module":"tools.lifecycle_analyzer",
+                "page_module": "tools.lifecycle_analyzer",
             },
             "RenewableEnergyAdvisor": {
                 "label": "Renewable Energy Advisor",
-                "page_module":"tools.renewable_energy_advisor",
+                "page_module": "tools.renewable_energy_advisor",
             },
         },
     },
