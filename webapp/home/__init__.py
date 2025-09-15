@@ -1,4 +1,4 @@
-# webapp/assistants/home/__init__.py
+# webapp/home/__init__.py
 DISPLAY_NAME = "Home"
 IS_ASSISTANT = False
 TOOLS = ["— Kies tool —"]
