@@ -2,14 +2,14 @@
 set -euo pipefail
 
 echo "Huidige PYTHONPATH:"
-echo "  $PYTHONPATH"
+echo "  ${PYTHONPATH:-<niet-gezet>}"
 echo
 
 echo "1) Proberen te importeren vanuit de huidige omgeving…"
 python3 - <<'EOF'
 import importlib, sys
 try:
-    mod = importlib.import_module("tools.doc_generator.doc_generator")
+    import tools.doc_generator.doc_generator
     print("✅ tools.doc_generator.doc_generator import OK")
 except Exception as e:
     print("❌ import failed:", e)
@@ -23,7 +23,7 @@ echo "  nieuwe PYTHONPATH: $PYTHONPATH"
 python3 - <<'EOF'
 import importlib, sys
 try:
-    mod = importlib.import_module("tools.doc_generator.doc_generator")
+    import tools.doc_generator.doc_generator
     print("✅ import OK met project-root in PYTHONPATH")
 except Exception as e:
     print("❌ import nog steeds failed:", e)
@@ -31,5 +31,5 @@ except Exception as e:
 EOF
 
 echo
-echo "Klaar – als tweede stap kun je je run.sh aanpassen om ook de project-root in PYTHONPATH te zetten:"
-echo "  export PYTHONPATH=\"\$(pwd):\$(pwd)/src\""
+echo ">>> Als stap 2 OK is, pas dan je run.sh aan:"
+echo "export PYTHONPATH=\"\$(pwd):\$(pwd)/src\""
