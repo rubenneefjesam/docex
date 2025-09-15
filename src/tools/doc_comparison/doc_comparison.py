@@ -10,7 +10,7 @@ import streamlit as st
 import fitz  # PyMuPDF
 
 # Hergebruik de Groq client loader uit Document generator (voor fallback-beschrijvingen)
-from tools.doc_extractor.doc_extractor import get_groq_client
+from tools.doc_extractor import get_groq_client
 
 # =========================
 # PDF / Extract helpers
