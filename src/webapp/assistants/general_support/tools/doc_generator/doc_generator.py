@@ -396,3 +396,7 @@ def run(show_nav: bool = True):
 
 if __name__ == "__main__":
     run()
+
+def app():
+    st.header("📝 Doc Generator")
+    st.write("Hallo vanuit Doc Generator!")
