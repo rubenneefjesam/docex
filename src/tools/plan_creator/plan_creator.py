@@ -1,4 +1,4 @@
-# tools/doc_generator/dogen.py
+# tools/doc_generator/plan_creator.py
 # AANGEPAST: commentaar per belangrijke component / functie toegevoegd (Nederlands)
 
 import os

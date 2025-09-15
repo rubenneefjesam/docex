@@ -1,4 +1,4 @@
-# tools/doc_comparison/Document comparison.py
+# tools/doc_comparison/doc_comparison.py
 import io
 import re
 import difflib
