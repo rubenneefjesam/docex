@@ -5,18 +5,10 @@ from pathlib import Path
 # Basis-map van al je assistants
 BASE = Path(__file__).parent / "assistants"
 
-# (Optioneel) hier kun je per assistant.tool key overrides definiëren:
-# OVERRIDES["general_support.document_generator"] = {
-#     "label": "My Special Doc-Gen",
-#     "page_module_candidates": [
-#         "custom.path.to.module",
-#         "another.fallback.path",
-#     ],
-# }
+# (Optioneel) overrides als je een afwijkende label of extra paden nodig hebt
 OVERRIDES: dict[str, dict] = {}
 
 def titleize(name: str) -> str:
-    """Vervang underscores door spaties en zet elk woord met hoofdletter."""
     return name.replace("_", " ").title()
 
 def discover_assistants() -> dict:
@@ -36,13 +28,11 @@ def discover_assistants() -> dict:
 
                 tool_key = tool_dir.name
                 module_base = f"webapp.assistants.{asst_key}.tools.{tool_key}"
-                # standaard paden: module.py en map/
                 default_candidates = [
                     f"{module_base}.{tool_key}",
                     module_base
                 ]
 
-                # zie of we overrides hebben voor label of andere paden
                 ov_key = f"{asst_key}.{tool_key}"
                 override = OVERRIDES.get(ov_key, {})
 
@@ -58,5 +48,5 @@ def discover_assistants() -> dict:
 
     return assistants
 
-# Dit is je nieuwe registry:
+# De échte registry
 ASSISTANTS = discover_assistants()
