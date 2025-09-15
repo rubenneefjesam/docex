@@ -2,9 +2,8 @@
 import sys
 from pathlib import Path
 
-# Zorg dat "<repo>/src" in sys.path staat (we zitten nu in "<repo>/src/webapp")
-HERE = Path(__file__).resolve()
-SRC = HERE.parents[1]  # ==> "<repo>/src"
+# Voeg <repo>/src toe aan sys.path (2 niveaus omhoog vanaf src/webapp/app2.py)
+SRC = Path(__file__).resolve().parents[2] / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
