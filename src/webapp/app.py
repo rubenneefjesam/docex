@@ -16,7 +16,7 @@ from webapp.registry import ASSISTANTS
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
-# --- Robust import helper ---------------------------------------------------
+# --- Robust import helperr ---------------------------------------------------
 def import_page_module(base_name):
     """
     Probeer meerdere import-namen, en als fallback laad module direct vanaf bestandspad:
