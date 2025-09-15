@@ -1,24 +1,21 @@
-# Auto-generated info module voor de 'sustainability_advisor' assistant
+# Auto-generated info module voor de 'tender_manager_assistant' assistant
 
-def get_sustainability_advisor_info():
+def get_tender_manager_assistant_info():
     return {
-        "title": "Sustainability Advisor",
+        "title": "Tender Manager Assistant",
         "description": (
-            "De Sustainability Advisor berekent emissies, voert lifecycle-analyses uit "
-            "en genereert duurzaamheidsrapporten om organisaties te helpen bij hun "
-            "transitie naar een lagere ecologische voetafdruk."
+            "De Tender Manager Assistant ondersteunt inkopers en leveranciers "
+            "bij het opstellen, beheren en beoordelen van aanbestedingen."
         ),
         "tools": [
-            {"name": "CarbonCalculator",             "description": "Meet emissies per activiteit en berekent totale CO₂-uitstoot."},
-            {"name": "SustainabilityReportGenerator","description": "Genereert volledige duurzaamheidsrapporten inclusief grafieken en aanbevelingen."},
-            {"name": "EcoScoreAssessor",             "description": "Kent scores toe op milieu-impact en vergelijkt met branchebenchmarks."},
-            {"name": "LifecycleAnalyzer",            "description": "Voert levenscyclusanalyses uit voor producten of processen."},
-            {"name": "RenewableEnergyAdvisor",       "description": "Adviseert over optimale inzet van hernieuwbare energiebronnen."}
+            {"name": "TenderDocumentCreator","description": "Maakt gestandaardiseerde aanbestedingsdocumenten."},
+            {"name": "DeadlineTracker",      "description": "Stelt reminders in voor belangrijke deadlines."},
+            {"name": "BidScoringModel",      "description": "Evalueert en rankt offertes volgens criteria."}
         ],
         "examples": [
             {
-                "code": "assistant.use_tool('CarbonCalculator', {'activities':[{'name':'Vliegreis','distance_km':1200}]})",
-                "explanation": "Berekent de CO₂-uitstoot voor een lijst activiteiten."
+                "code": "assistant.use_tool('TenderDocumentCreator', {'requirements':'RFP.docx'})",
+                "explanation": "Genereert een RFP-document gebaseerd op het sjabloon."
             }
         ],
     }
