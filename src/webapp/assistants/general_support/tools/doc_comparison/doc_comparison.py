@@ -350,3 +350,12 @@ def app() -> None:
         file_name=f"{v2.name.rsplit('.pdf', 1)[0]}_annotated.pdf",
         mime="application/pdf",
     )
+
+def run() -> None:
+    return app()
+
+def render() -> None:
+    return app()
+
+def main() -> None:
+    return app()
