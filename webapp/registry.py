@@ -101,7 +101,7 @@ ASSISTANTS = {
                 "page_module": "webapp.assistants.sustainability_advisor.sustainability_report_generator",
             },
             "EcoScoreAssessor": {
-                "label": "Eco Score Assessor",
+                "label": "Eco ssssssssssssssssssssssssssssssddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddScore Assessor",
                 "page_module": "webapp.assistants.sustainability_advisor.eco_score_assessor",
             },
             "LifecycleAnalyzer": {
