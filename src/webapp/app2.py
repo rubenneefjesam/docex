@@ -2,8 +2,9 @@
 import sys
 from pathlib import Path
 
-# Voeg <repo>/src toe aan sys.path (2 niveaus omhoog vanaf src/webapp/app2.py)
-SRC = Path(__file__).resolve().parents[2] / "src"
+# Zet <repo>/src in sys.path, ongeacht waar je runt
+REPO_ROOT = Path(__file__).resolve().parents[2]   # /workspaces/docex
+SRC = REPO_ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
