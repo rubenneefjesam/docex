@@ -82,7 +82,8 @@ main_menu, assistant, tool = render_sidebar(default_assistant="general_support")
 # Route based on main_menu
 if main_menu == "Home":
     try:
-        home_mod = safe_import("webapp.assistants.home")
+        # aangepast pad naar nieuwe locatie
+        home_mod = safe_import("webapp.home")
         if isinstance(home_mod, Exception) or home_mod is None:
             raise home_mod or ModuleNotFoundError()
         render_home = getattr(home_mod, "render", None)
@@ -98,7 +99,8 @@ if main_menu == "Home":
 
 elif main_menu == "Info":
     try:
-        info_mod = safe_import("webapp.assistants.home.info")
+        # aangepast pad naar nieuwe locatie
+        info_mod = safe_import("webapp.home.info")
         if isinstance(info_mod, Exception) or info_mod is None:
             raise info_mod or ModuleNotFoundError()
         render_info = getattr(info_mod, "render", None)
@@ -114,7 +116,8 @@ elif main_menu == "Info":
 
 elif main_menu == "Contact":
     try:
-        contact_mod = safe_import("webapp.assistants.home.contact")
+        # aangepast pad naar nieuwe locatie
+        contact_mod = safe_import("webapp.home.contact")
         if isinstance(contact_mod, Exception) or contact_mod is None:
             raise contact_mod or ModuleNotFoundError()
         render_contact = getattr(contact_mod, "render", None)
@@ -154,7 +157,8 @@ else:
 
     elif assistant not in ASSISTANTS or not tool:
         # Fallback placeholder
-        home_mod = safe_import("webapp.assistants.home")
+        # aangepast pad naar nieuwe locatie
+        home_mod = safe_import("webapp.home")
         render_home = getattr(home_mod, "render", None)
         if callable(render_home):
             render_home()
