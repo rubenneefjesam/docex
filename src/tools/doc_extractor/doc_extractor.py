@@ -164,7 +164,7 @@ def _safe_read_docx_text(path: str) -> str:
 # -----------------------------
 # Streamlit UI - main
 # -----------------------------
-def run(show_nav: bool = True):
+def render(show_nav: bool = True):
     try:
         from . import steps as _steps_mod
     except Exception:
