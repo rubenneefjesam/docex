@@ -8,8 +8,8 @@ from typing import List, Tuple, Dict, Optional
 import streamlit as st
 import fitz  # PyMuPDF
 
-# Hergebruik de Groq client loader uit Document generator (voor fallback-beschrijvingen)
-from tools.doc_generator.doc_generator import get_groq_client
++# Hergebruik de Groq client loader uit Document generator (voor fallback-beschrijvingen)
++from webapp.assistants.general_support.tools.doc_generator.doc_generator import get_groq_client
 
 # =========================
 # PDF / Extract helpers
