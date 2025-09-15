@@ -1,19 +1,22 @@
-# webapp/registry.py
+# src/webapp/registry.py
 
 ASSISTANTS = {
     "general_support": {
         "label": "General support",
         "tools": {
-            # UI/glue voor document generator (legt alleen de Streamlit-glue vast,
-            # de echte implementatie zit in tools/doc_generator/doc_generator.py)
             "document_generator": {
                 "label": "Document generator",
-                "page_module": "webapp.assistants.general_support.document_generator",
+                "page_module_candidates": [
+                    "webapp.assistants.general_support.tools.doc_generator.doc_generator",
+                    "webapp.assistants.general_support.tools.doc_generator",
+                ],
             },
-            # UI/glue voor document comparison
             "document_comparison": {
                 "label": "Document comparison",
-                "page_module": "webapp.assistants.general_support.document_comparison",
+                "page_module_candidates": [
+                    "webapp.assistants.general_support.tools.doc_comparison.doc_comparison",
+                    "webapp.assistants.general_support.tools.doc_comparison",
+                ],
             },
         },
     },

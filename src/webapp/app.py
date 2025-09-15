@@ -16,7 +16,7 @@ from webapp.registry import ASSISTANTS
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
-# --- Robust import helperr ---------------------------------------------------
+# --- Robust import helper ---------------------------------------------------
 def import_page_module(base_name):
     """
     Probeer meerdere import-namen, en als fallback laad module direct vanaf bestandspad:
@@ -76,8 +76,10 @@ def safe_import(module_path_or_basename):
             return e
     return import_page_module(module_path_or_basename.split('.')[-1])
 
+
 # Sidebar -> keuzes
 main_menu, assistant, tool = render_sidebar(default_assistant="general_support")
+
 
 # Route based on main_menu
 if main_menu == "Home":
@@ -164,20 +166,20 @@ else:
             st.write("Kies een tool via de sidebar.")
 
     else:
-        # Toon gekozen tool
-        page_module_path = ASSISTANTS[assistant]["tools"][tool]["page_module"]
+        # Toon gekozen tool via page_module_candidates
+        from webapp.core.tool_loader import load_tool_module_candidate, call_first_callable
+
+        tool_meta = ASSISTANTS[assistant]["tools"][tool]
+        # Haal lijst met module-kandidaten op, of val terug op legacy page_module
+        candidates = tool_meta.get(
+            "page_module_candidates",
+            [tool_meta.get("page_module")]
+        )
+        # Probeer de eerste succesvolle import uit de kandidatenlijst
+        mod = load_tool_module_candidate(tool_meta["label"], *candidates)
+
+        # En roep de standaard entrypoint aan (run/app/main)
         try:
-            try:
-                mod = importlib.import_module(page_module_path)
-            except Exception:
-                mod = safe_import(page_module_path)
-            if isinstance(mod, Exception) or mod is None:
-                raise mod or ModuleNotFoundError()
-        except Exception:
-            st.error(f"Kon pagina-module niet laden: `{page_module_path}`\n{traceback.format_exc()[:500]}")
-        else:
-            render = getattr(mod, "render", None)
-            if callable(render):
-                render()
-            else:
-                st.error(f"Pagina `{page_module_path}` heeft geen render() functie.")
+            call_first_callable(mod, tool_meta["label"])
+        except Exception as e:
+            st.error(f"Fout bij starten {tool_meta['label']}: {e}")

@@ -29,14 +29,18 @@ def render_sidebar(default_assistant: str = "general_support",
         page = page_q[0] if isinstance(page_q, list) and page_q else "Home"
         st.session_state.main_menu = page if page in main_options else "Home"
 
+    # Hoofdmenu-radio (houd deze call exact zoals-ie was)
     main_menu = st.sidebar.radio(
         label="Hoofdmenu",
         options=main_options,
         index=main_options.index(st.session_state.main_menu),
         key="main_menu_radio",
-        label_visibility="visible",
         on_change=lambda: st.session_state.update({"main_menu": st.session_state.main_menu_radio}),
+        label_visibility="visible",
     )
+    # Houd session_state.main_menu altijd in sync met de radio-keuze
+    st.session_state.main_menu = main_menu
+
     st.sidebar.markdown("---")
 
     # Buiten Assistenten‐mode: behoud assistant/tool state
@@ -109,7 +113,7 @@ def render_sidebar(default_assistant: str = "general_support",
             if sel == placeholder[0]:
                 st.session_state.tool_key = ""
             else:
-                # placeholder[0] is the dummy, so subtract 1
+                # placeholder[0] is de dummy, dus -1
                 st.session_state.tool_key = tool_keys[placeholder.index(sel) - 1]
             st.query_params["page"] = "Assistenten"
 
