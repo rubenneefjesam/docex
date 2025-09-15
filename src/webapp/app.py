@@ -1,185 +1,72 @@
 # webapp/app.py
-# --- ensure project root on sys.path (MUST come first) ---
 import sys
 from pathlib import Path
+
+# Zet project-root op sys.path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import importlib
-import importlib.util
 import traceback
 import streamlit as st
 
 from webapp.components.sidebar import render_sidebar
 from webapp.registry import ASSISTANTS
 
+# Directe imports voor Home, Info en Contact
+from webapp.home.home import render as render_home
+from webapp.home.info import render as render_info
+from webapp.home.contact import render as render_contact
+
+# Tool-loader
+from webapp.core.tool_loader import load_tool_module_candidate, call_first_callable
+
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
-# --- Robust import helper ---------------------------------------------------
-def import_page_module(base_name):
-    """
-    Probeer meerdere import-namen, en als fallback laad module direct vanaf bestandspad:
-    - webapp.assistants.<base_name>
-    - assistants.<base_name>
-    - webapp.assistants.<base_name>.<base_name>  (package met submodule)
-    - fallback: laad webapp/assistants/<base_name>/__init__.py of webapp/assistants/<base_name>.py direct
-    Retourneert module, Exception (bij import/runtime error), of None (niet gevonden).
-    """
-    candidates = [
-        f"webapp.assistants.{base_name}",
-        f"assistants.{base_name}",
-        f"webapp.assistants.{base_name}.{base_name}",
-        f"assistants.{base_name}.{base_name}",
-        f"{base_name}",
-    ]
-
-    for cand in candidates:
-        try:
-            return importlib.import_module(cand)
-        except ModuleNotFoundError:
-            continue
-        except Exception as e:
-            return e
-
-    assistants_dir = Path(__file__).parent / "assistants"
-    pkg_init = assistants_dir / base_name / "__init__.py"
-    mod_file = assistants_dir / f"{base_name}.py"
-
-    try:
-        if pkg_init.exists():
-            spec = importlib.util.spec_from_file_location(f"assistants.{base_name}", str(pkg_init))
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            return mod
-        if mod_file.exists():
-            spec = importlib.util.spec_from_file_location(f"assistants.{base_name}", str(mod_file))
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            return mod
-    except Exception as e:
-        return e
-
-    return None
-
-
-def safe_import(module_path_or_basename):
-    """
-    Probeer direct import, anders basename import via import_page_module.
-    """
-    if "." in module_path_or_basename:
-        try:
-            return importlib.import_module(module_path_or_basename)
-        except ModuleNotFoundError:
-            pass
-        except Exception as e:
-            return e
-    return import_page_module(module_path_or_basename.split('.')[-1])
-
-
-# Sidebar -> keuzes
+# Sidebar keuzes ophalen
 main_menu, assistant, tool = render_sidebar(default_assistant="general_support")
 
-
-# Route based on main_menu
+# Routing
 if main_menu == "Home":
-    try:
-        home_mod = safe_import("webapp.assistants.home")
-        if isinstance(home_mod, Exception) or home_mod is None:
-            raise home_mod or ModuleNotFoundError()
-        render_home = getattr(home_mod, "render", None)
-        if callable(render_home):
-            render_home()
-        else:
-            st.markdown("<h1>🏠 Home</h1>", unsafe_allow_html=True)
-            st.write("Welkom bij de Document generator-app.")
-    except Exception:
-        st.markdown("<h1>🏠 Home</h1>", unsafe_allow_html=True)
-        st.write("Welkom bij de Document generator-app.")
-        st.error(f"Kon home pagina niet laden:\n{traceback.format_exc()[:500]}")
+    render_home()
 
 elif main_menu == "Info":
-    try:
-        info_mod = safe_import("webapp.home.info")
-        if isinstance(info_mod, Exception) or info_mod is None:
-            raise info_mod or ModuleNotFoundError()
-        render_info = getattr(info_mod, "render", None)
-        if callable(render_info):
-            render_info()
-        else:
-            st.header("Info")
-            st.write("Informatiepagina")
-    except Exception:
-        st.header("Info")
-        st.write("Informatiepagina")
-        st.error(f"Kon info pagina niet laden:\n{traceback.format_exc()[:500]}")
+    render_info()
 
 elif main_menu == "Contact":
-    try:
-        contact_mod = safe_import("webapp.home.contact")
-        if isinstance(contact_mod, Exception) or contact_mod is None:
-            raise contact_mod or ModuleNotFoundError()
-        render_contact = getattr(contact_mod, "render", None)
-        if callable(render_contact):
-            render_contact()
-        else:
-            st.header("Contact")
-            st.write("Contactpagina")
-    except Exception:
-        st.header("Contact")
-        st.write("Contactpagina")
-        st.error(f"Kon contact pagina niet laden:\n{traceback.format_exc()[:500]}")
+    render_contact()
 
 else:
-    # Assistenten-mode
-    if assistant in ASSISTANTS and (not tool or tool == ""):
-        # Toon assistant-specifieke info
+    # Assistenten-modus
+    # 1) Alleen assistant geselecteerd → toon diens info
+    if assistant in ASSISTANTS and not tool:
+        info_module_path = f"webapp.assistants.{assistant}.info"
         try:
-            info_mod = safe_import(f"webapp.assistants.{assistant}.info")
-            if isinstance(info_mod, Exception) or info_mod is None:
-                raise info_mod or ModuleNotFoundError()
-            render_info = getattr(info_mod, "render", None)
-            if callable(render_info):
-                render_info()
+            info_mod = __import__(info_module_path, fromlist=["render"])
+            render = getattr(info_mod, "render", None)
+            if callable(render):
+                render()
             else:
                 st.header(f"{ASSISTANTS[assistant]['label']} — Info")
-                # Fallback describe
-                info_func = getattr(info_mod, f"get_{assistant}_info", None)
-                if callable(info_func):
-                    data = info_func()
-                    st.write(data.get("description", "Geen extra info beschikbaar."))
-                else:
-                    st.write("Geen extra info beschikbaar.")
-        except Exception:
-            st.header(f"{ASSISTANTS[assistant]['label']} — Info")
-            st.error(f"Kon info-module voor {assistant} niet laden:\n{traceback.format_exc()[:500]}")
+                st.write("Geen description beschikbaar.")
+        except Exception as e:
+            st.error(f"Fout bij laden assistant-info:\n{e}")
 
-    elif assistant not in ASSISTANTS or not tool:
-        # Fallback placeholder
-        home_mod = safe_import("webapp.assistants.home")
-        render_home = getattr(home_mod, "render", None)
-        if callable(render_home):
-            render_home()
-            st.info("Kies bovenin een assistent en daarna een tool om te starten.")
-        else:
-            st.markdown("<h1>🏠 Home</h1>", unsafe_allow_html=True)
-            st.write("Kies een tool via de sidebar.")
-
-    else:
-        # Toon gekozen tool via page_module_candidates
-        from webapp.core.tool_loader import load_tool_module_candidate, call_first_callable
-
+    # 2) Assistant én tool geselecteerd → laad de tool
+    elif assistant in ASSISTANTS and tool in ASSISTANTS[assistant]["tools"]:
         tool_meta = ASSISTANTS[assistant]["tools"][tool]
-        # Haal lijst met module-kandidaten op, of val terug op legacy page_module
         candidates = tool_meta.get(
             "page_module_candidates",
             [tool_meta.get("page_module")]
         )
-        # Probeer de eerste succesvolle import uit de kandidatenlijst
-        mod = load_tool_module_candidate(tool_meta["label"], *candidates)
 
-        # En roep de standaard entrypoint aan (run/app/main)
+        mod = load_tool_module_candidate(tool_meta["label"], *candidates)
         try:
             call_first_callable(mod, tool_meta["label"])
         except Exception as e:
-            st.error(f"Fout bij starten {tool_meta['label']}: {e}")
+            st.error(f"Fout bij starten {tool_meta['label']}:\n{traceback.format_exc()}")
+
+    else:
+        # Ongeldige combinatie → terug naar Home
+        st.warning("Ongeldige selectie. Ga terug naar Home of Assistenten.")
+        render_home()
