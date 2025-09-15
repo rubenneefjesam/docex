@@ -1,6 +1,13 @@
 import streamlit as st
 
 def render():
+    st.header("Contact")
+    st.write("Contactpagina")
+
+# webapp/assistants/contact.py
+import streamlit as st
+
+def render():
     """
     Contact-pagina voor de app.
     Zet hier je supportgegevens, e-mail, of een formulier.
