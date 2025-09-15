@@ -65,8 +65,7 @@ def import_page_module(base_name):
 
 def safe_import(module_path_or_basename):
     """
-    Probeer eerst directe import (als dotted path). Anders behandel als basename
-    en gebruik import_page_module. Retourneert module of Exception of None.
+    Probeer direct import, anders basename import via import_page_module.
     """
     if "." in module_path_or_basename:
         try:
@@ -75,14 +74,12 @@ def safe_import(module_path_or_basename):
             pass
         except Exception as e:
             return e
+    return import_page_module(module_path_or_basename.split('.')[-1])
 
-    base = module_path_or_basename.split('.')[-1]
-    return import_page_module(base)
-
-# --- Sidebar -> keuze ophalen (nu: Home, Info, Contact, Assistenten) -------
+# Sidebar -> keuzes
 main_menu, assistant, tool = render_sidebar(default_assistant="general_support")
 
-# --- Route based on main_menu ----------------------------------------------
+# Route based on main_menu
 if main_menu == "Home":
     try:
         home_mod = safe_import("webapp.assistants.home")
@@ -132,21 +129,42 @@ elif main_menu == "Contact":
         st.error(f"Kon contact pagina niet laden:\n{traceback.format_exc()[:500]}")
 
 else:
-    # Assistenten mode -> laad tools
-    if not tool or assistant not in ASSISTANTS:
-        home_mod = safe_import("webapp.assistants.home")
-        if not isinstance(home_mod, Exception) and home_mod is not None:
-            render_home = getattr(home_mod, "render", None)
-            if callable(render_home):
-                render_home()
-                st.info("Kies bovenin een assistent en daarna een tool om te starten.")
+    # Assistenten-mode
+    if assistant in ASSISTANTS and (not tool or tool == ""):
+        # Toon assistant-specifieke info
+        try:
+            info_mod = safe_import(f"webapp.assistants.{assistant}.info")
+            if isinstance(info_mod, Exception) or info_mod is None:
+                raise info_mod or ModuleNotFoundError()
+            render_info = getattr(info_mod, "render", None)
+            if callable(render_info):
+                render_info()
             else:
-                st.markdown("<h1>🏠 Home</h1>", unsafe_allow_html=True)
-                st.write("Kies een tool via de sidebar.")
+                st.header(f"{ASSISTANTS[assistant]['label']} — Info")
+                # Fallback describe
+                info_func = getattr(info_mod, f"get_{assistant}_info", None)
+                if callable(info_func):
+                    data = info_func()
+                    st.write(data.get("description", "Geen extra info beschikbaar."))
+                else:
+                    st.write("Geen extra info beschikbaar.")
+        except Exception:
+            st.header(f"{ASSISTANTS[assistant]['label']} — Info")
+            st.error(f"Kon info-module voor {assistant} niet laden:\n{traceback.format_exc()[:500]}")
+
+    elif assistant not in ASSISTANTS or not tool:
+        # Fallback placeholder
+        home_mod = safe_import("webapp.assistants.home")
+        render_home = getattr(home_mod, "render", None)
+        if callable(render_home):
+            render_home()
+            st.info("Kies bovenin een assistent en daarna een tool om te starten.")
         else:
             st.markdown("<h1>🏠 Home</h1>", unsafe_allow_html=True)
             st.write("Kies een tool via de sidebar.")
+
     else:
+        # Toon gekozen tool
         page_module_path = ASSISTANTS[assistant]["tools"][tool]["page_module"]
         try:
             try:
