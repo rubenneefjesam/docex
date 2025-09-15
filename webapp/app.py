@@ -79,31 +79,10 @@ def safe_import(module_path_or_basename):
     base = module_path_or_basename.split('.')[-1]
     return import_page_module(base)
 
-
-# Sidebar -> keuze ophalen (nu: Home, Info, Contact, Assistenten)
+# --- Sidebar -> keuze ophalen (nu: Home, Info, Contact, Assistenten) -------
 main_menu, assistant, tool = render_sidebar(default_assistant="general_support")
 
-# DEBUG: import checks
-st.sidebar.markdown("### DEBUG: import checks")
-debug_imports = {}
-for name in ("home", "info", "contact", assistant or ""):
-    if not name:
-        continue
-    res = safe_import(f"webapp.assistants.{name}")
-    if res is None:
-        debug_imports[name] = "NOT FOUND"
-    elif isinstance(res, Exception):
-        debug_imports[name] = f"IMPORT ERROR: {type(res).__name__}: {str(res)[:300]}"
-    else:
-        debug_imports[name] = {
-            "DISPLAY_NAME": getattr(res, "DISPLAY_NAME", None),
-            "IS_ASSISTANT": getattr(res, "IS_ASSISTANT", None),
-            "has_render": callable(getattr(res, "render", None)),
-            "TOOLS": getattr(res, "TOOLS", None),
-        }
-st.sidebar.write(debug_imports)
-
-# Route based on main_menu selection
+# --- Route based on main_menu ----------------------------------------------
 if main_menu == "Home":
     try:
         home_mod = safe_import("webapp.assistants.home")
@@ -155,7 +134,6 @@ elif main_menu == "Contact":
 else:
     # Assistenten mode -> laad tools
     if not tool or assistant not in ASSISTANTS:
-        # Placeholder
         home_mod = safe_import("webapp.assistants.home")
         if not isinstance(home_mod, Exception) and home_mod is not None:
             render_home = getattr(home_mod, "render", None)
