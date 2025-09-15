@@ -1,48 +1,24 @@
-# Auto-generated info module voor de 'tender_manager_assistant' assistant
+# Auto-generated info module voor de 'sustainability_advisor' assistant
 
-def get_tender_manager_assistant_info():
+def get_sustainability_advisor_info():
     return {
-        "title": "Tender_manager_assistant",
-        "description": "Beschrijvingstekst voor de tender_manager_assistant assistant."
-    }
-
-"""
-Assistant: Tender Manager Assistant
-
-Beschrijving:
-    Beheert aanbestedingsprocessen, bewaakt deadlines, en maakt scoremodellen
-    voor inschrijvingen.
-
-Tools:
-    - TenderDocumentCreator: genereert complete aanbestedingsdocumenten
-    - DeadlineTracker: monitort mijlpalen en stuurt reminders
-    - BidScoringModel: evalueert offertes op vooraf gedefinieerde criteria
-
-Voorbeeld gebruik:
-    >>> from assistants.tender_manager_assistant.assistant import Assistant
-    >>> assistant = Assistant()
-    >>> doc = assistant.use_tool('TenderDocumentCreator', {
-    ...     'requirements':'RFP.docx'
-    ... })
-    >>> print(doc.path)
-"""
-
-def get_info():
-    return {
-        "title": "Tender Manager Assistant",
+        "title": "Sustainability Advisor",
         "description": (
-            "De Tender Manager Assistant ondersteunt inkopers en leveranciers "
-            "bij het opstellen, beheren en beoordelen van aanbestedingen."
+            "De Sustainability Advisor berekent emissies, voert lifecycle-analyses uit "
+            "en genereert duurzaamheidsrapporten om organisaties te helpen bij hun "
+            "transitie naar een lagere ecologische voetafdruk."
         ),
         "tools": [
-            {"name": "TenderDocumentCreator", "description": "Maakt gestandaardiseerde aanbestedingsdocumenten."},
-            {"name": "DeadlineTracker", "description": "Stelt reminders in voor belangrijke deadlines."},
-            {"name": "BidScoringModel", "description": "Evalueert en rankt offertes volgens criteria."}
+            {"name": "CarbonCalculator",             "description": "Meet emissies per activiteit en berekent totale CO₂-uitstoot."},
+            {"name": "SustainabilityReportGenerator","description": "Genereert volledige duurzaamheidsrapporten inclusief grafieken en aanbevelingen."},
+            {"name": "EcoScoreAssessor",             "description": "Kent scores toe op milieu-impact en vergelijkt met branchebenchmarks."},
+            {"name": "LifecycleAnalyzer",            "description": "Voert levenscyclusanalyses uit voor producten of processen."},
+            {"name": "RenewableEnergyAdvisor",       "description": "Adviseert over optimale inzet van hernieuwbare energiebronnen."}
         ],
         "examples": [
             {
-                "code": "assistant.use_tool('TenderDocumentCreator', {'requirements':'RFP.docx'})",
-                "explanation": "Genereert een RFP‐document gebaseerd op het sjabloon."
+                "code": "assistant.use_tool('CarbonCalculator', {'activities':[{'name':'Vliegreis','distance_km':1200}]})",
+                "explanation": "Berekent de CO₂-uitstoot voor een lijst activiteiten."
             }
         ],
     }
