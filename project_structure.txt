@@ -1,106 +1,20 @@
 docex/
     README.md
+    test_imports.sh
     .gitignore
+    setup_packages.sh
     restructure.sh
-    pytest.ini
+    test_tools.sh
+    diagnose_import.sh
+    fix_and_run.sh
     run.sh
-    requirements.txt
+    cleanup.sh
+    smoke_test.sh
     repo-backup-20250914-220709.tar.gz
+    import_log.txt
     smoke_output.txt
     export_tree.py
     project_structure.txt
-    webapp/
-        app.py.calltool.bak
-        app.py.repair.bak
-        __init__.py
-        app.py.pre-uninject.bak
-        app.py.pre-css-removal.bak
-        registry.py
-        appbak.py
-        app.py.bak
-        app.py.labelfix.bak
-        app.py
-        app.py.fixargs.bak
-        components/
-            __init__.py
-            sidebar.py
-            __pycache__/
-                __init__.cpython-312.pyc
-                sidebar.cpython-312.pyc
-        assets/
-            beeldmerk.png
-        assistants/
-            __init__.py
-            overview.py
-            calculator_assistant/
-                __init__.py
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-            tender_manager_assistant/
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-            risk_assistant/
-                __init__.py
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-            legal_assistant/
-                __init__.py
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-            project_assistant/
-                __init__.py
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-            general_support/
-                __init__.py
-                document_generator.py
-                overview.py
-                info.py
-                document_comparison.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-                    document_comparison.cpython-312.pyc
-                    document_generator.cpython-312.pyc
-            sustainability_advisor/
-                __init__.py
-                info.py
-                __pycache__/
-                    info.cpython-312.pyc
-                    __init__.cpython-312.pyc
-            __pycache__/
-                __init__.cpython-312.pyc
-        core/
-            __init__.py
-            tool_loader.py
-            __pycache__/
-                __init__.cpython-312.pyc
-                tool_loader.cpython-312.pyc
-        home/
-            __init__.py
-            home.py
-            info.py
-            contact.py
-            __pycache__/
-                info.cpython-312.pyc
-                home.cpython-312.pyc
-                __init__.cpython-312.pyc
-                contact.cpython-312.pyc
-        __pycache__/
-            __init__.cpython-312.pyc
-            registry.cpython-312.pyc
-        tools/
-            check_assistants.py
-            validate_assistants.py
     .mypy_cache/
         .gitignore
         missing_stubs
@@ -3297,10 +3211,156 @@ docex/
                     asgi.meta.json
     .devcontainer/
         devcontainer.json
-    config/
-        config.toml
-        config.py
-        secrets.toml
+    src/
+        webapp/
+            __init__.py
+            registry.py
+            appbak.py
+            registry.py.bak.20250915164053
+            registry.py.bak
+            registry.py.bak.20250915161826
+            app.py
+            components/
+                __init__.py
+                sidebar.py
+                __pycache__/
+                    __init__.cpython-312.pyc
+                    sidebar.cpython-312.pyc
+            assets/
+                __init__.py
+                beeldmerk.png
+            assistants/
+                __init__.py
+                overview.py
+                calculator_assistant/
+                    __init__.py
+                    info.py
+                tender_manager_assistant/
+                    __init__.py
+                    info.py
+                risk_assistant/
+                    __init__.py
+                    info.py
+                legal_assistant/
+                    __init__.py
+                    info.py
+                project_assistant/
+                    __init__.py
+                    info.py
+                general_support/
+                    __init__.py
+                    document_generator.py
+                    overview.py
+                    info.py
+                    document_comparison.py
+                    __pycache__/
+                        info.cpython-312.pyc
+                        __init__.cpython-312.pyc
+                        document_comparison.cpython-312.pyc
+                        document_generator.cpython-312.pyc
+                sustainability_advisor/
+                    __init__.py
+                    info.py
+                __pycache__/
+                    __init__.cpython-312.pyc
+            core/
+                __init__.py
+                tool_loader.py
+                __pycache__/
+                    __init__.cpython-312.pyc
+                    tool_loader.cpython-312.pyc
+            home/
+                __init__.py.bak.20250915134617
+                __init__.py
+                home.py
+                info.py
+                contact.py
+                __pycache__/
+                    home.cpython-312.pyc
+                    __init__.cpython-312.pyc
+                    contact.cpython-312.pyc
+            __pycache__/
+                __init__.cpython-312.pyc
+                registry.cpython-312.pyc
+            tools/
+                check_assistants.py
+                __init__.py
+                validate_assistants.py
+                __pycache__/
+                    __init__.cpython-312.pyc
+        config/
+            pytest.ini
+            requirements.txt
+            config/
+                config.toml
+                config.py
+                secrets.toml
+        templates/
+            templates/
+                template.docx
+        scripts/
+            scripts/
+                packagify_modules.sh
+                make_assistant_overviews.sh
+        core/
+            __init__.py
+            utils/
+                __init__.py
+                docx_utils.py
+                __pycache__/
+                    docx_utils.cpython-312.pyc
+                    __init__.cpython-312.pyc
+            core/
+            __pycache__/
+                __init__.cpython-312.pyc
+        tests/
+            tests/
+                README.md
+                test_imports.py
+                test_api.py
+                test_assistant_info_pages.py
+                conftest.py
+                data/
+                    sample_doc.docx
+                smoke/
+                    test_imports.py
+                    test_tools_deep_imports.py
+                    test_registry_files.py
+                unit/
+                    test_pages_modules.py
+                    test_core_tool_loader.py
+        tools/
+            smoke_import.py
+            __init__.py
+            doc_generator/
+                steps.py
+                README.md
+                __init__.py
+                doc_generator.py
+                __pycache__/
+                    doc_generator.cpython-312.pyc
+                    __init__.cpython-312.pyc
+                    steps.cpython-312.pyc
+            doc_comparison/
+                README.md
+                __init__.py
+                doc_comparison.py
+                __init__.py.bak
+                __pycache__/
+                    doc_comparison.cpython-312.pyc
+                    __init__.cpython-312.pyc
+            plan_creator/
+                steps.py
+                README.md
+                __init__.py
+                plan_creator.py
+            __pycache__/
+                __init__.cpython-312.pyc
+            doc_riskanalyzer/
+                steps.py
+                README.md
+                __init__.py
+                riskanalyzer.py
     .git/
         ORIG_HEAD
         config
@@ -3351,22 +3411,32 @@ docex/
             exclude
         objects/
             6a/
+                329481f2fa83815fef69c26391da12c3f70f9a
                 dc3ed0b967936a1bc56fea74afa24bc1a55407
+            39/
+                eb2ca1a98d775be7a6ef28e92c52db105014d5
             ce/
                 b3a743d2961bfa8d61dc4c7d0b705758f7e585
                 3aad0b06ec121e1f596292e6206a905b6d5106
+                cba35d44f042732e24d46ce01ee5242a9d24e2
             8d/
                 3348c671e2046fad35061c3076e128052bbe66
+                404e46ec87ec738167516ed85f5e7b8988d770
             01/
                 b41d9e4475ee89709635785c5bb4c8dea8704c
                 b1fe611d99e41970b299a15142454fb45aea5d
+                aebd7731445e56ef43b7665cbbc3ff10a83367
             ba/
                 ed0b9ab171b460c64fdb7f311a788d955219b6
+                002f43804daa970c1a2f6723104fdf8bdc9077
+                540944da9d29bf658f70fb28c9c1da0e073112
             b8/
                 e206874daa167b679d67b490cf544cb10b1f6b
+                7ee433da258042b31c8aadfe02145405c47749
                 c05052eaf2bae1b923c110871f28230f95111f
                 59cef1b34630708500a9785c195de7db6121c2
             c8/
+                7cf845f303a9090051f8b8c71583aa3fb89844
                 4b8fe0777f3999c5b49a882f808889ced638b9
             34/
                 ba979448abde091170680f0a03d041ea151194
@@ -3375,6 +3445,8 @@ docex/
                 5411487175784e1ad2e7f47d04688e2a07cc88
                 31273133165af031c9fad1c7bb56b71e0be8f2
             06/
+                1f73d59dd901429dcd33fe5745783ac8633537
+                f8ec284acc135e40fc1f2d0e59e326ebcd8de8
                 8487c5e3c4cab0013ce2a48232572bc4a7b0a7
                 f9f1c0fc6c8e017021316d58754138ef932550
                 f2ba86ef1b6d5081f075c768381208d3f423c4
@@ -3388,6 +3460,7 @@ docex/
             76/
                 b0232c1e8306d4eb40b64effa2aa815e7f0585
             35/
+                26ec0c919e1f57d1b3b26e64b9ca779b4e5937
                 a48de7f44db98208d555d9d28e7f31f150f538
             c6/
                 30c55e22c788d4bb1758e04cec929da8370edd
@@ -3396,9 +3469,14 @@ docex/
             2a/
                 245ca4fac3574828bef5172064ad053ab2309c
                 f30c13904543cae0a7a0b48a3aebc45ec93ad6
+            4d/
+                10316481e3803faa06cdbdd0d2b193313caa31
+                6d90f725f29e12b4f532634fa542a5e89516ab
             f8/
                 1da2d61fd7a618ec37c1ad7ef2e068f2b0bc6e
                 4855e6780ca2d65d6bc1d81953299c9f552793
+                4171e0e780439cc20c7fd967a2916712722c25
+                1792661df51a042f8a35868f1768748aacf2a2
             c0/
                 d2990f781f7b943c247e8ce7a529719b6d1b97
                 576ca436d33567b4f7f574c30a289b174e30b1
@@ -3406,21 +3484,43 @@ docex/
                 74fff35f9eb051077550631f248af503db4bc5
             cd/
                 1d2ccedb02aac56033ae66c4861540b7f9a189
+                854efced21e539c1e878bb83d6a09cec73ee42
+                76413f7a45ee2c07aa55541e34c96e39bc6470
+            da/
+                117e01e9bfd177f30e879ffd519f3389173552
+                438de350510656041ede9b64e4f73f3037af5b
             f2/
+                0ddea66b1130b175cb2b52bd91ad3d47323421
+                21562b98193feeeaa5c00971b5855983b009ba
                 39ae617678d21ed984f90a5dc2874af4e986eb
+                e1c7207adedcd7d7cddfb680184887af9a289e
             11/
+                f66cee73d560330a91fffbef06350604a01e9c
                 9b96f26b1a47ebee915c4dbea9e60551d0a31b
                 07211fb8c5fdc81edf4c904f90bcd7c10b49a4
                 14524d9cc7c1cea04ad57b609c47709b55bd9e
                 48bbb6fb3b2d32cbb10dbdd23572a0d95cde72
+                3afea87be36f7960974d87429da3927c6eed61
+            95/
+                bdb6d86d007111b23c437c424bad4de52ae272
+                3a98076019c81673995f342c9760c4ed6fc48e
+                6d6d5be23962b43d230cb123768c2507fe471c
+                1e75305f8917e573866c8e6795923b548b6b92
+                f6309689216cb544b38a1e7df01b04a8721762
             3d/
+                1f05d886785ffee820ad6ec4a09b8c8a282863
                 5fc3ec874a369255b891eb85b81a6b9002d634
+                ea88d4d19ae399ae6a8fa03e15cb9fed0c0954
+                693342893ba1a0dddc7a72b51172a7442597c3
+                346c8c999903a4e81050607e47d8fe9345b92d
             c2/
                 6bfce63e3cda802d3e52b9a8f99d08d16f958e
                 4185d4bbbcc3448e0a0900bf497e0025ce478c
             66/
+                26b990a5d9a888ded948a14c660154e5547fd0
                 10e92ea328dafb62f0235e0320517622ef4ad0
             de/
+                1a7ae62eb07601a1b79363b48f108c342e9bab
                 c2e4e57fcd1961f616f501aed4fd4019f638f0
                 897f4ceacb31ee95e78cbb7a9bef7d1682fe21
                 847b74a7f54c79d3706e1766cec4b446042384
@@ -3431,17 +3531,27 @@ docex/
             81/
                 cdb722bca7c6db23a78eb3888e099eb96c23a2
                 1831b0dea014de1aef79b6e0b9eb4feeccb8e4
+            73/
+                177046a559cbadd6d913ae524d836f2cc80f58
+                aab81eacca6f201b43241fc37d0e91e2df6a20
             4b/
+                b3e293ba8d3757745c285f7b2a0072683c0ad2
                 68c14ced8367a17ff34554de3874036bbd6365
             0d/
                 e8983498c8df158c10b5e4899a81d1365fcd2e
             a0/
+                d79825ac5a10a15639942f5f89b2ea79e7598d
                 90bcdf4bbb1b15aed27d0359dc960f2bed873a
             0b/
+                11eeb9707ae0902c995bb87629e869e80d46ed
                 448da84cc1ab1499a7f18609f4a74c4aa1fa02
+            74/
+                ac4933982508b563a739a08639f8a4be90c947
             d2/
                 be7556426a1a30f5aa921f71d83c3b2a363d11
+                918fd07c221baf811bc243bfe0008de018b8da
             89/
+                cede38ad954b66c1fa5794e40eb188dfeab5d3
                 134411c3d6bcdfa2ee39c989de671a1feefe0c
             pack/
                 pack-13996bed2f6ac2e618971db1cef77a8bbfe6d459.pack
@@ -3455,26 +3565,42 @@ docex/
                 pack-13996bed2f6ac2e618971db1cef77a8bbfe6d459.rev
             53/
                 b39aa21084167f0171c1213b02e3257503118b
+            6d/
+                54d02d4075fe69dc5ae00d7a4de138d65c9c40
             a4/
+                fbe1e41d9a62291734bd05b6a788c7d50a2934
                 2149c6585b8106631fc8956be35902b6de3fda
+            b6/
+                3b481e23cf9228a2e597d51d3e0d93b052029a
             28/
                 1b9112b8d88e4c7cfbad7753f22f940441c618
             fe/
+                d348d81b9309c126ea4da2cd212bd5d567397d
                 65db6df29f6d79e2ace6d7a7b1c7342a82c05b
+                3aafa65b26f102d1c891cc828e987c75905772
             25/
+                75fed8377558c34528633f04e905f2cead7b55
                 6532418f3e417460aba1e733fd6e4a4028005b
                 a16ff3c4dc94c1370fa2d0e794d024597b41b1
+                777c933e704ca6b76d494ea72b8d50831c9d0a
                 aaf0a8d9881efcb02f683c11fafae37df1d70f
             77/
                 726f51eed91ce4d69602def394c77a586943ef
+            3a/
+                e358ca8dd07a8f00939bdc4e59125a3806e3fe
             9d/
                 f59fe1e9c32eda5ea83c2b2b3563bfd95d17ab
             6c/
                 0493c7983dbe2ae9ca19934afcbafd9888438d
             2c/
+                a48d81e23f72de277bd33d71d75d69a43c0618
+                8e408b22fa4f17b2421366693657bb1f3dbf2a
                 bef890ebcdb54946c852966d2147c28784469a
+                e7adf502f805f161c64bd93efe1ab84cc20e8a
                 12b6c559d04c048093cb3ff8f0b1952d06de0b
             9b/
+                9d319e58ea3ace352ad7f40feb124d4e628760
+                3e42d4965cd3eb7dd2b9d45c9564ba3c9c4b3d
                 46ec6f35f04bad980ad4cd33cc4507e07a673b
             d9/
                 34c4fb835ca3a8a51b610eac5df95825533e2d
@@ -3482,27 +3608,45 @@ docex/
             94/
                 5ed1da7b29945d4dfd9b30c4f5cb55ee0e071d
                 95296f8da2b246221fd8c8dc7ca22ebc44988c
+                e0c1ac41236a5f7cf2ce7df14650ab37792353
                 5f15883761a9135112ffa6da3900db1a8ded11
             29/
                 144df1bd1525899f6b79398a2833edace40eec
+                d69c590e96f554cc3f8e663ee8edcc1182b007
                 b8b7c8edbe1fa5b528ba6b90003415d6297442
             cb/
+                0fa388c7b3b29a76944744c73417e0944f0175
                 7c8cfdc48b10ca8f4a05e3b8b891fadb3d5366
+                39c26948454d3657f48563c82a948b698d74ec
             49/
                 28cee85c0772a012d794af96290615c3a2f272
+            b0/
+                1d20075fecd1716b405ea1c6886f372e6dccbd
+                0fd3f08c98b51e04689ecf600e1601c59b3999
+            b7/
+                ab779db26eb563b66786f9e88c7a7e5822b4c6
+                58b96d2d88e6d522bd9cbd82ef1bd7f7e171ff
             85/
                 b70275c19d3361c853da328b8acf8de82e3234
                 6d1a46372f27dd04ca3451e8532d425651126a
+                b9909909653910beb8a90262397f84a78992ad
+                55186304275aa00ef74bb6c2599a2032d623bb
             15/
                 e7b861d8761e35e2dd36fc28325ff438649b51
+                d76a3260ad85c3ed33827c40944a43d817c40d
             37/
+                e07c294d2f64a620031316bbe9076e8458972e
                 7365fd5a79c361cb2631a9adbd5ebec9dbe130
+            f9/
+                f050878a76b5b2182605e2d10dcacf90dbef0c
             8a/
                 ad8032a4c9fa283b9f112783c5d3441a44d809
                 7fb237f2c66314af47c3778abb1d22bfe1d60a
                 dd96ac444ec09c246f5ecaa845efd3dada832c
             c7/
+                103a3001120892cbd10639429bd9c7d3f6c269
                 3ca30da2652fcf2d99d264e6ac87763be45632
+                f55a461530e3c990594981eb19d6fc67f1821c
             0a/
                 db5ee31844649e6e3d5cc9227ed0ae56704689
                 313a8a36ea16524716abd9407a6d782cf257e3
@@ -3511,155 +3655,269 @@ docex/
                 4c330de58f7b1479eb2f58f85ebecec8d9c33c
                 90930111872daa3165db5c8cec8a86852ac323
                 7111f902f41a4570c395d308dc9a749130ec85
+                fdaf9b4c901a1d5f68d84459f527be485f9e85
             26/
+                cbc26bca3d86bb0079beb4a64981ed24fe5d76
                 f45556e5bceb0ad105af8b457df52f870078a1
+                88ac8d36073de2e44744212ef284c3a32568c5
                 48f6dea3bb5ca43a923088ef4c483dbb709171
+                fd00b49f3ed906321be4c2b664daaa74d22dea
+                aeef7d50d4f0413924fcef1155ab3be7f70eaa
+            ff/
+                d68e0b3ef2b41078572d713b5a9d8b282ba254
+                9b7cb36a103f767e10c0f54bc1e382c66c9ff9
             63/
+                af6aeef0f80e1ded0e19a1addd335a9dd71ff8
                 ff06f9e5a2a6edfdbd5a98d7c8b47b018d6fcc
                 e564d7427ff8c5c47ff9cc0c336c564a5b0be0
             a9/
+                b24a0f33f8b13aab2d53626082b90bb605dd5d
+                57f17f476ead39effe56681922c7e9626943fc
+                0160c4a307b77d3eb8889ce9bdaa2aac895a41
                 70899f94d94165d6d39f7391acef35e1783e70
             42/
                 95938950b873b13343b7948af23cacb762b88e
             60/
                 70fb72e2ef0946f401d6ca9cf7118428ee03dc
+                92ec6ad7538e0dd1c58a9047509d8878cfe572
                 553d9712b0ed547fc63abb6fe1b18ac2c84ff0
+            50/
+                afc2a083751200af680bbbae9ac9f604bcfbc2
+                978b3aa921c5f305c51a243bcb1e4d6cedaf51
+                6b042b94963e1cc1df0d89473be38b50a694a1
+            00/
+                330fc42a4d668614b11ffd0ffc52b88419d8d5
+                f038c3d25e806466ff84ec19e8bc4ac2e5642b
             54/
+                df0e5acb686d74a28b6efc266d362e49f25ef0
                 26e6fdd50e177e0137a465a826357390e5e1ef
+                21d374f6915d7fdbe062ff7246964f38c0e3ef
             b4/
                 64a7f0ccff2c10b68171a784925b563c01d863
                 1b64ef854c8c0617bce42aa8aac80ae60f4601
                 8cb6c6b46cd9f2e898776aa983ce23c8dcc6b3
+            91/
+                ce17d37c9d9068fbd50ff199e162a87bf36f60
             c3/
                 9c7c15490662c452ec290b180e2515afac2d4d
+                e85e24cb3498315ce43c072af9b0cb7d0c0a17
                 6e6ccd8a0de920a921ecf22dd0adfee625832e
                 678c79da2726eca62d849284252aa84b54bbc9
+            af/
+                d99a9bc500e9220b19b04e279b3c0930c7aa37
             3b/
                 8cd341b3822b53e4d0b21168194ce331250d5c
+                e40ebcaa3bfbdd97ab54bfbc1409a54ff46ac9
+            9a/
+                89190c9a80c290978a918071cbae1007dc03fa
             38/
+                5ce3c8743200bbc9f74e6deb9b123745dd5b5e
                 0c951de192f633ef59c96f53abd39a5854e461
             f4/
+                e66d7c594f263c4c41f0b29107d173bc6df1bd
                 f7a2606215c85b5dd658c5b4b4afde1212b85d
+                b3d5b0390eb57995e2cc027145fd8f869624ee
                 e95178f0b9b4e203048c984f5e2fa2c08c5a35
             20/
                 c0bb3b024f2f5bd32f1d3829e482baa8a16744
                 7015b039174d8f584661ee755c10f761c418ae
+                e41e9baf2d275d1b5473aefb1e01d5fe7433c4
                 5f88180f315a7984c461a6982f34ef89647210
                 5a282887b4c631d57c1c18ecd2f30ffd8523b0
             6b/
+                8cc1e28648b82f4c871a040e323b53a6371265
+                0eedfca91d896177ec9b4124c0d29ab3b197b2
                 c57284cb1d052aaa2d156060b9487b6ba06c3d
+                76311333afeea6feb24f9ac62c3d54d4a72df9
+            c5/
+                41fbe52f68b5e24ccb1fb30222239eff9134c8
+            56/
+                f72c7ead570b492d62142ca4dad6ff90296569
             ae/
                 a57bc3c4b34b429848a5b1588d87bb81548f3e
                 72e0124b0632db6e055312e8d9f51ea7423cea
                 e76457e0bf4d29871a3d043943843ecd78bdf9
+                bf443af9a4e1552946a113d5a282c1eb58c040
             32/
                 126f9a05dac14b2fae1396df36f15677794f17
             c1/
                 f8d9395ddef3d0c784d78d98737cb5fae006a0
                 6c9519e6a8db71631468d00b7da962d3dfd967
             9f/
+                b52508ceab9eab01d3a9ceccaf89094121baf7
+                feb5cf8adc3a17ca661c050a9a771ae5753cf4
                 ff3d995ea69ff7514ce213186ddba3fd4fcfc4
+                94a43bc0b858122c81b991f9d4ef523abd20a9
             43/
                 c102d1ef5bba1eaff0c28558642120ef24f67f
                 710993f98109eefa62b833bb567c993a7d83be
                 10c058ce746c511843d35515514d7f5492d714
+            5d/
+                29ccd5f5c03b0f91f742948a013499846be01f
+                49354615bbeb1ed0be11352382ea1f8d85df8e
+            69/
+                28b58197d753e718d63f238934e3fbd80967f8
             3f/
+                1600aa5d75ba6f2f4bbcf176e697443a20fd2a
                 814ade9fe2edcad80be663e93b9bc00a05299f
                 05277fedb7dd90f804f21af85ce95fa7e43c98
             79/
                 54e753284df9ac8847a396ef7ae89c90c9254c
                 04dd6e2993ef4da030e4dbbc49c839d7b9519c
+                01cdd063e96c64ce0980bbacd86d72655e17c7
             c4/
+                d1da9f52a7eb9e10b5f873388c67dbf4f6eb4f
+                eb1714988f8bd530b6d5d27d99dd631750caf8
                 4e70c3072031f1bdb0aa711cc5c8c01e9f4cbd
                 491546b75f2bda7450ebdaa561e06b7dcfdeaf
                 e61c4ff118e14be651cafd509b6fdc8f6349ba
+                99360e24c4e09e58cf5abb6675b393d345dac8
             db/
                 0f45a6761d8a1d05c01d3912cb614256e0ce56
                 8a39adee4cfc8987fd3f5bc5853cd70701f160
+                d13ce0e36e1f5348b02d501e9b4451148dd03d
             a5/
                 e3c9c06c7995f91ee1de449bf3b17025f81050
+                e0547490ef525c63457c5b2cf8f36fddf391da
                 af4286439e1cf6be1ae6e478245f0063bca233
             b2/
                 412769b61ddd1b26e0ab92ff24c24250f02a51
             a8/
                 a39ae351a5c64a1d6d27b1d378d6ddef05923a
+                d3940bb6181581517d5c6c689cb23f60fec1cd
+                d039d4012034bef5879c55a805e64c47442529
+                9399f304ec8f2fd51ea8ed855f9bb1b89660bd
                 7d5d1d9871c2447a7f1cedfcd37225994fbd7e
+                935e4f0f8253fce1f6e968e6b22371336ed943
                 f97d72635467f99aebe2cbf14b6e3eaa1f5dbf
             info/
                 packs
                 commit-graph
             70/
+                3a5b3546993389c9c83891323226e70f9ce322
                 9f645cb526ea08b98aa5e627a3362cb6fc2402
+                5d51418549dddc56ba6c9dadaf905a1ea3870f
+                8207e3bac5c334d279599049f9dfbd60623cf9
             d5/
                 34c7f0cd8cf5ee07bc3126e377aa26c0128956
                 2e05adfccabe0d415aa4d30799543fc4ede040
             7e/
                 4b03b2f2fe566e17fdfb90ae336ea8f3d08a2b
                 ed730da0a3d5ac99066ec5656714ef5ee5c2b5
+            10/
+                5f1c851ae64da7fbf24dbb982d14605c1c003e
+            80/
+                1bb3ffd4559fb9a4952de2e2203ebcd12b59d0
+            2d/
+                b2189e7fcd2a102ef9db5d1d26dfa5e8cc5d9c
             8e/
                 dc4486bca1e552cebc92e282e6267f5590e62a
+                4803369cd26450a6966b78350ec275fcb34dba
+                767603a950b0e56a9cfe2eb143a73f038a8a60
                 7a041ec11935baadaa6985644a8ebceffcc61d
+                38853b8add98c5bc7cc3ba82ac7c23bf655234
             62/
+                5cce438ef22c8dfae4b09099986dac05e5afc2
                 62729d97bb8a5b6db3137a49faf7e71cd5a065
+                5fc1bfc038b6d9ce4ce1bc066035daaf16e7b3
             e7/
                 112b77698c3329d0e772fc758f173d44ea6f9a
+                9a69648945628a18ef656370926f936ac46c47
+                2de025185eda0d9180189bbd71903603388084
+            fc/
+                71a73ebbd041a64bcea38b315309ec2349f3c5
             08/
+                2ed61816f9c3f88e6b76fc6482f9583951412b
+                44eaae33859629709f6b80e0fa71314301841d
                 3c11c9152084026f1d0bb6a9b26723c34fe85f
                 f0cb458fd5d6380e1b87990b3c6f935f9d470e
+            03/
+                379268cd8f70b03fa46ef80de739d04a3919ba
             86/
+                38ec6dfa192188c35074f5a32e2d7584d0b236
                 5373bda742151352967aed628574acab8d652c
                 0cdeb9e9e401c94fc0ab12f87f53bcfbabe726
+                78f28ddad2999b24f9d22b7a395b10923a2f37
                 6adb2532efe24faf7c7a550b387a027610c68e
             21/
+                8b23bb72db42ea175bd46f09a16769dafa372f
+                f692c59bcd574791955f4cb12508af9cf480cb
+                5671b5c82ad098c0dc48100b5c2f5ff9b456af
                 c313a3a4fefdc8b1c8dfbcbcb1d52fcb00912d
             be/
                 0e80ad4eed5f226b759a0824e1a52973e6cff5
+                dfbfc8312caaea73f375dee1e0c8064fcb7189
             41/
                 b0ef8850061adfeb7d76164b279cd3586b50df
             51/
+                8e6907619ababb150ac3612ae14f67947692fd
                 c5c882f2d4936c4a903aab1afbf73fc099f266
                 c11134d7084e50d52753b7af4fc443e376c305
                 fea44adb189e829997bd45f0bc29d8bcf3eaef
+                b71f2cbf15825faef576751d805495c87d3aab
+            e8/
+                8054ec4c132b4ba8104873a5ea923b4decb5c9
             98/
                 93cd566f3901aab15109004a1d280ebdaf4254
+                116deb2c0d882b037f928ec052e72e218d3877
             44/
                 96161b1ea47eb052a6ccc6420409bd5e440b30
                 fb7a3b71afd2cbcd8cc682ba0a2c5bd0118bab
             ab/
                 f333cef4d9ce8adf99c61a1ddf444268e09e81
+                3fc848d1d9a35029390d92294d56463d5a8ca3
                 a05b1a829b96016e0aaf90354bab05cfbbe68c
             59/
+                651875869d6563b0bc3bf0d1831d1e9bc6109a
                 32a99dfc408e50b81bd001530e7cb1597303ba
                 97a6dfac693422f02c731b12067e2487fb0b94
+                88d29f478491ef8a156bfdeda4f8004b9c3e45
             30/
                 c7c287462976968f38e272bb66b72b4e69c06d
             8f/
+                2052b027bed3fbab03b4dd23615ba236dc31d1
                 6748859656910ab79957699c888109726ba9a8
                 771ed4a772bba678f3b32475d4d9ba9df81386
                 1d51d4ba3ab28353c1ca3fe53b51a29f5f3f32
+                a53e9930821a0bde996f5d7f58d2e278aa063f
             b9/
+                f9c2f7186225dedcfd37fc87f623de9217fa5a
                 37d1776683578e10f0f0ff9012ab35d37094ae
             3c/
                 3f15727655342b0648068632568fd0b7d9e9b9
             13/
                 c64876422086c9a8fdeb9320fbd15271a7e4d7
+                8cd8b2f42ef79928cf132a16bae0880edd6c67
                 df36de0ae176f6540e525512a2da6cf0d9b8a9
                 0655a06c9166b369a78a69736c29e7720a2159
+                3b25785de9269d1609a7001e7ede6cb3554349
             75/
                 361c4823cc376d82e8cbea717c360ad49a0968
                 6801fb52e64a2b97d399fe5cea774f15b40ac1
             ee/
                 8db79cb2e39a8fe4e187eb96581395c731dd78
+                7614cf957023ef5a21cdcbd6148678ada53d6d
+                20da4a77803c5c7849e3aece9f7c5e6a6becb3
                 cb66791a2bbe4859e777f86129bb4080b73159
                 1d5b69ef7faa9611e55cbcf067b4176fb79e5f
             58/
+                6183165d534539f6045cfa09f5090c94d702e7
                 c9c030258532ef9b640def7e5493b342222540
                 3ced7fd8efa72ba8bef63e7917ce38ca428098
             e3/
                 b0634db824b4b57224222185278a916aaba626
+                dadd7f5908743800a0a32f65ac9298814c94b0
                 6227cfa347a8ecfe22371a3c12f7f7a0e2f7fb
                 762df25da0ca5bacd0cbae14d7f03ba4bd3d1a
                 fb9c5d68df08c6ede35d017dd6930c908f409e
+            ad/
+                9a8b3ecab24e28e8bfa9c33ac2008059eb5f36
+            19/
+                e9083d2fcd34a53151462dd4a85066fedcec38
+            48/
+                72273d658653a18dd8b1a72df20738acf77aee
+                cf431ecc62df2e7a8a0aca8478effbc4534818
+                8adaf1ac112f59051ebd45caf898399b58dd50
             ea/
                 a52b9be27c80e2a5f830f5873c9664237a9756
                 6b0e6cc6d3a356a78ed86b0263c65d8273b26f
@@ -3669,44 +3927,68 @@ docex/
                 ee23fdf8c93e0e5c5a872ba056c24f0021f940
                 b57a0b58acdda7abd516b2543a130b16de425c
                 c99f239af1a8b25f4deccec8eac2b165a07349
+                cf9504ae89249e8c32bb6b84b4b67e76b6c246
             df/
+                6f6dfdc9bbdd32ef59961ce3a767ea2741d65e
                 356d495ec441d5d341761416e25802b76343bb
+                007298204aaf566cbe3806bc326a6fe8d61a45
+                57ed35642ef445205a6b6d9d1489b2902573a6
             93/
+                5f76c33935d95744e47fa939f4ab9ab1eb596e
                 90bd7ed8ac1172f605b6e19fa9c54e613722d2
             e9/
                 1042eec0b04178f3fdb57e7f27079e099e5486
+                fff3d6b5f8806d9627506d7c48956fbfdfde54
             78/
                 394e566e5e022041e0f262244406a3fa143503
                 57e7bc3b51d3f2257a2abbd9e70e3739e479cd
             eb/
                 7d670a63873f3d7aed415e8e97fdcf4d9432ad
+                0b8b289e31e910c7319667f97d4b9cfe813d94
             3e/
                 089f4952a3060efcf7445dede484b119beb4b7
+                6ec91a852b3694d11ffd38b503bbbf3f817623
             d3/
                 4b65cdebdda4fd3f888f551da26877d7e664c4
+                6b0b89069ee29dfa1c0786910769da4cdc812c
             9e/
+                d6edffb4e0730f4b9b984f0f3de281d93b1a9b
                 6c2aa7f5847ad68b69ac616272a9468a5edcd3
             1c/
                 d027853ab6943dd6ee75114ad5c09365e04de7
+                82a0ce4ec7b206fde57d71da4d735dcad61310
             fa/
                 2f7edacc2924611336acdef8dec09bdffba29c
+                33279b879bb5165971eac340355ac325d8a14b
             ed/
                 dadbdf28fe3a4641e2f1e52e0f2f5df1c2b0ea
+                afc0afb016e796a381a14322cb3e494b3e1b21
+            bd/
+                9dd0bc3ea32b7392c19ebbb0c26a5752fbf62e
+                6870562aed6aa9e39f8d09ce40b1e26d45f27b
             88/
                 b5cae356284cbc858eb702633c6fe69eec9a44
                 ac704ef719462c72f0aabaccee8dc574b97b8b
+            82/
+                378a11175fbcb3e94784907500336d38af97fe
+                8632b963e7e186d3704f4909fbe5c955086c21
+                a3fa5c8c1823939e43a8d837684ca65bd726c7
             e4/
+                f0a472261c83aab6e0cd7f5743a56c483df31c
                 d29ae34556635f48fdcd39fef1e3b2fb1d9c39
                 1c3bf083459fa8d26d0d1ed4de9847c38316fa
             99/
                 edf5b9edb0d84958c6f116feee066e111934b7
             0f/
                 faa65f496ab3434088032601e17fc5041a3fb8
+                a53461531c609015a5e473ed8c09d94eef5013
             07/
                 cccc947f56adb44d7f66ceac75a80d4931ab4a
                 76d0426895717857106d8e32b5256a419c0d37
             1d/
                 fecac1d82ec2b8634ae890fc21038f876f5c22
+                96a545b014f62378444ab0e8021ecb1639c907
+                683223ebec284f9b5508edf531e48e0231adcd
                 94f6353c8fa582eba79af2d0aef36b64898e7b
             1e/
                 e4cab94e08a9e1c4a586140c7a96630eeac3f5
@@ -3717,16 +3999,25 @@ docex/
                 09980e0a87c7355772748c01b5c0fa74ef3092
             7c/
                 01b1acbc43d6338cc047fecb4d9baa80a2a4b9
+                cedd10d91372caa02066c0f11120447cad49ae
             1b/
                 f8fce7ebf114c23949442ccf29da3510db0c8f
                 63779fe90a0126a710467a4fa98d369e2d09dc
             b3/
                 e7add9a48db97a985f85c33b0fc76513aaf2fe
+                fbd101224722a0ca5ea562c7dd8ac06134da81
                 eaef225efd41e816a4c8962a360138c0e8a6d5
+            a7/
+                3c222041ad1c0c50184198089093f88c70789a
+            55/
+                8dfb6b427b60749f408894192b4834d1bf1462
+            24/
+                af6c0b6df6ff894eaf6df6a3100a27297c3448
             36/
                 a01abe4711f7963b0d038ae982d974f33d915b
             0e/
                 6eac6f67179f1576ab795e64106e90a67be485
+                402e9e25cfa8de725ecff698d475631af86859
                 8a0550d776c229677f02c5db665e58e47a6e3f
             1a/
                 1c372169e4287d84500dc357eafc01fe570e81
@@ -3735,23 +4026,32 @@ docex/
                 b74f98fa4966f9d3b7d99e526e733eeeb9d46c
                 c6c7ab8be9af925b02b3ce4174f9231f57587d
                 90c2975a0e36d95350b3f50a32a550adaf24ae
+                ac6e579d8793180329906d0be0177cd34dc027
                 0451c68dbcc0569407643b28b9b7eebaec3869
                 98a777b805c5520170ee8210db48eef64781e1
+                b06ec7f3d3a36406bcdc3893eecd2b9e0a3025
             16/
                 180e0cd36bfdc9a08e0eb4b881c34b7e94c692
                 6daef6fa4459ebedc6d34d074be00a63e53b72
+                ad70531c49bd633393169ebfaa43b78bc21f15
                 968be1d870ac8d0858cbccb4cd45b942e649b3
             d0/
                 19eab0613c2242115d3c53fcacf4a93bad2b11
+                627b866c0413ad1b5e5ab009d0ec6b764ebef4
             17/
+                5e0140847baa4aad014b2dbed2c8f1f4f95092
+                0d7e3211863a0eb2b8776a40e96664768a6943
+                b1cfce4f60876a832286d3d0e17e75935fd8ee
                 d83e05280e53b95fa7e543f134907f4a53c9db
             22/
                 0e3aea08536943e164f128363352aeae8708ff
             ca/
                 3beede1a76e88914f835e4b87503370c45233c
                 b11d523a157fb5baa5a65ecafd63b1a94ea83d
+                06f29781482b6b0dc99469318d9ad88f2f2ea6
             fb/
                 80d2ea1885d5d7e7c09e9b3ef5b29f3f83e1f4
+                0b9829491547eb9ca85488b27dd25d9de00536
                 f01a0fc89cce3699a2bddecfefde198d26abf4
             7a/
                 e9a888a6c99662a41432a13398eb5e893830f8
@@ -3762,22 +4062,35 @@ docex/
             d6/
                 66751c19b4b770dac150bfbe899b8c7934e7ad
                 eaaca3f7e6a544ba0a416766ee0fa5a3fef5a5
+                c82e2346a00951aeee918c3d3e615daa6edad2
             5b/
                 6bd8cbe0a88594d32f64ee1d419b88fac60681
                 6c1b4ce7bc02f2d1588e7c586910392871e07b
             ec/
                 75cbf5593d17cd7ead4c51b84abbc9617f983c
             ef/
+                a94926c0dfcc21a9d48ddcea6d1aafb9e62431
                 bf8447fdd2f612accb2536c88542c70e3c4edf
+                48e659918a386a78001266b74c3abd441e9224
+                48225554fdcd2b32d84ea08c1270fe4c6e4a07
             87/
                 cae23ad9d1848ca5e5a814ee703efad8ca3851
+                203abd28b57e987910794ec52610b91e22358d
             64/
                 9ed8d1c67bd4d9c37cae3e65175dff1cde8140
                 6ffbedcb08584ec02e9b611cf4f43d83ef80c8
+                dc546e1bdd26eb8c0f5e394b6c127230fae219
+            97/
+                8d67bccd75043e0987fe98d54f82c995e9d214
             d8/
+                6e0e8af50c9a73148df24e353bf6d6d3b42e65
                 9ad1445be9f148e3dc5d6eab7c8b727c11e944
+            61/
+                d3dff85a9ef34e7eb0ecf57c95a19fe5f2125c
             bc/
+                78d0279505a0e55ea01de08b01f84c06f73f47
                 de2d0cc1ba752b408eec4c5bc64ae60e0d9c6d
+                8bc5e60ec3beb0fcabb1ce50f3a9942c6c78cd
             bb/
                 c5c0c1c5230007a2fb7ea4604e3040fa8c9d70
                 a75a62e693924b6c2080fb40dfbd5af33c71f4
@@ -3786,34 +4099,56 @@ docex/
                 6eec5a4a8e54563c906f13fb729ad9b7486481
                 7c12d7f0b98b74fc98e59d3f55276be5bae908
             d7/
+                97e8357b1e3b0fc03a8500c49b6d8636b61656
+                3be92d1c542ff3e5ad65f1b9be463059983fb2
                 01e946d3bd83c7c183ffee8ea62cd658bf2289
             67/
+                eab77b3e645ddef231f0ef4ce2cf16c4666050
                 c0fd04c5226b04f349df7b56ed2f11e5a3e003
             cf/
                 62fa09ba23a093a05ae8355cb641a4eb8bb13d
                 8f6594309c623b92c744d3cfc5668ee3c003f4
+            04/
+                a9e7a4163a51662bd62846b310d15b47179c78
+                d90802dac0302f64f9f41bd4c789d053ba5cc7
+                00e7df7fd82ad3b808a015bcf284925f15f74e
             f5/
                 0a48e21fe08598ca7ed20d206cdd128c9cae03
+                4a8a7a2dd2d3826397c597ce7df72102f4b499
+                e877fd6750c60189451d90ee6c29ac8d2e2fca
                 23c4c0c85e4147d4d46ad612bf61aae08b5260
                 51ef27c77ab0623edfbda0a47a8f3345f94b76
             e2/
                 429769bc1226120c36adf480ce140421470ce7
                 32f489c3cdfb4b35e5f1fdedc9aaf466612f1c
+                3e14643fa00371da96af5bf5e78610dcdadb51
+                d9001c061ef72edb6953bd2a15bcdf2a09a6c1
                 9084d2e30a6f799c63ef514cab0c83517143c3
             09/
                 f460efd1ea09cc6f3ba2613dcc0cca28ec2a40
+                2b3236e108e003301f71f7e942bec0a87d1533
+                6fd55fb13e4863ae2ddfcfb337014621f85b0d
                 5f82c9270227d92e034b3e6bef7b3521973d60
                 b7ed55dc63b58e7d80756a5d6fd97d85283df9
             23/
                 2c22bbceeff8555bee29a4639ff5d4e7cc9e60
                 25c0e0e5be35f776d9cd6f4420984f4c475233
+                51c2f369fc78b9500a1fc12207b6a8d51370a4
             4f/
                 0ffb81abc3ef651f108df8ceb90e125aea0ba3
                 8427184107dade3320efb600e640b9e90ae733
+                eeb671262573556809d36abb56057830ab5701
             ac/
                 0e7088bc79a8e18b69d4c035ce1c269f4fb974
             e6/
                 6fa980cd44cb1059617275050bb404f66e84f9
+                48cd9e7d90c98378ff4761175b47e8749144c1
+                bc7a845bbc0b8dab5053456adf8827a8613a37
+            45/
+                9b50dbe3125cdbbbda41b32e4ea0c1b83805c6
+                dda635ff5ed557eff17562b2637137f6a08965
+            cc/
+                fccb22d269247c0942e0fcb7f09f4eac48f69b
             65/
                 6c9d39b31109d45565a699aa885eb0164f4e4d
                 7606d710b60e65966e95e710063de69d84e4e3
@@ -3824,9 +4159,13 @@ docex/
                 ac6d12bc5c70fa638b51c0af316ef2dbc10560
                 008617eed76807b809d74d6fafa94ca40e4424
             2b/
+                7825a9d5c998aaf4cf72ea4c3f5f4e6681661a
                 1d31f5b148172bc89371fe142ac5c9b57b7a46
+                389c270eb116e8a73d974481150002f69e0ea2
+                d9aabd4fb9a3a00ba9955ed653845b5b9628a0
             4e/
                 752e6478876990c522653fb958117862464e26
+                74d5ef88860ee8ba9ae6db7bb407e0299f4f7c
                 5dbc86f19ad7f9ce64a5d3164f6884d7fdad6c
             bf/
                 67517e039e118d9023d0e7f542e4999c997102
@@ -3835,11 +4174,19 @@ docex/
                 a6319bb0121d9ac189269227e30467c06d0914
                 8bfa73bb5b87945e4865c1ba4d8e056cbbce22
             a1/
+                b5720d335296c22808f914bea890a79c9ae222
                 3c18797db9e5d59301d859615bb048842042ec
+                ca2216983762b0246e33e1c14a2ad12ac1a425
             27/
                 5bfa35a5f5fcd03c38c3a0394a5b944a19e148
             d1/
+                824c4de3bfc0a7ead7541ebd93eaa5fcc274c7
                 92e4519c7f8576316341dacfca35c6aefe5556
+            f7/
+                d0b5ad9e49882ce5568a7f144a0720d2bfe5ee
+                7446e8ff2f5cc59589219e2c75286ce6ed7de0
+                f2990de477323b53e9baf3b00ba2cff99d508b
+                3daadc457c096d291eefbd8f199d8af8ba8d65
             aa/
                 d7611e5fa88f82d831a61fffc62559e2199937
                 7aa8eb7fbedd31f603ed40667f0247a26c3118
@@ -3847,24 +4194,35 @@ docex/
                 8ea70b3ed3d5d068211ee1d897026d13b635bc
             72/
                 527036bf17007555e43f10c328beffc678d97c
+                bfdac1a57d37395077094ba2331880e1189b80
+                d7a0014ac56e5ed9fe6ee977dfab8ce03617a9
                 fdf735f8c177ba0b7dffb5975f16d0ba18cd29
+                ed186abbe2f792834593c32067997fed2347db
             5e/
                 8b9a54562dd27d66d0fd24cc4a8c357780d775
                 436bb2fe5857409be6e1b7ea59f09cd79a68ab
                 e2772d21d5d4d5f840427f03bbcd6b3a10570d
+            31/
+                289f68e377fe25bbee6a7244869cd745c9323f
             7b/
                 89edf7cb22120d999c4cbd9f640673639d9a55
                 7ea436978d197f8d8e0091f83be777f349b62b
+                d28aa26fa3211ac333e10517f3800548755619
             2e/
+                f03d658fda61e0294ecaed89f3246955cc96fd
                 dc192d72f84fbc46d4874b2d85f93c9413f75e
+                5c2b1c12cb252fb4736f5b1fc592ab643256bf
+                36ee2544e7c44a1837f902ebdd8c26b7e4ac1d
             33/
                 c887b328a00b0f297cdca0f817035baf41addd
             12/
                 9b1ef3dc9ceb07352c21362fa274824add483a
                 f997ca3b47db62ecb57e776b61999d3cc781fa
             9c/
+                2894a53ca14ac45dcfb9b24bf572e362499837
                 90214f414b818206e103f46a5194361b736a0a
             4a/
+                23beedcda80ff22d62a2b685b504c68a580a42
                 d69d3ae41663c5b3d0a443d717489cf540eccc
                 e3f5a10e3af445f214055bb9d283411d7dfb98
         hooks/
@@ -3915,8 +4273,6 @@ docex/
                 lastfailed
     .streamlit/
         config.toml
-    templates/
-        template.docx
     .ruff_cache/
         .gitignore
         CACHEDIR.TAG
@@ -3930,34 +4286,8 @@ docex/
             8529124496339909594
             14773975338066406324
             15994989540485059150
-    scripts/
-        packagify_modules.sh
-        make_assistant_overviews.sh
-    core/
-        __init__.py
-        utils/
-            docx_utils.py
-            __pycache__/
-                docx_utils.cpython-312.pyc
-        __pycache__/
-            __init__.cpython-312.pyc
     archive_tests/
         test_imports_dup.py
-    tests/
-        README.md
-        test_imports.py
-        test_api.py
-        test_assistant_info_pages.py
-        conftest.py
-        data/
-            sample_doc.docx
-        smoke/
-            test_imports.py
-            test_tools_deep_imports.py
-            test_registry_files.py
-        unit/
-            test_pages_modules.py
-            test_core_tool_loader.py
     .venv/
         pyvenv.cfg
         bin/
@@ -5171,6 +5501,20 @@ docex/
                         _version_info.py
                         _next_gen.py
                         _make.py
+                        __pycache__/
+                            _funcs.cpython-312.pyc
+                            converters.cpython-312.pyc
+                            _config.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            validators.cpython-312.pyc
+                            filters.cpython-312.pyc
+                            _version_info.cpython-312.pyc
+                            _cmp.cpython-312.pyc
+                            _compat.cpython-312.pyc
+                            setters.cpython-312.pyc
+                            _next_gen.cpython-312.pyc
+                            _make.cpython-312.pyc
                     sniffio/
                         __init__.py
                         py.typed
@@ -5337,6 +5681,11 @@ docex/
                         __init__.py
                         tz.py
                         encoder.py
+                        __pycache__/
+                            tz.cpython-312.pyc
+                            encoder.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            decoder.cpython-312.pyc
                     pyarrow-21.0.0.dist-info/
                         NOTICE.txt
                         LICENSE.txt
@@ -5350,6 +5699,10 @@ docex/
                         __init__.py
                         py.typed
                         _utilities.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            _utilities.cpython-312.pyc
+                            base.cpython-312.pyc
                     narwhals-2.5.0.dist-info/
                         METADATA
                         WHEEL
@@ -5429,6 +5782,9 @@ docex/
                         utils/
                             encoding.py
                             __init__.py
+                            __pycache__/
+                                encoding.cpython-312.pyc
+                                __init__.cpython-312.pyc
                         db/
                             base.py
                             __init__.py
@@ -5437,6 +5793,24 @@ docex/
                             git.py
                             ref.py
                             loose.py
+                            __pycache__/
+                                loose.cpython-312.pyc
+                                pack.cpython-312.pyc
+                                ref.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                mem.cpython-312.pyc
+                                base.cpython-312.pyc
+                                git.cpython-312.pyc
+                        __pycache__/
+                            pack.cpython-312.pyc
+                            typ.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            stream.cpython-312.pyc
+                            const.cpython-312.pyc
+                            exc.cpython-312.pyc
+                            util.cpython-312.pyc
+                            fun.cpython-312.pyc
+                            base.cpython-312.pyc
                         test/
                             __init__.py
                             test_example.py
@@ -5625,6 +5999,18 @@ docex/
                         termui.py
                         parser.py
                         formatting.py
+                        __pycache__/
+                            termui.cpython-312.pyc
+                            globals.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            utils.cpython-312.pyc
+                            formatting.cpython-312.pyc
+                            decorators.cpython-312.pyc
+                            parser.cpython-312.pyc
+                            core.cpython-312.pyc
+                            _compat.cpython-312.pyc
+                            types.cpython-312.pyc
                     attrs/
                         validators.py
                         __init__.py
@@ -5858,6 +6244,13 @@ docex/
                                 typing.py
                                 dependencies.py
                                 _namespace.py
+                                __pycache__/
+                                    _dtypes.cpython-312.pyc
+                                    typing.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    dependencies.cpython-312.pyc
+                                    selectors.cpython-312.pyc
+                                    dtypes.cpython-312.pyc
                             v2/
                                 __init__.py
                                 selectors.py
@@ -5865,6 +6258,8 @@ docex/
                                 typing.py
                                 dependencies.py
                                 _namespace.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
                         _sql/
                             expr_str.py
                             dataframe.py
@@ -5888,6 +6283,52 @@ docex/
                             namespace.py
                             group_by.py
                             series.py
+                            __pycache__/
+                                typing.cpython-312.pyc
+                                namespace.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                any_namespace.cpython-312.pyc
+                                series.cpython-312.pyc
+                                selectors.cpython-312.pyc
+                                group_by.cpython-312.pyc
+                                window.cpython-312.pyc
+                                dataframe.cpython-312.pyc
+                                when_then.cpython-312.pyc
+                                column.cpython-312.pyc
+                                expr.cpython-312.pyc
+                        __pycache__/
+                            _constants.cpython-312.pyc
+                            schema.cpython-312.pyc
+                            translate.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            typing.cpython-312.pyc
+                            series_dt.cpython-312.pyc
+                            series_list.cpython-312.pyc
+                            expr_str.cpython-312.pyc
+                            series_cat.cpython-312.pyc
+                            functions.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            _expression_parsing.cpython-312.pyc
+                            dependencies.cpython-312.pyc
+                            _enum.cpython-312.pyc
+                            _namespace.cpython-312.pyc
+                            _typing.cpython-312.pyc
+                            series.cpython-312.pyc
+                            expr_list.cpython-312.pyc
+                            expr_struct.cpython-312.pyc
+                            series_str.cpython-312.pyc
+                            selectors.cpython-312.pyc
+                            _exceptions.cpython-312.pyc
+                            _translate.cpython-312.pyc
+                            dataframe.cpython-312.pyc
+                            expr_name.cpython-312.pyc
+                            expr_dt.cpython-312.pyc
+                            series_struct.cpython-312.pyc
+                            dtypes.cpython-312.pyc
+                            expr_cat.cpython-312.pyc
+                            _utils.cpython-312.pyc
+                            expr.cpython-312.pyc
+                            _typing_compat.cpython-312.pyc
                         _dask/
                             expr_str.py
                             dataframe.py
@@ -6598,6 +7039,8 @@ docex/
                     _distutils_hack/
                         override.py
                         __init__.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
                     pytz-2025.2.dist-info/
                         zip-safe
                         LICENSE.txt
@@ -7429,6 +7872,9 @@ docex/
                             _kaleido.py
                             _defaults.py
                             json.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                _templates.cpython-312.pyc
                         offline/
                             _plotlyjs_version.py
                             __init__.py
@@ -7628,15 +8074,25 @@ docex/
                                 decreasing/
                                     __init__.py
                                     _line.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
                                 hoverlabel/
                                     _font.py
                                     __init__.py
                                 increasing/
                                     __init__.py
                                     _line.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    _increasing.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    _decreasing.cpython-312.pyc
                             ohlc/
                                 __init__.py
                                 _hoverlabel.py
@@ -8122,6 +8578,21 @@ docex/
                                         _contour.py
                                         _scatter.py
                                         _candlestick.py
+                                        __pycache__/
+                                            _candlestick.cpython-312.pyc
+                                            _icicle.cpython-312.pyc
+                                            _table.cpython-312.pyc
+                                            __init__.cpython-312.pyc
+                                            _contour.cpython-312.pyc
+                                            _sankey.cpython-312.pyc
+                                            _histogram2d.cpython-312.pyc
+                                            _heatmap.cpython-312.pyc
+                                            _contourcarpet.cpython-312.pyc
+                                            _waterfall.cpython-312.pyc
+                                            _scatter.cpython-312.pyc
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _data.cpython-312.pyc
                                 coloraxis/
                                     __init__.py
                                     _colorbar.py
@@ -8190,6 +8661,11 @@ docex/
                                 newselection/
                                     __init__.py
                                     _line.py
+                                __pycache__/
+                                    _coloraxis.cpython-312.pyc
+                                    _template.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    _colorscale.cpython-312.pyc
                                 yaxis/
                                     __init__.py
                                     _tickformatstop.py
@@ -8462,14 +8938,28 @@ docex/
                                     _font.py
                                     __init__.py
                                     _line.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        _fill.cpython-312.pyc
+                                        _font.cpython-312.pyc
                                 cells/
                                     _fill.py
                                     _font.py
                                     __init__.py
                                     _line.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        _fill.cpython-312.pyc
+                                        _font.cpython-312.pyc
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    _cells.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    _header.cpython-312.pyc
                             sankey/
                                 _textfont.py
                                 __init__.py
@@ -8500,6 +8990,9 @@ docex/
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    _textfont.cpython-312.pyc
                             barpolar/
                                 __init__.py
                                 _unselected.py
@@ -8671,27 +9164,45 @@ docex/
                                     marker/
                                         __init__.py
                                         _line.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _marker.cpython-312.pyc
                                 totals/
                                     __init__.py
                                     _marker.py
                                     marker/
                                         __init__.py
                                         _line.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _marker.cpython-312.pyc
                                 hoverlabel/
                                     _font.py
                                     __init__.py
                                 connector/
                                     __init__.py
                                     _line.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
                                 increasing/
                                     __init__.py
                                     _marker.py
                                     marker/
                                         __init__.py
                                         _line.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _marker.cpython-312.pyc
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    _increasing.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    _totals.cpython-312.pyc
+                                    _decreasing.cpython-312.pyc
+                                    _connector.cpython-312.pyc
                             scattergeo/
                                 _textfont.py
                                 __init__.py
@@ -8810,6 +9321,9 @@ docex/
                                         title/
                                             _font.py
                                             __init__.py
+                                    __pycache__/
+                                        _line.cpython-312.pyc
+                                        __init__.cpython-312.pyc
                                 unselected/
                                     _textfont.py
                                     __init__.py
@@ -8817,6 +9331,9 @@ docex/
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    _marker.cpython-312.pyc
                                 selected/
                                     _textfont.py
                                     __init__.py
@@ -8902,6 +9419,9 @@ docex/
                                 legendgrouptitle/
                                     _font.py
                                     __init__.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    _textfont.cpython-312.pyc
                                 pathbar/
                                     _textfont.py
                                     __init__.py
@@ -9079,6 +9599,19 @@ docex/
                                     _textfont.py
                                     __init__.py
                                     _marker.py
+                            __pycache__/
+                                _layout.cpython-312.pyc
+                                _candlestick.cpython-312.pyc
+                                _icicle.cpython-312.pyc
+                                _table.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                _contour.cpython-312.pyc
+                                _sankey.cpython-312.pyc
+                                _histogram2d.cpython-312.pyc
+                                _heatmap.cpython-312.pyc
+                                _contourcarpet.cpython-312.pyc
+                                _waterfall.cpython-312.pyc
+                                _scatter.cpython-312.pyc
                             scattermap/
                                 _textfont.py
                                 __init__.py
@@ -9397,6 +9930,13 @@ docex/
                                 remoteEntry.38ea05461c254e327731.js
                         validators/
                             _validators.json
+                        __pycache__/
+                            basedatatypes.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            _subplots.cpython-312.pyc
+                            optional_imports.cpython-312.pyc
+                            shapeannotation.cpython-312.pyc
+                            validator_cache.cpython-312.pyc
                         package_data/
                             plotly.min.js
                             widgetbundle.js
@@ -9426,6 +9966,8 @@ docex/
                             __init__.py
                         graph_objects/
                             __init__.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
                         express/
                             imshow_utils.py
                             __init__.py
@@ -11799,10 +12341,27 @@ docex/
                             retry.py
                             response.py
                             request.py
+                            __pycache__/
+                                response.cpython-312.pyc
+                                ssl_.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                ssltransport.cpython-312.pyc
+                                ssl_match_hostname.cpython-312.pyc
+                                wait.cpython-312.pyc
+                                retry.cpython-312.pyc
+                                util.cpython-312.pyc
+                                timeout.cpython-312.pyc
+                                proxy.cpython-312.pyc
+                                connection.cpython-312.pyc
+                                url.cpython-312.pyc
+                                request.cpython-312.pyc
                         contrib/
                             __init__.py
                             socks.py
                             pyopenssl.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                socks.cpython-312.pyc
                             emscripten/
                                 __init__.py
                                 connection.py
@@ -11810,10 +12369,26 @@ docex/
                                 response.py
                                 fetch.py
                                 request.py
+                        __pycache__/
+                            response.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            _collections.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            fields.cpython-312.pyc
+                            _version.cpython-312.pyc
+                            _base_connection.cpython-312.pyc
+                            poolmanager.cpython-312.pyc
+                            connectionpool.cpython-312.pyc
+                            filepost.cpython-312.pyc
+                            _request_methods.cpython-312.pyc
+                            connection.cpython-312.pyc
                         http2/
                             probe.py
                             __init__.py
                             connection.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                probe.cpython-312.pyc
                     pip/
                         __init__.py
                         py.typed
@@ -11902,6 +12477,69 @@ docex/
                                 _pick.py
                                 json.py
                                 repr.py
+                                __pycache__/
+                                    spinner.cpython-312.pyc
+                                    text.cpython-312.pyc
+                                    syntax.cpython-312.pyc
+                                    live.cpython-312.pyc
+                                    constrain.cpython-312.pyc
+                                    errors.cpython-312.pyc
+                                    box.cpython-312.pyc
+                                    measure.cpython-312.pyc
+                                    filesize.cpython-312.pyc
+                                    abc.cpython-312.pyc
+                                    jupyter.cpython-312.pyc
+                                    segment.cpython-312.pyc
+                                    ansi.cpython-312.pyc
+                                    _loop.cpython-312.pyc
+                                    cells.cpython-312.pyc
+                                    color_triplet.cpython-312.pyc
+                                    emoji.cpython-312.pyc
+                                    _pick.cpython-312.pyc
+                                    pager.cpython-312.pyc
+                                    _wrap.cpython-312.pyc
+                                    terminal_theme.cpython-312.pyc
+                                    styled.cpython-312.pyc
+                                    themes.cpython-312.pyc
+                                    file_proxy.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    markup.cpython-312.pyc
+                                    repr.cpython-312.pyc
+                                    color.cpython-312.pyc
+                                    _emoji_replace.cpython-312.pyc
+                                    live_render.cpython-312.pyc
+                                    control.cpython-312.pyc
+                                    scope.cpython-312.pyc
+                                    _palettes.cpython-312.pyc
+                                    theme.cpython-312.pyc
+                                    _fileno.cpython-312.pyc
+                                    style.cpython-312.pyc
+                                    align.cpython-312.pyc
+                                    _extension.cpython-312.pyc
+                                    _export_format.cpython-312.pyc
+                                    logging.cpython-312.pyc
+                                    panel.cpython-312.pyc
+                                    columns.cpython-312.pyc
+                                    table.cpython-312.pyc
+                                    progress.cpython-312.pyc
+                                    _cell_widths.cpython-312.pyc
+                                    progress_bar.cpython-312.pyc
+                                    console.cpython-312.pyc
+                                    _null_file.cpython-312.pyc
+                                    pretty.cpython-312.pyc
+                                    containers.cpython-312.pyc
+                                    _log_render.cpython-312.pyc
+                                    screen.cpython-312.pyc
+                                    traceback.cpython-312.pyc
+                                    default_styles.cpython-312.pyc
+                                    protocol.cpython-312.pyc
+                                    _spinners.cpython-312.pyc
+                                    padding.cpython-312.pyc
+                                    _emoji_codes.cpython-312.pyc
+                                    _ratio.cpython-312.pyc
+                                    highlighter.cpython-312.pyc
+                                    palette.cpython-312.pyc
+                                    region.cpython-312.pyc
                             platformdirs/
                                 api.py
                                 __init__.py
@@ -11911,6 +12549,11 @@ docex/
                                 unix.py
                                 android.py
                                 version.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    api.cpython-312.pyc
+                                    unix.cpython-312.pyc
+                                    version.cpython-312.pyc
                             webencodings/
                                 x_user_defined.py
                                 __init__.py
@@ -11924,6 +12567,11 @@ docex/
                                 _in_process/
                                     __init__.py
                                     _in_process.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    _impl.cpython-312.pyc
                             cachecontrol/
                                 filewrapper.py
                                 _cmd.py
@@ -11939,11 +12587,29 @@ docex/
                                     __init__.py
                                     redis_cache.py
                                     file_cache.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        file_cache.cpython-312.pyc
+                                        redis_cache.cpython-312.pyc
+                                __pycache__/
+                                    cache.cpython-312.pyc
+                                    filewrapper.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    adapter.cpython-312.pyc
+                                    wrapper.cpython-312.pyc
+                                    controller.cpython-312.pyc
+                                    serialize.cpython-312.pyc
+                                    compat.cpython-312.pyc
                             tomli/
                                 _types.py
                                 __init__.py
                                 _re.py
                                 _parser.py
+                                __pycache__/
+                                    _types.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    _parser.cpython-312.pyc
+                                    _re.cpython-312.pyc
                             colorama/
                                 ansi.py
                                 win32.py
@@ -11964,6 +12630,11 @@ docex/
                                 fallback.py
                                 exceptions.py
                                 ext.py
+                                __pycache__/
+                                    exceptions.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    ext.cpython-312.pyc
+                                    fallback.cpython-312.pyc
                             tenacity/
                                 nap.py
                                 _asyncio.py
@@ -11976,6 +12647,17 @@ docex/
                                 before_sleep.py
                                 before.py
                                 retry.py
+                                __pycache__/
+                                    nap.cpython-312.pyc
+                                    stop.cpython-312.pyc
+                                    after.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    before.cpython-312.pyc
+                                    before_sleep.cpython-312.pyc
+                                    wait.cpython-312.pyc
+                                    retry.cpython-312.pyc
+                                    _asyncio.cpython-312.pyc
+                                    _utils.cpython-312.pyc
                             pygments/
                                 util.py
                                 regexopt.py
@@ -11997,10 +12679,27 @@ docex/
                                     python.py
                                     __init__.py
                                     _mapping.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _mapping.cpython-312.pyc
                                 styles/
                                     __init__.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
                                 filters/
                                     __init__.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                __pycache__/
+                                    modeline.cpython-312.pyc
+                                    lexer.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    style.cpython-312.pyc
+                                    token.cpython-312.pyc
+                                    plugin.cpython-312.pyc
+                                    filter.cpython-312.pyc
+                                    regexopt.cpython-312.pyc
+                                    util.cpython-312.pyc
                                 formatters/
                                     rtf.py
                                     latex.py
@@ -12035,6 +12734,9 @@ docex/
                                         weakref_finalize.py
                                         __init__.py
                                         makefile.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        six.cpython-312.pyc
                                 util/
                                     url.py
                                     timeout.py
@@ -12049,6 +12751,20 @@ docex/
                                     retry.py
                                     response.py
                                     request.py
+                                    __pycache__/
+                                        response.cpython-312.pyc
+                                        ssl_.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        ssltransport.cpython-312.pyc
+                                        queue.cpython-312.pyc
+                                        ssl_match_hostname.cpython-312.pyc
+                                        wait.cpython-312.pyc
+                                        retry.cpython-312.pyc
+                                        timeout.cpython-312.pyc
+                                        proxy.cpython-312.pyc
+                                        connection.cpython-312.pyc
+                                        url.cpython-312.pyc
+                                        request.cpython-312.pyc
                                 contrib/
                                     ntlmpool.py
                                     __init__.py
@@ -12057,10 +12773,26 @@ docex/
                                     securetransport.py
                                     appengine.py
                                     pyopenssl.py
+                                    __pycache__/
+                                        _appengine_environ.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        socks.cpython-312.pyc
                                     _securetransport/
                                         __init__.py
                                         bindings.py
                                         low_level.py
+                                __pycache__/
+                                    response.cpython-312.pyc
+                                    exceptions.cpython-312.pyc
+                                    _collections.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    fields.cpython-312.pyc
+                                    _version.cpython-312.pyc
+                                    poolmanager.cpython-312.pyc
+                                    connectionpool.cpython-312.pyc
+                                    filepost.cpython-312.pyc
+                                    connection.cpython-312.pyc
+                                    request.cpython-312.pyc
                             packaging/
                                 __about__.py
                                 tags.py
@@ -12073,6 +12805,18 @@ docex/
                                 _manylinux.py
                                 _musllinux.py
                                 version.py
+                                __pycache__/
+                                    _structures.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    markers.cpython-312.pyc
+                                    __about__.cpython-312.pyc
+                                    utils.cpython-312.pyc
+                                    _manylinux.cpython-312.pyc
+                                    _musllinux.cpython-312.pyc
+                                    specifiers.cpython-312.pyc
+                                    version.cpython-312.pyc
+                                    tags.cpython-312.pyc
+                                    requirements.cpython-312.pyc
                             requests/
                                 hooks.py
                                 __version__.py
@@ -12092,12 +12836,35 @@ docex/
                                 auth.py
                                 models.py
                                 adapters.py
+                                __pycache__/
+                                    auth.cpython-312.pyc
+                                    _internal_utils.cpython-312.pyc
+                                    exceptions.cpython-312.pyc
+                                    __version__.cpython-312.pyc
+                                    structures.cpython-312.pyc
+                                    packages.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    api.cpython-312.pyc
+                                    utils.cpython-312.pyc
+                                    models.cpython-312.pyc
+                                    adapters.cpython-312.pyc
+                                    status_codes.cpython-312.pyc
+                                    sessions.cpython-312.pyc
+                                    hooks.cpython-312.pyc
+                                    cookies.cpython-312.pyc
+                                    certs.cpython-312.pyc
+                                    compat.cpython-312.pyc
                             distro/
                                 __init__.py
                                 __main__.py
                                 distro.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    distro.cpython-312.pyc
                             pkg_resources/
                                 __init__.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
                             chardet/
                                 langhebrewmodel.py
                                 langbulgarianmodel.py
@@ -12149,6 +12916,50 @@ docex/
                                 cli/
                                     __init__.py
                                     chardetect.py
+                                __pycache__/
+                                    escsm.cpython-312.pyc
+                                    langturkishmodel.cpython-312.pyc
+                                    sbcharsetprober.cpython-312.pyc
+                                    resultdict.cpython-312.pyc
+                                    chardistribution.cpython-312.pyc
+                                    johabprober.cpython-312.pyc
+                                    universaldetector.cpython-312.pyc
+                                    langrussianmodel.cpython-312.pyc
+                                    charsetprober.cpython-312.pyc
+                                    gb2312freq.cpython-312.pyc
+                                    utf1632prober.cpython-312.pyc
+                                    jpcntx.cpython-312.pyc
+                                    codingstatemachinedict.cpython-312.pyc
+                                    sbcsgroupprober.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    eucjpprober.cpython-312.pyc
+                                    jisfreq.cpython-312.pyc
+                                    langbulgarianmodel.cpython-312.pyc
+                                    euctwfreq.cpython-312.pyc
+                                    big5prober.cpython-312.pyc
+                                    cp949prober.cpython-312.pyc
+                                    utf8prober.cpython-312.pyc
+                                    langgreekmodel.cpython-312.pyc
+                                    mbcssm.cpython-312.pyc
+                                    euctwprober.cpython-312.pyc
+                                    langthaimodel.cpython-312.pyc
+                                    latin1prober.cpython-312.pyc
+                                    mbcsgroupprober.cpython-312.pyc
+                                    hebrewprober.cpython-312.pyc
+                                    codingstatemachine.cpython-312.pyc
+                                    sjisprober.cpython-312.pyc
+                                    big5freq.cpython-312.pyc
+                                    euckrprober.cpython-312.pyc
+                                    johabfreq.cpython-312.pyc
+                                    macromanprober.cpython-312.pyc
+                                    enums.cpython-312.pyc
+                                    version.cpython-312.pyc
+                                    gb2312prober.cpython-312.pyc
+                                    escprober.cpython-312.pyc
+                                    euckrfreq.cpython-312.pyc
+                                    langhebrewmodel.cpython-312.pyc
+                                    charsetgroupprober.cpython-312.pyc
+                                    mbcharsetprober.cpython-312.pyc
                             distlib/
                                 util.py
                                 markers.py
@@ -12169,11 +12980,22 @@ docex/
                                 database.py
                                 version.py
                                 wheel.py
+                                __pycache__/
+                                    scripts.cpython-312.pyc
+                                    resources.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    util.cpython-312.pyc
+                                    compat.cpython-312.pyc
+                            __pycache__/
+                                __init__.cpython-312.pyc
                             certifi/
                                 __init__.py
                                 cacert.pem
                                 __main__.py
                                 core.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    core.cpython-312.pyc
                             pyparsing/
                                 results.py
                                 util.py
@@ -12185,6 +13007,17 @@ docex/
                                 core.py
                                 testing.py
                                 helpers.py
+                                __pycache__/
+                                    common.cpython-312.pyc
+                                    results.cpython-312.pyc
+                                    exceptions.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    actions.cpython-312.pyc
+                                    unicode.cpython-312.pyc
+                                    helpers.cpython-312.pyc
+                                    testing.cpython-312.pyc
+                                    util.cpython-312.pyc
+                                    core.cpython-312.pyc
                                 diagram/
                                     __init__.py
                             resolvelib/
@@ -12205,6 +13038,12 @@ docex/
                                 core.py
                                 intranges.py
                                 uts46data.py
+                                __pycache__/
+                                    intranges.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    package_data.cpython-312.pyc
+                                    core.cpython-312.pyc
+                                    idnadata.cpython-312.pyc
                         _internal/
                             build_env.py
                             pyproject.py
@@ -12222,12 +13061,25 @@ docex/
                                 versioncontrol.py
                                 bazaar.py
                                 git.py
+                                __pycache__/
+                                    mercurial.cpython-312.pyc
+                                    bazaar.cpython-312.pyc
+                                    subversion.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    versioncontrol.cpython-312.pyc
+                                    git.cpython-312.pyc
                             distributions/
                                 base.py
                                 __init__.py
                                 sdist.py
                                 wheel.py
                                 installed.py
+                                __pycache__/
+                                    wheel.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    sdist.cpython-312.pyc
+                                    base.cpython-312.pyc
+                                    installed.cpython-312.pyc
                             req/
                                 req_uninstall.py
                                 constructors.py
@@ -12235,6 +13087,13 @@ docex/
                                 req_install.py
                                 req_file.py
                                 req_set.py
+                                __pycache__/
+                                    constructors.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    req_install.cpython-312.pyc
+                                    req_file.cpython-312.pyc
+                                    req_uninstall.cpython-312.pyc
+                                    req_set.cpython-312.pyc
                             utils/
                                 appdirs.py
                                 encoding.py
@@ -12264,6 +13123,34 @@ docex/
                                 urls.py
                                 filesystem.py
                                 inject_securetransport.py
+                                __pycache__/
+                                    wheel.cpython-312.pyc
+                                    unpacking.cpython-312.pyc
+                                    entrypoints.cpython-312.pyc
+                                    egg_link.cpython-312.pyc
+                                    encoding.cpython-312.pyc
+                                    glibc.cpython-312.pyc
+                                    filetypes.cpython-312.pyc
+                                    urls.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    subprocess.cpython-312.pyc
+                                    _log.cpython-312.pyc
+                                    models.cpython-312.pyc
+                                    hashes.cpython-312.pyc
+                                    inject_securetransport.cpython-312.pyc
+                                    packaging.cpython-312.pyc
+                                    _jaraco_text.cpython-312.pyc
+                                    logging.cpython-312.pyc
+                                    compatibility_tags.cpython-312.pyc
+                                    direct_url_helpers.cpython-312.pyc
+                                    appdirs.cpython-312.pyc
+                                    setuptools_build.cpython-312.pyc
+                                    misc.cpython-312.pyc
+                                    filesystem.cpython-312.pyc
+                                    temp_dir.cpython-312.pyc
+                                    deprecation.cpython-312.pyc
+                                    virtualenv.cpython-312.pyc
+                                    compat.cpython-312.pyc
                             operations/
                                 freeze.py
                                 __init__.py
@@ -12278,10 +13165,27 @@ docex/
                                     metadata.py
                                     wheel.py
                                     metadata_legacy.py
+                                    __pycache__/
+                                        wheel.cpython-312.pyc
+                                        build_tracker.cpython-312.pyc
+                                        metadata_legacy.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        wheel_editable.cpython-312.pyc
+                                        metadata.cpython-312.pyc
+                                        metadata_editable.cpython-312.pyc
+                                        wheel_legacy.cpython-312.pyc
                                 install/
                                     __init__.py
                                     editable_legacy.py
                                     wheel.py
+                                    __pycache__/
+                                        wheel.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        editable_legacy.cpython-312.pyc
+                                __pycache__/
+                                    prepare.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    check.cpython-312.pyc
                             network/
                                 xmlrpc.py
                                 __init__.py
@@ -12291,6 +13195,14 @@ docex/
                                 download.py
                                 auth.py
                                 cache.py
+                                __pycache__/
+                                    auth.cpython-312.pyc
+                                    cache.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    utils.cpython-312.pyc
+                                    download.cpython-312.pyc
+                                    session.cpython-312.pyc
+                                    lazy_wheel.cpython-312.pyc
                             metadata/
                                 base.py
                                 __init__.py
@@ -12301,6 +13213,16 @@ docex/
                                     _envs.py
                                     _compat.py
                                     _dists.py
+                                    __pycache__/
+                                        __init__.cpython-312.pyc
+                                        _envs.cpython-312.pyc
+                                        _dists.cpython-312.pyc
+                                        _compat.cpython-312.pyc
+                                __pycache__/
+                                    _json.cpython-312.pyc
+                                    pkg_resources.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    base.cpython-312.pyc
                             cli/
                                 __init__.py
                                 main.py
@@ -12314,12 +13236,28 @@ docex/
                                 base_command.py
                                 main_parser.py
                                 parser.py
+                                __pycache__/
+                                    cmdoptions.cpython-312.pyc
+                                    main_parser.cpython-312.pyc
+                                    base_command.cpython-312.pyc
+                                    req_command.cpython-312.pyc
+                                    progress_bars.cpython-312.pyc
+                                    main.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    command_context.cpython-312.pyc
+                                    status_codes.cpython-312.pyc
+                                    spinners.cpython-312.pyc
+                                    parser.cpython-312.pyc
+                                    autocompletion.cpython-312.pyc
                             resolution/
                                 base.py
                                 __init__.py
                                 legacy/
                                     __init__.py
                                     resolver.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    base.cpython-312.pyc
                                 resolvelib/
                                     base.py
                                     __init__.py
@@ -12349,6 +13287,19 @@ docex/
                                 inspect.py
                                 wheel.py
                                 cache.py
+                                __pycache__/
+                                    install.cpython-312.pyc
+                                    list.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                            __pycache__/
+                                configuration.cpython-312.pyc
+                                exceptions.cpython-312.pyc
+                                cache.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                build_env.cpython-312.pyc
+                                wheel_builder.cpython-312.pyc
+                                pyproject.cpython-312.pyc
+                                self_outdated_check.cpython-312.pyc
                             models/
                                 candidate.py
                                 __init__.py
@@ -12362,16 +13313,41 @@ docex/
                                 selection_prefs.py
                                 target_python.py
                                 wheel.py
+                                __pycache__/
+                                    wheel.cpython-312.pyc
+                                    target_python.cpython-312.pyc
+                                    index.cpython-312.pyc
+                                    search_scope.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    installation_report.cpython-312.pyc
+                                    direct_url.cpython-312.pyc
+                                    scheme.cpython-312.pyc
+                                    candidate.cpython-312.pyc
+                                    selection_prefs.cpython-312.pyc
+                                    link.cpython-312.pyc
+                                    format_control.cpython-312.pyc
                             index/
                                 sources.py
                                 __init__.py
                                 package_finder.py
                                 collector.py
+                                __pycache__/
+                                    collector.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    package_finder.cpython-312.pyc
+                                    sources.cpython-312.pyc
                             locations/
                                 base.py
                                 _distutils.py
                                 __init__.py
                                 _sysconfig.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    _sysconfig.cpython-312.pyc
+                                    base.cpython-312.pyc
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            __main__.cpython-312.pyc
                     packaging/
                         tags.py
                         markers.py
@@ -12388,6 +13364,10 @@ docex/
                         _musllinux.py
                         version.py
                         _parser.py
+                        __pycache__/
+                            _structures.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            version.cpython-312.pyc
                         licenses/
                             __init__.py
                             _spdx.py
@@ -12622,6 +13602,14 @@ docex/
                             head.py
                             log.py
                             remote.py
+                            __pycache__/
+                                reference.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                head.cpython-312.pyc
+                                symbolic.cpython-312.pyc
+                                remote.cpython-312.pyc
+                                tag.cpython-312.pyc
+                                log.cpython-312.pyc
                         objects/
                             util.py
                             base.py
@@ -12636,16 +13624,51 @@ docex/
                                 base.py
                                 __init__.py
                                 root.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    util.cpython-312.pyc
+                                    root.cpython-312.pyc
+                                    base.cpython-312.pyc
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                blob.cpython-312.pyc
+                                commit.cpython-312.pyc
+                                util.cpython-312.pyc
+                                fun.cpython-312.pyc
+                                tag.cpython-312.pyc
+                                base.cpython-312.pyc
+                                tree.cpython-312.pyc
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            remote.cpython-312.pyc
+                            exc.cpython-312.pyc
+                            db.cpython-312.pyc
+                            util.cpython-312.pyc
+                            diff.cpython-312.pyc
+                            cmd.cpython-312.pyc
+                            config.cpython-312.pyc
+                            types.cpython-312.pyc
+                            compat.cpython-312.pyc
                         repo/
                             base.py
                             __init__.py
                             fun.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                fun.cpython-312.pyc
+                                base.cpython-312.pyc
                         index/
                             util.py
                             base.py
                             __init__.py
                             fun.py
                             typ.py
+                            __pycache__/
+                                typ.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                util.cpython-312.pyc
+                                fun.cpython-312.pyc
+                                base.cpython-312.pyc
                     httpcore-1.0.9.dist-info/
                         METADATA
                         WHEEL
@@ -12696,9 +13719,25 @@ docex/
                                 plugin_pb2.py
                             testdata/
                                 __init__.py
+                            __pycache__/
+                                symbol_database.cpython-312.pyc
+                                descriptor_pool.cpython-312.pyc
+                                message_factory.cpython-312.pyc
+                                unknown_fields.cpython-312.pyc
+                                reflection.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                descriptor_database.cpython-312.pyc
+                                message.cpython-312.pyc
+                                text_encoding.cpython-312.pyc
+                                text_format.cpython-312.pyc
+                                descriptor.cpython-312.pyc
+                                json_format.cpython-312.pyc
                             pyext/
                                 __init__.py
                                 cpp_message.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    cpp_message.cpython-312.pyc
                             internal/
                                 api_implementation.py
                                 decoder.py
@@ -12716,6 +13755,22 @@ docex/
                                 field_mask.py
                                 python_edition_defaults.py
                                 message_listener.py
+                                __pycache__/
+                                    python_message.cpython-312.pyc
+                                    python_edition_defaults.cpython-312.pyc
+                                    encoder.cpython-312.pyc
+                                    wire_format.cpython-312.pyc
+                                    api_implementation.cpython-312.pyc
+                                    builder.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    field_mask.cpython-312.pyc
+                                    extension_dict.cpython-312.pyc
+                                    decoder.cpython-312.pyc
+                                    enum_type_wrapper.cpython-312.pyc
+                                    containers.cpython-312.pyc
+                                    type_checkers.cpython-312.pyc
+                                    well_known_types.cpython-312.pyc
+                                    message_listener.cpython-312.pyc
                     typing_inspection/
                         typing_objects.pyi
                         typing_objects.py
@@ -12753,6 +13808,15 @@ docex/
                         cli/
                             __init__.py
                             __main__.py
+                        __pycache__/
+                            cd.cpython-312.pyc
+                            constant.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            api.cpython-312.pyc
+                            utils.cpython-312.pyc
+                            models.cpython-312.pyc
+                            legacy.cpython-312.pyc
+                            version.cpython-312.pyc
                     h11-0.16.0.dist-info/
                         METADATA
                         WHEEL
@@ -13927,6 +14991,24 @@ docex/
                         auth.py
                         models.py
                         adapters.py
+                        __pycache__/
+                            auth.cpython-312.pyc
+                            _internal_utils.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            __version__.cpython-312.pyc
+                            structures.cpython-312.pyc
+                            packages.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            api.cpython-312.pyc
+                            utils.cpython-312.pyc
+                            models.cpython-312.pyc
+                            adapters.cpython-312.pyc
+                            status_codes.cpython-312.pyc
+                            sessions.cpython-312.pyc
+                            hooks.cpython-312.pyc
+                            cookies.cpython-312.pyc
+                            certs.cpython-312.pyc
+                            compat.cpython-312.pyc
                     python_dateutil-2.9.0.post0.dist-info/
                         zip-safe
                         METADATA
@@ -14074,6 +15156,13 @@ docex/
                             diverging.py
                             qualitative.py
                             cyclical.py
+                        __pycache__/
+                            basevalidators.cpython-312.pyc
+                            exceptions.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            utils.cpython-312.pyc
+                            importers.cpython-312.pyc
+                            optional_imports.cpython-312.pyc
                     ruff-0.13.0.dist-info/
                         REQUESTED
                         METADATA
@@ -14571,6 +15660,11 @@ docex/
                         func.py
                         keys.py
                         _cached.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            keys.cpython-312.pyc
+                    __pycache__/
+                        typing_extensions.cpython-312.pyc
                     pydantic_core-2.33.2.dist-info/
                         METADATA
                         WHEEL
@@ -14584,6 +15678,9 @@ docex/
                         py.typed
                         __main__.py
                         core.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            core.cpython-312.pyc
                     black-25.1.0.dist-info/
                         REQUESTED
                         METADATA
@@ -16305,6 +17402,12 @@ docex/
                             fsevents.py
                             inotify_buffer.py
                             kqueue.py
+                            __pycache__/
+                                inotify_c.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                inotify_buffer.cpython-312.pyc
+                                api.cpython-312.pyc
+                                inotify.cpython-312.pyc
                         utils/
                             event_debouncer.py
                             bricks.py
@@ -16315,8 +17418,17 @@ docex/
                             platform.py
                             echo.py
                             process_watcher.py
+                            __pycache__/
+                                patterns.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                delayed_queue.cpython-312.pyc
+                                bricks.cpython-312.pyc
+                                platform.cpython-312.pyc
                         tricks/
                             __init__.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            events.cpython-312.pyc
                     streamlit-1.49.1.dist-info/
                         REQUESTED
                         METADATA
@@ -17102,6 +18214,9 @@ docex/
                         navigation/
                             __init__.py
                             page.py
+                            __pycache__/
+                                page.cpython-312.pyc
+                                __init__.cpython-312.pyc
                         static/
                             index.html
                             manifest.json
@@ -17266,21 +18381,41 @@ docex/
                             snowflake_connection.py
                             snowpark_connection.py
                             base_connection.py
+                            __pycache__/
+                                sql_connection.cpython-312.pyc
+                                snowpark_connection.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                base_connection.cpython-312.pyc
+                                util.cpython-312.pyc
+                                snowflake_connection.cpython-312.pyc
                         components/
                             __init__.py
                             lib/
                                 __init__.py
                                 local_component_registry.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    local_component_registry.cpython-312.pyc
                             v1/
                                 __init__.py
                                 components.py
                                 component_arrow.py
                                 custom_component.py
                                 component_registry.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    component_registry.cpython-312.pyc
+                                    custom_component.cpython-312.pyc
+                            __pycache__/
+                                __init__.cpython-312.pyc
                             types/
                                 __init__.py
                                 base_component_registry.py
                                 base_custom_component.py
+                                __pycache__/
+                                    __init__.cpython-312.pyc
+                                    base_custom_component.cpython-312.pyc
+                                    base_component_registry.cpython-312.pyc
                         elements/
                             layouts.py
                             image.py
@@ -17335,6 +18470,26 @@ docex/
                                 streamlit_plotly_theme.py
                                 built_in_chart_utils.py
                                 column_config_utils.py
+                                __pycache__/
+                                    dialog.cpython-312.pyc
+                                    streamlit_plotly_theme.cpython-312.pyc
+                                    policies.cpython-312.pyc
+                                    subtitle_utils.cpython-312.pyc
+                                    image_utils.cpython-312.pyc
+                                    options_selector_utils.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    utils.cpython-312.pyc
+                                    column_config_utils.cpython-312.pyc
+                                    form_utils.cpython-312.pyc
+                                    column_types.cpython-312.pyc
+                                    dicttools.cpython-312.pyc
+                                    built_in_chart_utils.cpython-312.pyc
+                                    pandas_styler_utils.cpython-312.pyc
+                                    mutable_status_container.cpython-312.pyc
+                                    js_number.cpython-312.pyc
+                                    color_util.cpython-312.pyc
+                                    file_uploader_utils.cpython-312.pyc
+                                    layout_utils.cpython-312.pyc
                             widgets/
                                 file_uploader.py
                                 chat.py
@@ -17354,6 +18509,59 @@ docex/
                                 audio_input.py
                                 slider.py
                                 select_slider.py
+                                __pycache__/
+                                    button.cpython-312.pyc
+                                    audio_input.cpython-312.pyc
+                                    button_group.cpython-312.pyc
+                                    slider.cpython-312.pyc
+                                    camera_input.cpython-312.pyc
+                                    checkbox.cpython-312.pyc
+                                    file_uploader.cpython-312.pyc
+                                    selectbox.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    radio.cpython-312.pyc
+                                    color_picker.cpython-312.pyc
+                                    number_input.cpython-312.pyc
+                                    text_widgets.cpython-312.pyc
+                                    data_editor.cpython-312.pyc
+                                    multiselect.cpython-312.pyc
+                                    time_widgets.cpython-312.pyc
+                                    chat.cpython-312.pyc
+                                    select_slider.cpython-312.pyc
+                            __pycache__/
+                                vega_charts.cpython-312.pyc
+                                spinner.cpython-312.pyc
+                                graphviz_chart.cpython-312.pyc
+                                code.cpython-312.pyc
+                                text.cpython-312.pyc
+                                alert.cpython-312.pyc
+                                pyplot.cpython-312.pyc
+                                layouts.cpython-312.pyc
+                                metric.cpython-312.pyc
+                                deck_gl_json_chart.cpython-312.pyc
+                                map.cpython-312.pyc
+                                markdown.cpython-312.pyc
+                                image.cpython-312.pyc
+                                plotly_chart.cpython-312.pyc
+                                empty.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                snow.cpython-312.pyc
+                                form.cpython-312.pyc
+                                balloons.cpython-312.pyc
+                                media.cpython-312.pyc
+                                iframe.cpython-312.pyc
+                                exception.cpython-312.pyc
+                                progress.cpython-312.pyc
+                                doc_string.cpython-312.pyc
+                                pdf.cpython-312.pyc
+                                dialog_decorator.cpython-312.pyc
+                                arrow.cpython-312.pyc
+                                html.cpython-312.pyc
+                                bokeh_chart.cpython-312.pyc
+                                write.cpython-312.pyc
+                                json.cpython-312.pyc
+                                toast.cpython-312.pyc
+                                heading.cpython-312.pyc
                         watcher/
                             util.py
                             local_sources_watcher.py
@@ -17362,6 +18570,14 @@ docex/
                             polling_path_watcher.py
                             folder_black_list.py
                             path_watcher.py
+                            __pycache__/
+                                path_watcher.cpython-312.pyc
+                                event_based_path_watcher.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                polling_path_watcher.cpython-312.pyc
+                                util.cpython-312.pyc
+                                folder_black_list.cpython-312.pyc
+                                local_sources_watcher.cpython-312.pyc
                         vendor/
                             __init__.py
                             pympler/
@@ -17380,6 +18596,11 @@ docex/
                             cli.py
                             __init__.py
                             cache_storage_manager_config.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                bootstrap.cpython-312.pyc
+                                cache_storage_manager_config.cpython-312.pyc
+                                cli.cpython-312.pyc
                             server/
                                 upload_file_request_handler.py
                                 stats_request_handler.py
@@ -17395,6 +18616,17 @@ docex/
                                 server.py
                                 websocket_headers.py
                                 server_util.py
+                                __pycache__/
+                                    stats_request_handler.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    browser_websocket_handler.cpython-312.pyc
+                                    upload_file_request_handler.cpython-312.pyc
+                                    server.cpython-312.pyc
+                                    media_file_handler.cpython-312.pyc
+                                    routes.cpython-312.pyc
+                                    app_static_file_handler.cpython-312.pyc
+                                    server_util.cpython-312.pyc
+                                    component_request_handler.cpython-312.pyc
                         commands/
                             navigation.py
                             page_config.py
@@ -17403,6 +18635,14 @@ docex/
                             echo.py
                             logo.py
                             experimental_query_params.py
+                            __pycache__/
+                                experimental_query_params.cpython-312.pyc
+                                page_config.cpython-312.pyc
+                                execution_control.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                logo.cpython-312.pyc
+                                navigation.cpython-312.pyc
+                                echo.cpython-312.pyc
                         hello/
                             __init__.py
                             streamlit_app.py
@@ -17412,6 +18652,38 @@ docex/
                             animation_demo.py
                             dataframe_demo.py
                             plotting_demo.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                streamlit_app.cpython-312.pyc
+                        __pycache__/
+                            git_util.cpython-312.pyc
+                            errors.cpython-312.pyc
+                            cli_util.cpython-312.pyc
+                            net_util.cpython-312.pyc
+                            config_util.cpython-312.pyc
+                            delta_generator_singletons.cpython-312.pyc
+                            file_util.cpython-312.pyc
+                            auth_util.cpython-312.pyc
+                            development.cpython-312.pyc
+                            dataframe_util.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            url_util.cpython-312.pyc
+                            type_util.cpython-312.pyc
+                            error_util.cpython-312.pyc
+                            string_util.cpython-312.pyc
+                            delta_generator.cpython-312.pyc
+                            column_config.cpython-312.pyc
+                            env_util.cpython-312.pyc
+                            user_info.cpython-312.pyc
+                            deprecation_util.cpython-312.pyc
+                            util.cpython-312.pyc
+                            time_util.cpython-312.pyc
+                            source_util.cpython-312.pyc
+                            config.cpython-312.pyc
+                            logger.cpython-312.pyc
+                            version.cpython-312.pyc
+                            config_option.cpython-312.pyc
+                            cursor.cpython-312.pyc
                         runtime/
                             __init__.py
                             runtime_util.py
@@ -17444,6 +18716,12 @@ docex/
                                 magic.py
                                 magic_funcs.py
                                 script_runner.py
+                                __pycache__/
+                                    magic.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    script_runner.cpython-312.pyc
+                                    script_cache.cpython-312.pyc
+                                    exec_code.cpython-312.pyc
                             state/
                                 common.py
                                 __init__.py
@@ -17453,11 +18731,25 @@ docex/
                                 session_state.py
                                 query_params.py
                                 widgets.py
+                                __pycache__/
+                                    common.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    session_state_proxy.cpython-312.pyc
+                                    query_params.cpython-312.pyc
+                                    session_state.cpython-312.pyc
+                                    query_params_proxy.cpython-312.pyc
+                                    safe_session_state.cpython-312.pyc
+                                    widgets.cpython-312.pyc
                             scriptrunner_utils/
                                 script_requests.py
                                 __init__.py
                                 exceptions.py
                                 script_run_context.py
+                                __pycache__/
+                                    exceptions.cpython-312.pyc
+                                    script_run_context.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    script_requests.cpython-312.pyc
                             caching/
                                 cache_type.py
                                 cache_data_api.py
@@ -17474,6 +18766,47 @@ docex/
                                     cache_storage_protocol.py
                                     __init__.py
                                     in_memory_cache_storage_wrapper.py
+                                    __pycache__/
+                                        dummy_cache_storage.cpython-312.pyc
+                                        __init__.cpython-312.pyc
+                                        local_disk_cache_storage.cpython-312.pyc
+                                        in_memory_cache_storage_wrapper.cpython-312.pyc
+                                        cache_storage_protocol.cpython-312.pyc
+                                __pycache__/
+                                    legacy_cache_api.cpython-312.pyc
+                                    hashing.cpython-312.pyc
+                                    __init__.cpython-312.pyc
+                                    cache_type.cpython-312.pyc
+                                    cached_message_replay.cpython-312.pyc
+                                    cache_data_api.cpython-312.pyc
+                                    cache_errors.cpython-312.pyc
+                                    cache_resource_api.cpython-312.pyc
+                                    cache_utils.cpython-312.pyc
+                            __pycache__/
+                                memory_uploaded_file_manager.cpython-312.pyc
+                                websocket_session_manager.cpython-312.pyc
+                                pages_manager.cpython-312.pyc
+                                context_util.cpython-312.pyc
+                                memory_session_storage.cpython-312.pyc
+                                secrets.cpython-312.pyc
+                                media_file_manager.cpython-312.pyc
+                                connection_factory.cpython-312.pyc
+                                credentials.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                context.cpython-312.pyc
+                                forward_msg_cache.cpython-312.pyc
+                                app_session.cpython-312.pyc
+                                metrics_util.cpython-312.pyc
+                                runtime.cpython-312.pyc
+                                script_data.cpython-312.pyc
+                                runtime_util.cpython-312.pyc
+                                uploaded_file_manager.cpython-312.pyc
+                                memory_media_file_storage.cpython-312.pyc
+                                media_file_storage.cpython-312.pyc
+                                fragment.cpython-312.pyc
+                                session_manager.cpython-312.pyc
+                                stats.cpython-312.pyc
+                                forward_msg_queue.cpython-312.pyc
                         external/
                             __init__.py
                             langchain/
@@ -17647,6 +18980,89 @@ docex/
                             Audio_pb2.pyi
                             Element_pb2.py
                             TextArea_pb2.py
+                            __pycache__/
+                                WidgetStates_pb2.cpython-312.pyc
+                                Alert_pb2.cpython-312.pyc
+                                Audio_pb2.cpython-312.pyc
+                                BokehChart_pb2.cpython-312.pyc
+                                Html_pb2.cpython-312.pyc
+                                AuthRedirect_pb2.cpython-312.pyc
+                                GitInfo_pb2.cpython-312.pyc
+                                Toast_pb2.cpython-312.pyc
+                                Balloons_pb2.cpython-312.pyc
+                                Components_pb2.cpython-312.pyc
+                                LinkButton_pb2.cpython-312.pyc
+                                MultiSelect_pb2.cpython-312.pyc
+                                ArrowNamedDataSet_pb2.cpython-312.pyc
+                                PageConfig_pb2.cpython-312.pyc
+                                Delta_pb2.cpython-312.pyc
+                                RootContainer_pb2.cpython-312.pyc
+                                ArrowVegaLiteChart_pb2.cpython-312.pyc
+                                ClientState_pb2.cpython-312.pyc
+                                Favicon_pb2.cpython-312.pyc
+                                Navigation_pb2.cpython-312.pyc
+                                GraphVizChart_pb2.cpython-312.pyc
+                                Block_pb2.cpython-312.pyc
+                                NumberInput_pb2.cpython-312.pyc
+                                DocString_pb2.cpython-312.pyc
+                                Checkbox_pb2.cpython-312.pyc
+                                TextInput_pb2.cpython-312.pyc
+                                ParentMessage_pb2.cpython-312.pyc
+                                PageProfile_pb2.cpython-312.pyc
+                                AudioInput_pb2.cpython-312.pyc
+                                Metric_pb2.cpython-312.pyc
+                                NamedDataSet_pb2.cpython-312.pyc
+                                __init__.cpython-312.pyc
+                                Slider_pb2.cpython-312.pyc
+                                Video_pb2.cpython-312.pyc
+                                TextArea_pb2.cpython-312.pyc
+                                Snow_pb2.cpython-312.pyc
+                                Selectbox_pb2.cpython-312.pyc
+                                HeightConfig_pb2.cpython-312.pyc
+                                FileUploader_pb2.cpython-312.pyc
+                                Exception_pb2.cpython-312.pyc
+                                Skeleton_pb2.cpython-312.pyc
+                                DeckGlJsonChart_pb2.cpython-312.pyc
+                                Logo_pb2.cpython-312.pyc
+                                ForwardMsg_pb2.cpython-312.pyc
+                                SessionStatus_pb2.cpython-312.pyc
+                                Markdown_pb2.cpython-312.pyc
+                                GapSize_pb2.cpython-312.pyc
+                                DataFrame_pb2.cpython-312.pyc
+                                LabelVisibilityMessage_pb2.cpython-312.pyc
+                                CameraInput_pb2.cpython-312.pyc
+                                TimeInput_pb2.cpython-312.pyc
+                                VegaLiteChart_pb2.cpython-312.pyc
+                                PlotlyChart_pb2.cpython-312.pyc
+                                ButtonGroup_pb2.cpython-312.pyc
+                                DateInput_pb2.cpython-312.pyc
+                                PageNotFound_pb2.cpython-312.pyc
+                                Progress_pb2.cpython-312.pyc
+                                AutoRerun_pb2.cpython-312.pyc
+                                Arrow_pb2.cpython-312.pyc
+                                Radio_pb2.cpython-312.pyc
+                                Empty_pb2.cpython-312.pyc
+                                PagesChanged_pb2.cpython-312.pyc
+                                PageInfo_pb2.cpython-312.pyc
+                                WidthConfig_pb2.cpython-312.pyc
+                                Text_pb2.cpython-312.pyc
+                                Spinner_pb2.cpython-312.pyc
+                                IFrame_pb2.cpython-312.pyc
+                                DownloadButton_pb2.cpython-312.pyc
+                                SessionEvent_pb2.cpython-312.pyc
+                                Element_pb2.cpython-312.pyc
+                                Common_pb2.cpython-312.pyc
+                                NewSession_pb2.cpython-312.pyc
+                                Code_pb2.cpython-312.pyc
+                                AppPage_pb2.cpython-312.pyc
+                                Heading_pb2.cpython-312.pyc
+                                Image_pb2.cpython-312.pyc
+                                Json_pb2.cpython-312.pyc
+                                ChatInput_pb2.cpython-312.pyc
+                                Button_pb2.cpython-312.pyc
+                                ColorPicker_pb2.cpython-312.pyc
+                                BackMsg_pb2.cpython-312.pyc
+                                PageLink_pb2.cpython-312.pyc
                     PIL/
                         BmpImagePlugin.py
                         QoiImagePlugin.py
@@ -17761,6 +19177,9 @@ docex/
                         _imagingmath.cpython-312-x86_64-linux-gnu.so
                         report.py
                         ImageMath.py
+                        __pycache__/
+                            __init__.cpython-312.pyc
+                            _version.cpython-312.pyc
                     blib2to3/
                         __init__.py
                         pytree.cpython-312-x86_64-linux-gnu.so
@@ -17830,6 +19249,35 @@ docex/
                             caresresolver.py
                             asyncio.py
                             twisted.py
+                            __pycache__/
+                                __init__.cpython-312.pyc
+                                asyncio.cpython-312.pyc
+                        __pycache__/
+                            web.cpython-312.pyc
+                            tcpclient.cpython-312.pyc
+                            tcpserver.cpython-312.pyc
+                            httpclient.cpython-312.pyc
+                            websocket.cpython-312.pyc
+                            gen.cpython-312.pyc
+                            template.cpython-312.pyc
+                            http1connection.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            queues.cpython-312.pyc
+                            netutil.cpython-312.pyc
+                            httpserver.cpython-312.pyc
+                            routing.cpython-312.pyc
+                            iostream.cpython-312.pyc
+                            escape.cpython-312.pyc
+                            simple_httpclient.cpython-312.pyc
+                            util.cpython-312.pyc
+                            locale.cpython-312.pyc
+                            concurrent.cpython-312.pyc
+                            locks.cpython-312.pyc
+                            _locale_data.cpython-312.pyc
+                            httputil.cpython-312.pyc
+                            log.cpython-312.pyc
+                            process.cpython-312.pyc
+                            ioloop.cpython-312.pyc
                         test/
                             tcpserver_test.py
                             util.py
@@ -17904,6 +19352,11 @@ docex/
                         __init__.py
                         buf.py
                         mman.py
+                        __pycache__/
+                            mman.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            buf.cpython-312.pyc
+                            util.cpython-312.pyc
                         test/
                             test_tutorial.py
                             __init__.py
@@ -17973,6 +19426,12 @@ docex/
                         core.py
                         intranges.py
                         uts46data.py
+                        __pycache__/
+                            intranges.cpython-312.pyc
+                            __init__.cpython-312.pyc
+                            package_data.cpython-312.pyc
+                            core.cpython-312.pyc
+                            idnadata.cpython-312.pyc
                     mypy_extensions-1.1.0.dist-info/
                         METADATA
                         WHEEL
@@ -18039,44 +19498,3 @@ docex/
                         pydeck.json
     .vscode/
         settings.json
-    tools/
-        smoke_import.py
-        __init__.py
-        doc_generator/
-            steps.py
-            README.md
-            __init__.py
-            docgen.py
-        doc_comparison/
-            README.md
-            __init__.py
-            coge.py
-            __init__.py.bak
-            __pycache__/
-                __init__.cpython-312.pyc
-                coge.cpython-312.pyc
-        doc_extractor/
-            steps.py
-            README.md
-            __init__.py
-            docex.py
-            __pycache__/
-                docex.cpython-312.pyc
-                __init__.cpython-312.pyc
-                steps.cpython-312.pyc
-        plan_creator/
-            steps.py
-            README.md
-            __init__.py
-            dogen.py
-            __pycache__/
-                __init__.cpython-312.pyc
-                dogen.cpython-312.pyc
-                steps.cpython-312.pyc
-        __pycache__/
-            __init__.cpython-312.pyc
-        doc_riskanalyzer/
-            steps.py
-            README.md
-            __init__.py
-            riskanalyzer.py
