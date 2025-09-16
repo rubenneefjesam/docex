@@ -213,6 +213,21 @@ def _download_bytes_excel(rows: List[Dict]) -> bytes:
 def run(show_nav: bool = True):
     st.set_page_config(page_title="Risico Extractor", layout="wide", initial_sidebar_state="expanded")
 
+# CSS toevoegen voor wrapping
+    st.markdown(
+        """
+        <style>
+        /* Forceer wrapping in datatabel cellen */
+        .stDataFrame, .stDataEditor td div, .stDataEditor td {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            overflow-wrap: anywhere !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.markdown(
         """
         <style>
@@ -258,11 +273,19 @@ def run(show_nav: bool = True):
 
             if rows:
                 st.success(f"Gevonden items: {len(rows)}")
-                st.dataframe(
-                    rows,
-                    use_container_width=True,
-                    height=min(520, 80 + 32 * (len(rows) + 1))
-                )
+                st.data_editor(
+        rows,
+        use_container_width=True,
+        height=min(520, 80 + 32 * (len(rows) + 1)),
+        column_config={
+            "Risico": st.column_config.TextColumn("Risico", width="small"),
+            "Oorzaak": st.column_config.TextColumn("Oorzaak", width="medium"),
+            "Gevolg": st.column_config.TextColumn("Gevolg", width="medium"),
+            "Beheersmaatregel (uitgebreid)": st.column_config.TextColumn("Beheersmaatregel (uitgebreid)", width="large"),
+        },
+        hide_index=True,
+        disabled=True  # maakt de tabel read-only
+    )
 
                 st.markdown("<div class='section-header'>💾 Export</div>", unsafe_allow_html=True)
                 csv_b = _download_bytes_csv(rows)
