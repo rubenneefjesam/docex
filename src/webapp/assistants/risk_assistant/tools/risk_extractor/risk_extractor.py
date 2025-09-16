@@ -3,14 +3,15 @@ import io
 import re
 import json
 import tempfile
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import streamlit as st
 from groq import Groq
 import docx
 
+
 # =========================
-# Helpers
+# Helpers: bestanden & tekst
 # =========================
 
 def _safe_read_docx_text(path: str) -> str:
@@ -30,8 +31,8 @@ def _read_uploaded_text(uploaded) -> str:
     """Ondersteun .docx en .txt als input voor risico-extractie."""
     if not uploaded:
         return ""
-    suffix = (uploaded.name or "").lower()
-    if suffix.endswith(".docx"):
+    name = (uploaded.name or "").lower()
+    if name.endswith(".docx"):
         tmpd = tempfile.mkdtemp()
         p = os.path.join(tmpd, "input.docx")
         with open(p, "wb") as f:
@@ -42,6 +43,11 @@ def _read_uploaded_text(uploaded) -> str:
         return uploaded.read().decode("utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+# =========================
+# Helpers: Groq client
+# =========================
 
 def _get_groq_client() -> Groq:
     """Zoek GROQ_API_KEY in env of in st.secrets['groq']['api_key']."""
@@ -60,10 +66,13 @@ def _get_groq_client() -> Groq:
         st.sidebar.error(f"❌ Fout bij verbinden met Groq API: {e}")
         st.stop()
 
+
+# =========================
+# Parser: modeloutput → list
+# =========================
+
 def _parse_json_list(text: str) -> List[Dict]:
-    """
-    Probeer een JSON-array te vinden in (mogelijk rommelige) modeloutput.
-    """
+    """Probeer een JSON-array te vinden in (mogelijk rommelige) modeloutput."""
     cleaned = re.sub(r"\d+\s*:\s*{", "{", text or "")
     start, end = cleaned.find("["), cleaned.rfind("]") + 1
     cand = cleaned[start:end] if start != -1 and end != -1 else cleaned
@@ -75,8 +84,9 @@ def _parse_json_list(text: str) -> List[Dict]:
     except Exception:
         return []
 
+
 # =========================
-# LLM extractie
+# Prompting
 # =========================
 
 EXTRACTION_SYSTEM = (
@@ -110,6 +120,7 @@ TEKST:
 """
 
 def extract_risks(groq_client: Groq, text: str) -> List[Dict]:
+    """Roep LLM aan en normaliseer de uitkomst."""
     if not (text or "").strip():
         return []
 
@@ -130,7 +141,7 @@ def extract_risks(groq_client: Groq, text: str) -> List[Dict]:
     items = _parse_json_list(content)
 
     # Normaliseer keys en filter lege entries
-    normed = []
+    normed: List[Dict] = []
     for it in items:
         if not isinstance(it, dict):
             continue
@@ -147,8 +158,9 @@ def extract_risks(groq_client: Groq, text: str) -> List[Dict]:
             })
     return normed
 
+
 # =========================
-# UI
+# Downloads
 # =========================
 
 def _download_bytes_csv(rows: List[Dict]) -> bytes:
@@ -164,18 +176,39 @@ def _download_bytes_json(rows: List[Dict]) -> bytes:
     return json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
 
 def _download_bytes_excel(rows: List[Dict]) -> bytes:
+    """
+    Schrijf naar .xlsx met xlsxwriter of openpyxl; val terug naar CSV als geen engine beschikbaar is.
+    """
     try:
         import pandas as pd
     except Exception:
-        # Fallback naar CSV indien pandas niet beschikbaar
         return _download_bytes_csv(rows)
-    df = pd.DataFrame(rows)
-    import pandas as pd  # re-ensure
+
     from io import BytesIO
+    df = pd.DataFrame(rows)
     b = BytesIO()
-    with pd.ExcelWriter(b, engine="xlsxwriter") as writer:
+
+    engine: Optional[str] = None
+    # Probeer xlsxwriter
+    try:
+        import xlsxwriter  # noqa: F401
+        engine = "xlsxwriter"
+    except Exception:
+        # Probeer openpyxl
+        try:
+            import openpyxl  # noqa: F401
+            engine = "openpyxl"
+        except Exception:
+            return _download_bytes_csv(rows)
+
+    with pd.ExcelWriter(b, engine=engine) as writer:
         df.to_excel(writer, index=False, sheet_name="Risico's")
     return b.getvalue()
+
+
+# =========================
+# UI
+# =========================
 
 def run(show_nav: bool = True):
     st.set_page_config(page_title="Risico Extractor", layout="wide", initial_sidebar_state="expanded")
@@ -187,44 +220,49 @@ def run(show_nav: bool = True):
         .section-header {font-size:1.3rem; font-weight:700; margin:0.5em 0;}
         .stButton>button, .stDownloadButton>button {font-size:16px; font-weight:600;}
         </style>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True
     )
 
     st.markdown("<div class='big-header'>⚠️ Risico Extractor</div>", unsafe_allow_html=True)
-st.caption("Upload links een document (.docx of .txt). Rechts verschijnen de geëxtraheerde risico’s.")
+    st.caption("Upload links een document (.docx of .txt). Rechts verschijnen de geëxtraheerde risico’s.")
 
-col_left, col_right = st.columns([2, 3], gap="large")
+    col_left, col_right = st.columns([2, 3], gap="large")
 
-# ⬅️ LINKS: upload
-with col_left:
-    st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
-    up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
-    text = _read_uploaded_text(up)
-    groq_client = None
-    if up and text.strip():
-        groq_client = _get_groq_client()
-        st.success("Document geladen. Klik rechts op ‘Extractie starten’.")
-    elif up:
-        st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
+    # ⬅️ LINKS: upload
+    with col_left:
+        st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
+        up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
+        text = _read_uploaded_text(up)
+        groq_client = None
+        if up and text.strip():
+            groq_client = _get_groq_client()
+            st.success("Document geladen. Klik rechts op ‘Extractie starten’.")
+        elif up:
+            st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
 
-# ➡️ RECHTS: extractie + tabel + downloads
-with col_right:
-    st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
-    do_extract = st.button(
-        "🚀 Extractie starten",
-        type="primary",
-        use_container_width=True,
-        disabled=not (up and text.strip())
-    )
-    rows: List[Dict] = []
+    # ➡️ RECHTS: extractie + tabel + downloads
+    with col_right:
+        st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
+        do_extract = st.button(
+            "🚀 Extractie starten",
+            type="primary",
+            use_container_width=True,
+            disabled=not (up and (text or "").strip())
+        )
+        rows: List[Dict] = []
 
-    if do_extract and up and text.strip():
-        with st.spinner("Risico’s extraheren…"):
-            rows = extract_risks(groq_client, text)
+        if do_extract and up and (text or "").strip():
+            with st.spinner("Risico’s extraheren…"):
+                rows = extract_risks(groq_client, text)
 
             if rows:
                 st.success(f"Gevonden items: {len(rows)}")
-                st.dataframe(rows, use_container_width=True, height=min(520, 80 + 32 * (len(rows) + 1)))
+                st.dataframe(
+                    rows,
+                    use_container_width=True,
+                    height=min(520, 80 + 32 * (len(rows) + 1))
+                )
 
                 st.markdown("<div class='section-header'>💾 Export</div>", unsafe_allow_html=True)
                 csv_b = _download_bytes_csv(rows)
@@ -233,23 +271,26 @@ with col_right:
 
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.download_button("⬇️ CSV", data=csv_b, file_name="risico_extractie.csv", mime="text/csv", use_container_width=True)
+                    st.download_button("⬇️ CSV", data=csv_b, file_name="risico_extractie.csv",
+                                       mime="text/csv", use_container_width=True)
                 with c2:
-                    st.download_button("⬇️ JSON", data=json_b, file_name="risico_extractie.json", mime="application/json", use_container_width=True)
+                    st.download_button("⬇️ JSON", data=json_b, file_name="risico_extractie.json",
+                                       mime="application/json", use_container_width=True)
                 with c3:
-                    st.download_button("⬇️ Excel", data=xls_b, file_name="risico_extractie.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
-
+                    st.download_button("⬇️ Excel", data=xls_b, file_name="risico_extractie.xlsx",
+                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                       use_container_width=True)
             else:
                 st.info("Geen risico’s gevonden of model gaf geen bruikbare output.")
         else:
-            st.info("Klik op ‘Extractie starten’ nadat je rechts een document hebt geüpload.")
+            st.info("Klik op ‘Extractie starten’ nadat je links een document hebt geüpload.")
 
+
+# Compat/entry points voor je loader
 def app():
-    """Compat mini-entry voor je launcher."""
     run(show_nav=False)
 
 def render():
-    """Alias voor omgevingen die `render()` aanroepen."""
     run(show_nav=False)
 
 def main():
