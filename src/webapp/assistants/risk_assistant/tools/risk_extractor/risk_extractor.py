@@ -213,6 +213,28 @@ def _download_bytes_excel(rows: List[Dict]) -> bytes:
 def run(show_nav: bool = True):
     st.set_page_config(page_title="Risico Extractor", layout="wide", initial_sidebar_state="expanded")
 
+# 🔹 CSS voor tekstterugloop in de tabel
+    st.markdown(
+        """
+        <style>
+        /* Forceer wrapping in st.data_editor cellen */
+        div[data-testid="stDataFrame"] td div,
+        div[data-testid="stDataEditor"] td div {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            text-overflow: initial !important;
+        }
+
+        /* Je eerdere styling mag er ook nog bij */
+        .big-header {font-size:2.2rem; font-weight:800; margin-bottom:0.25em;}
+        .section-header {font-size:1.3rem; font-weight:700; margin:0.5em 0;}
+        .stButton>button, .stDownloadButton>button {font-size:16px; font-weight:600;}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
 # CSS toevoegen voor wrapping
     st.markdown(
         """
