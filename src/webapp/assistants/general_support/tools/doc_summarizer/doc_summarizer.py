@@ -158,3 +158,12 @@ def app():
             with d2:
                 st.download_button("⬇️ Download JSON", data=js,
                                    file_name=f"{Path(ss.file_name).stem}_summary.json", mime="application/json", use_container_width=True)
+
+def app():
+    import streamlit as st
+    st.header("📄 Document Summarizer")
+    st.write("Upload documenten om een samenvatting te genereren.")
+    # hier komt jouw UI/logic; tijdelijk placeholder:
+    uploaded = st.file_uploader("Upload een bestand", type=["pdf", "docx", "txt"])
+    if uploaded:
+        st.success(f"Ontvangen: {uploaded.name}")
