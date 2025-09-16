@@ -1,3 +1,4 @@
+cat > src/webapp/assistants/general_support/tools/doc_comparison/doc_comparison.py <<'PY'
 from __future__ import annotations
 import json, re, os
 from dataclasses import dataclass, asdict
@@ -5,7 +6,6 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 import streamlit as st
-from .readers import read_any
 
 # --- Heuristics / keywords ---
 RISK_WORDS = {"risk","risico","concern","issue","threat","gevaar","knelpunt"}
@@ -56,7 +56,7 @@ def extract_actions(text: str, max_items: int = 8) -> List[str]:
     items = []
     for ln in text.splitlines():
         s = re.sub(r"^[*\-\d\)\.]+\s*", "", ln.strip())
-        if not s: 
+        if not s:
             continue
         token = s.split()[0].lower()
         if token in ACTION_VERBS or any(s.lower().startswith(v) for v in ACTION_VERBS):
@@ -159,19 +159,33 @@ def app():
         with st.spinner("Bezig met verwerken..."):
             for uf in uploads:
                 name = uf.name
-                tmp = Path(st.secrets.get("_tmp_dir", ".")) / f"__tmp_{name}"
-                tmp.write_bytes(uf.getvalue())
+                data = uf.getvalue()  # bytes
+
+                # eenvoudige, dependency-vrije tekst-extractie:
+                suffix = Path(name).suffix.lower()
+                if suffix in {".txt", ".md"}:
+                    try:
+                        text = data.decode("utf-8")
+                    except Exception:
+                        text = data.decode("latin-1", errors="ignore")
+                elif suffix in {".pdf", ".docx"}:
+                    # geen externe parsers: geef een duidelijke placeholder
+                    text = (
+                        f"[Bestand {name} is een {suffix} — tekst-extractie voor dit type is niet ingeschakeld. "
+                        "Upload een .txt/.md bestand of activeer document parsing (pymupdf / python-docx) om volledige extractie te krijgen.]"
+                    )
+                else:
+                    # fallback: permissieve decode
+                    try:
+                        text = data.decode("utf-8")
+                    except Exception:
+                        text = data.decode("latin-1", errors="ignore")
+
                 try:
-                    _, text = read_any(tmp)
                     ss = summarize_text(name, text, prompt=prompt)
                     results.append(ss)
                 except Exception as e:
                     st.error(f"Kon `{name}` niet verwerken: {e}")
-                finally:
-                    try:
-                        tmp.unlink(missing_ok=True)
-                    except Exception:
-                        pass
 
         # Sla op in session state (laatste run)
         st.session_state.docsum_results = results
@@ -201,7 +215,7 @@ def app():
                 st.markdown("\n".join(f"- {a}" for a in ss.actions) if ss.actions else "_n.v.t._")
 
                 st.markdown("### Risks")
-                st.markdown("\njoyn".join(f"- {r}" for r in ss.risks) if ss.risks else "_n.v.t._")
+                st.markdown("\n".join(f"- {r}" for r in ss.risks) if ss.risks else "_n.v.t._")
 
                 st.markdown("### Entities")
                 any_entity = any(v for v in ss.entities.values())
@@ -215,3 +229,6 @@ def app():
                 # Downloads
                 md = _to_markdown(ss).encode("utf-8")
                 js = json.dumps(asdict(ss), ensure_ascii=False, indent=2).encode("utf-8")
+
+                st.download_button("Download .md", md, file_name=f"{Path(ss.file_name).stem}.md", mime="text/markdown")
+                st.download_button("Download .json", js, file_name=f"{Path(ss.file_name).stem}.json", mime="application/json")
