@@ -4,3 +4,5 @@ groq
 docxtpl>=0.17.0
 python-dotenv
 PyMuPDF
+python-docx
+pypdf
