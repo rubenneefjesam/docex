@@ -88,6 +88,10 @@ def app():
         st.info("Nog geen bestanden geüpload.")
         return
 
+    # Knop in main area om samenvatting te starten
+    if not st.button("🚀 Genereer samenvatting via Groq"):
+        return
+
     # Definieer velden en prompts via sidebar
     st.sidebar.header("Definieer samenvattingsvelden")
     fields: Dict[str, str] = {}
