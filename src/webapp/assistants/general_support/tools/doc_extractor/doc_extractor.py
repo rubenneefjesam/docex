@@ -128,6 +128,27 @@ def app():
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
                 extracted = extract_fields(tmp, field_prompts)
+                # Bepaal hoeveel regels nodig: maximum lengte van alle lijsten
+                max_len = max(len(v) for v in extracted.values())
+                # Voor index i: maak rij met alle kolomwaarden op positie i
+                for i in range(max_len):
+                    row = {"Document": uf.name}
+                    for field, values in extracted.items():
+                        row[field] = values[i] if i < len(values) else ""
+                    all_rows.append(row)
+        # Zet om naar DataFrame
+        df = pd.DataFrame(all_rows)
+        cols = ["Document"] + [c for c in df.columns if c != "Document"]
+        st.subheader("Extractie Resultaten")
+        st.dataframe(df[cols], use_container_width=True)
+        csv = df[cols].to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime=("🚀 Extraheer informatie"):
+        all_rows = []
+        with st.spinner("Extraheren via Groq…"):
+            for uf in uploads:
+                tmp = Path(f"/tmp/{uf.name}")
+                tmp.write_bytes(uf.getvalue())
+                extracted = extract_fields(tmp, field_prompts)
                 for field, values in extracted.items():
                     for val in values:
                         all_rows.append({"Document": uf.name, field: val})
