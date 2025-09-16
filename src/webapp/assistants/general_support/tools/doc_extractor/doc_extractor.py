@@ -142,25 +142,9 @@ def app():
         st.subheader("Extractie Resultaten")
         st.dataframe(df[cols], use_container_width=True)
         csv = df[cols].to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime="text/csv")("🚀 Extraheer informatie"):
-        all_rows = []
-        with st.spinner("Extraheren via Groq…"):
-            for uf in uploads:
-                tmp = Path(f"/tmp/{uf.name}")
-                tmp.write_bytes(uf.getvalue())
-                extracted = extract_fields(tmp, field_prompts)
-                for field, values in extracted.items():
-                    for val in values:
-                        all_rows.append({"Document": uf.name, field: val})
-        df = pd.DataFrame(all_rows)
-        # Herstel kolomvolgorde: Document eerst
-        cols = ["Document"] + [c for c in df.columns if c != "Document"]
-        st.subheader("Extractie Resultaten")
-        st.dataframe(df[cols], use_container_width=True)
-        csv = df[cols].to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime="text/csv")
-    else:
-        st.info("Upload documenten én definieer minstens één veldnaam + prompt om te starten.")
-
-if __name__ == '__main__':
-    app()
+        st.download_button(
+    label="⬇️ Download CSV",
+    data=csv,
+    file_name="extracted_data.csv",
+    mime="text/csv"
+)
