@@ -18,20 +18,35 @@ def _safe_read_docx_text(path: str) -> str:
     except Exception:
         return ""
 
+import fitz  # PyMuPDF (zorg dat dit in requirements staat)
+
 def _read_uploaded_text(uploaded) -> str:
     if not uploaded:
         return ""
     name = (uploaded.name or "").lower()
+    
+    # DOCX
     if name.endswith(".docx"):
         tmpd = tempfile.mkdtemp()
         p = os.path.join(tmpd, "input.docx")
         with open(p, "wb") as f:
             f.write(uploaded.getbuffer())
         return _safe_read_docx_text(p)
-    try:
-        return uploaded.read().decode("utf-8", errors="ignore")
-    except Exception:
-        return ""
+    
+    # PDF
+    if name.endswith(".pdf"):
+        try:
+            tmpd = tempfile.mkdtemp()
+            p = os.path.join(tmpd, "input.pdf")
+            with open(p, "wb") as f:
+                f.write(uploaded.getbuffer())
+            text_parts = []
+            with fitz.open(p) as doc:
+                for page in doc:
+                    text_parts.append(page.get_text("text"))
+            return "\n".join(text_parts)
+        except Exception:
+            return ""
 
 # ========= Groq client =========
 
