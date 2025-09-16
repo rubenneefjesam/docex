@@ -2,7 +2,7 @@ from __future__ import annotations
 import json, re, os
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import streamlit as st
 from .readers import read_any
@@ -201,7 +201,7 @@ def app():
                 st.markdown("\n".join(f"- {a}" for a in ss.actions) if ss.actions else "_n.v.t._")
 
                 st.markdown("### Risks")
-                st.markdown("\n".join(f"- {r}" for r in ss.risks) if ss.risks else "_n.v.t._")
+                st.markdown("\njoyn".join(f"- {r}" for r in ss.risks) if ss.risks else "_n.v.t._")
 
                 st.markdown("### Entities")
                 any_entity = any(v for v in ss.entities.values())
@@ -215,32 +215,3 @@ def app():
                 # Downloads
                 md = _to_markdown(ss).encode("utf-8")
                 js = json.dumps(asdict(ss), ensure_ascii=False, indent=2).encode("utf-8")
-                d1, d2 = st.columns(2)
-                with d1:
-                    st.download_button(
-                        "⬇️ Download Markdown",
-                        data=md,
-                        file_name=f"{Path(ss.file_name).stem}_summary.md",
-                        mime="text/markdown",
-                        use_container_width=True
-                    )
-                with d2:
-                    st.download_button(
-                        "⬇️ Download JSON",
-                        data=js,
-                        file_name=f"{Path(ss.file_name).stem}_summary.json",
-                        mime="application/json",
-                        use_container_width=True
-                    )
-
-        # Batch download (alle resultaten)
-        if results:
-            bundle = {"items": [asdict(ss) for ss in results], "count": len(results)}
-            js_all = json.dumps(bundle, ensure_ascii=False, indent=2).encode("utf-8")
-            st.download_button(
-                "⬇️ Download alle samenvattingen (JSON)",
-                data=js_all,
-                file_name="summaries.json",
-                mime="application/json",
-                use_container_width=True
-            )
