@@ -1,4 +1,3 @@
-cat > src/webapp/assistants/general_support/tools/doc_comparison/doc_comparison.py <<'PY'
 from __future__ import annotations
 import json, re, os
 from dataclasses import dataclass, asdict
