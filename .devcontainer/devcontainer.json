@@ -6,10 +6,7 @@
     "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
   },
   "remoteEnv": {
-    // secrets komen uit je Codespaces/Dev Container secrets
     "GROQ_API_KEY": "${secrets:GROQ_API_KEY}",
-
-    // zorg dat venv altijd actief is
     "VIRTUAL_ENV": "${containerWorkspaceFolder}/.venv",
     "PATH": "${containerWorkspaceFolder}/.venv/bin:${containerEnv:PATH}"
   },
