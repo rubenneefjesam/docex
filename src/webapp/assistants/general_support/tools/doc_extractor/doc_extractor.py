@@ -21,11 +21,11 @@ def app():
     with st.sidebar.form(key="fields_form", clear_on_submit=False):
         names = []
         prompts = []
-        # First 10: kolomnamen\        
+        # First 10: kolomnamen      
         st.subheader("Kolomnamen (optioneel)")
         for i in range(10):
             names.append(st.text_input(f"Veldnaam {i+1}", key=f"name_{i}"))
-        # Next 10: LLM prompts\        
+        # Next 10: LLM prompts   
         st.subheader("Prompt beschrijvingen")
         for i in range(10):
             prompts.append(st.text_area(f"Prompt {i+1}", height=60, key=f"prompt_{i}"))
