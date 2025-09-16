@@ -4,3 +4,5 @@
     "GROQ_API_KEY": "${secrets:GROQ_API_KEY}"
   }
 }
+
+{ "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install -e ." }
