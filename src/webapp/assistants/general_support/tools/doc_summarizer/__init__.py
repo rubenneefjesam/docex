@@ -1,3 +1,2 @@
-# src/webapp/assistants/general_support/tools/doc_structured_summary/__init__.py
-from .summarizer import app
+from .doc_summarizer import app
 __all__ = ["app"]
