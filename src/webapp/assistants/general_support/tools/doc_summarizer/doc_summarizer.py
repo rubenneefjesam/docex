@@ -33,13 +33,14 @@ def read_text(file_path: Path) -> str:
         reader = PdfReader(str(file_path))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
     elif suffix == ".docx":
-        doc = docx.Document(str(file_path))
-        return "\n".join(p.text for p in doc.paragraphs)
+        document = docx.Document(str(file_path))
+        return "\n".join(p.text for p in document.paragraphs)
     elif suffix in [".txt", ".md"]:
         return file_path.read_text(encoding="utf-8", errors="ignore")
     else:
         raise ValueError(f"Onbekend bestandstype: {suffix}")
 
+# ─── Dataclass voor samenvatting ──────────────────────────────────
 @dataclass
 class StructuredSummary:
     file_name: str
@@ -51,17 +52,16 @@ class StructuredSummary:
     entities: Dict[str, List[str]]
     word_count: int
 
-# ─── Samenvatting via Groq LLM ─────────────────────────────────────
-def summarize_with_groq(text: str, fields: Dict[str, str]) -> List[Dict]:
-    # Bouw de instructie
-    instructions = "\n".join(f"- {name}: {desc}" for name, desc in fields.items())
+# ─── Samenvatting met Groq LLM ────────────────────────────────────
+def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
     prompt = (
-        "Je bent een samenvattingsassistent. Geef voor elk veld de gevraagde informatie."
-        "Retourneer een JSON-array van objecten met deze velden:\n"
-        f"  {', '.join(fields)}\n"
-        f"Gebruik per veld de instructies:\n{instructions}\n"
-        f"Brontekst:\n{text}\n"
-        "Geef alleen de JSON-array zonder extra tekst."
+        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting in JSON."
+        " JSON-object moet de volgende keys bevatten:"
+        " title (string), executive_summary (string), key_points (array van strings),"
+        " actions (array van strings), risks (array van strings),"
+        " entities (object met lijsten: years, eur, emails, urls), word_count (aantal woorden)."
+        f"\nTekst: {text}\n"
+        "Geef alleen de JSON-output zonder extra toelichting."
     )
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -69,17 +69,20 @@ def summarize_with_groq(text: str, fields: Dict[str, str]) -> List[Dict]:
         messages=[{"role": "user", "content": prompt}]
     )
     try:
-        return json.loads(resp.choices[0].message.content)
+        data = json.loads(resp.choices[0].message.content)
     except json.JSONDecodeError:
-        st.error("Fout bij parsen JSON van Groq:")
+        st.error("Fout bij parsen van samenvatting:")
         st.code(resp.choices[0].message.content)
-        return []
+        # fallback lege
+        data = {"title":"","executive_summary":"","key_points":[],"actions":[],"risks":[],"entities":{},"word_count":len(text.split())}
+    return StructuredSummary(file_name=file_name, **data)
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
+
 def app():
     st.set_page_config(page_title="📄 Document Summarizer (Groq)", layout="wide")
     st.title("📄 Document Summarizer")
-    st.write("Upload documenten en genereer een gestructureerde samenvatting via Groq LLM.")
+    st.write("Upload één of meerdere documenten en klik op ‘Genereer samenvatting’ om een JSON-samenvatting te ontvangen.")
 
     uploads = st.file_uploader(
         "Upload PDF / DOCX / TXT / MD", type=["pdf", "docx", "txt", "md"], accept_multiple_files=True
@@ -88,62 +91,39 @@ def app():
         st.info("Nog geen bestanden geüpload.")
         return
 
-    # Knop in main area om samenvatting te starten
     if not st.button("🚀 Genereer samenvatting via Groq"):
         return
 
-    # Definieer velden en prompts via sidebar
-    st.sidebar.header("Definieer samenvattingsvelden")
-    fields: Dict[str, str] = {}
-    for i in range(1, 7):
-        name = st.sidebar.text_input(f"Veldnaam {i}", key=f"name{i}")
-        desc = st.sidebar.text_area(
-            f"Beschrijving {i}", height=50, key=f"desc{i}", placeholder=f"Wat wil je voor veld {i} extraheren?"
-        )
-        if name and desc:
-            fields[name] = desc
+    summaries: List[StructuredSummary] = []
+    for uf in uploads:
+        tmp = Path(f"/tmp/{uf.name}")
+        tmp.write_bytes(uf.getvalue())
+        text = read_text(tmp)
+        summaries.append(summarize_with_groq(text, uf.name))
 
-    if not fields:
-        st.sidebar.warning("Definieer minimaal één veld en beschrijving.")
-        return
-
-    if st.button("🚀 Genereer samenvatting via Groq"):
-        all_results: List[StructuredSummary] = []
-        for uf in uploads:
-            tmp = Path(f"/tmp/{uf.name}")
-            tmp.write_bytes(uf.getvalue())
-            text = read_text(tmp)
-            raw = summarize_with_groq(text, fields)
-            for item in raw:
-                ss = StructuredSummary(
-                    file_name=uf.name,
-                    title=item.get(next(iter(fields)), ""),
-                    executive_summary="",
-                    key_points=[], actions=[], risks=[], entities={}, word_count=len(text.split())
-                )
-                # Vul attributen als lists of strings
-                for k, v in item.items():
-                    if k in {"key_points","actions","risks"} and isinstance(v, list):
-                        setattr(ss, k, v)
-                    elif k == "entities" and isinstance(v, dict):
-                        ss.entities = v
-                    elif k == "executive_summary":
-                        ss.executive_summary = v
-                all_results.append(ss)
-
-        # Toon resultaten
-        for ss in all_results:
-            with st.expander(f"📘 {ss.file_name}"):
-                st.markdown(f"**Titel:** {ss.title}")
-                st.markdown(f"**Samenvatting:** {ss.executive_summary}")
-                for field in fields:
-                    val = getattr(ss, field, None)
-                    if isinstance(val, list):
-                        st.markdown(f"### {field}")
-                        st.write("\n".join(f"- {x}" for x in val))
-                    elif val:
-                        st.markdown(f"**{field}:** {val}")
-                st.markdown(f"_Word count: {ss.word_count}_")
+    for ss in summaries:
+        with st.expander(f"📘 {ss.file_name}", expanded=True):
+            st.subheader(ss.title)
+            st.markdown("**Executive summary:**")
+            st.write(ss.executive_summary)
+            st.markdown("**Key points:**")
+            st.markdown("\n".join(f"- {kp}" for kp in ss.key_points))
+            st.markdown("**Actions:**")
+            st.markdown("\n".join(f"- {a}" for a in ss.actions))
+            st.markdown("**Risks:**")
+            st.markdown("\n".join(f"- {r}" for r in ss.risks))
+            st.markdown("**Entities:**")
+            for k,v in ss.entities.items():
+                st.write(f"- **{k}**: {', '.join(v)}")
+            st.write(f"_Word count: {ss.word_count}_")
+            # Download JSON per document
+            js = json.dumps(asdict(ss), ensure_ascii=False, indent=2).encode("utf-8")
+            st.download_button(
+                label="⬇️ Download JSON",
+                data=js,
+                file_name=f"{ss.file_name}_summary.json",
+                mime="application/json"
+            )
 
 if __name__ == '__main__':
     app()
