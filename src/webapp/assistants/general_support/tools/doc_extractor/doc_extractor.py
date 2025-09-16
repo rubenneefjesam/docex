@@ -1,22 +1,42 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-from .readers import read_any
+import io
+
+# Externe bibliotheken voor tekstuitlezing
+from PyPDF2 import PdfReader
+import docx
+
+# Functie om tekst uit bestand te halen zonder read_any
+def read_text_from_file(file_path: Path) -> str:
+    suffix = file_path.suffix.lower()
+    text = ""
+    if suffix == ".pdf":
+        reader = PdfReader(str(file_path))
+        for page in reader.pages:
+            text += page.extract_text() or ""
+    elif suffix in [".docx"]:
+        doc = docx.Document(str(file_path))
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+    elif suffix in [".txt"]:
+        text = file_path.read_text(encoding="utf-8", errors="ignore")
+    else:
+        raise ValueError(f"Onbekend bestandstype: {suffix}")
+    return text
+
+# Extractie via OpenAI
 import openai
 
-# Extractie via LLM: leest het document in en stuurt per veld de prompt + tekst naar OpenAI
-
 def extract_fields(file_path: Path, field_prompts: dict) -> dict:
-    # Lees het document (pdf/docx/txt)
+    # Tekst uit document
     try:
-        _, text = read_any(file_path)
+        text = read_text_from_file(file_path)
     except Exception as e:
-        st.error(f"Fout bij inlezen {file_path.name}: {e}")
-        return {field: "" for field in field_prompts}
+        return {field: f"Error reading file: {e}" for field in field_prompts}
 
-    results: dict[str, str] = {}
+    results = {}
     for field_name, prompt in field_prompts.items():
-        # Combineer veldprompt met documenttekst
         full_prompt = (
             f"Je bent een assistent die specifieke informatie uit een document haalt.\n"
             f"Veld: {field_name}\n"
@@ -30,20 +50,17 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
                 messages=[{"role": "user", "content": full_prompt}],
                 temperature=0
             )
-            extracted = response.choices[0].message.content.strip()
+            results[field_name] = response.choices[0].message.content.strip()
         except Exception as e:
-            st.warning(f"Kan veld '{field_name}' niet extraheren: {e}")
-            extracted = ""
-        results[field_name] = extracted
+            results[field_name] = f"Error: {e}"
     return results
 
 # Streamlit-applicatie
 def app():
     st.set_page_config(page_title="Document Extractor", layout="wide")
-    st.title("📄 Document Extractor")
-    st.write("Upload documenten, definieer velden en klik op ‘Extraheer informatie’.")
+    st.title("📄 Document Extractor zonder read_any")
+    st.write("Upload documenten, vul kolomnamen en prompts in, en klik op ‘Extraheer informatie’.")
 
-    # Drie kolommen: upload, kolomnamen, prompts
     col1, col2, col3 = st.columns([1, 1, 2])
 
     with col1:
@@ -51,63 +68,49 @@ def app():
         uploads = st.file_uploader(
             label="Kies documenten (PDF, DOCX, TXT)",
             type=["pdf", "docx", "txt"],
-            accept_multiple_files=True,
-            help="Maximaal 10 documenten"
+            accept_multiple_files=True
         )
 
     with col2:
         st.subheader("2️⃣ Kolomnamen (optioneel)")
-        names = [st.text_input(f"Naam veld {i+1}", key=f"name_{i}") for i in range(10)]
+        names = [st.text_input(f"Kolomnaam {i+1}", key=f"name_{i}") for i in range(10)]
 
     with col3:
         st.subheader("3️⃣ Prompt beschrijvingen")
-        st.write("Beschrijf wat je uit het document wilt halen. Bijvoorbeeld: 'Geef risico in max 3 woorden'")
         prompts = [
             st.text_area(
-                f"Prompt {i+1}",
-                height=80,
-                placeholder=f"Beschrijf hier de inhoud voor kolom {i+1}...",
+                f"Prompt {i+1}", height=80,
+                placeholder=f"Instructie voor kolom {i+1}",
                 key=f"prompt_{i}"
             )
             for i in range(10)
         ]
 
-    # Maak dict veldnaam->prompt
     field_prompts = {
         name.strip(): prompt.strip()
         for name, prompt in zip(names, prompts)
         if name.strip() and prompt.strip()
     }
 
-    # Wanneer upload én velden aanwezig: extractieknop
-    if uploads and field_prompts:
-        if st.button("🚀 Extraheer informatie"):
-            results = []
-            with st.spinner("Extraheren via LLM..."):
-                for uf in uploads:
-                    tmp = Path(f"/tmp/{uf.name}")
-                    tmp.write_bytes(uf.getvalue())
-                    extracted = extract_fields(tmp, field_prompts)
-                    row = {"Document": uf.name, **extracted}
-                    results.append(row)
-            # Toon tabel
-            if results:
-                df = pd.DataFrame(results)
-                cols = ["Document"] + [c for c in df.columns if c != "Document"]
-                st.subheader("Extractie Resultaten")
-                st.dataframe(df[cols], use_container_width=True)
-                # Download CSV
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="⬇️ Download CSV",
-                    data=csv,
-                    file_name="extracted_data.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.warning("Geen resultaten om weer te geven.")
+    if uploads and field_prompts and st.button("🚀 Extraheer informatie"):
+        results = []
+        with st.spinner("Extraheren..."):
+            for uf in uploads:
+                tmp = Path(f"/tmp/{uf.name}")
+                tmp.write_bytes(uf.getvalue())
+                row = {"Document": uf.name}
+                extracted = extract_fields(tmp, field_prompts)
+                row.update(extracted)
+                results.append(row)
+        # Toon resultaat
+        df = pd.DataFrame(results)
+        cols = ["Document"] + [c for c in df.columns if c != "Document"]
+        st.subheader("Extractie Resultaten")
+        st.dataframe(df[cols], use_container_width=True)
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime="text/csv")
     else:
-        st.info("Upload minimaal één document én definieer minstens één veld met prompt om te starten.")
+        st.info("Upload minimaal één document én definieer een veldnaam + prompt om te starten.")
 
 if __name__ == '__main__':
     app()
