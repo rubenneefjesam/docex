@@ -46,11 +46,11 @@ def read_text_from_file(file_path: Path) -> str:
 # ─── Extractie via Groq LLM ──────────────────────────────────────
 def extract_fields(file_path: Path, field_prompts: dict) -> dict:
     if client is None:
-        return {field: "Geen client" for field in field_prompts}
+        return {field: ["Geen client"] for field in field_prompts}
     try:
         text = read_text_from_file(file_path)
     except Exception as e:
-        return {field: f"Error lezen: {e}" for field in field_prompts}
+        return {field: [f"Error lezen: {e}"] for field in field_prompts}
 
     results: dict[str, list[str]] = {}
     for field_name, prompt in field_prompts.items():
@@ -71,19 +71,16 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
             # Splits op nummers, komma's of nieuwe regels
             items = []
             for part in content.replace('\r','\n').split('\n'):
-                # verwijder leading nummers of bullets
                 clean = part.strip()
                 if not clean:
                     continue
-                # strip leading '1.', 'a)' etc.
                 clean = clean.lstrip('0123456789. )-')
-                # split further on commas if present
                 if ',' in clean:
                     for c in clean.split(','):
                         if c.strip(): items.append(c.strip())
                 else:
                     items.append(clean)
-            results[field_name] = items
+            results[field_name] = items or [""]
         except Exception as e:
             results[field_name] = [f"Error: {e}"]
     return results
@@ -92,10 +89,9 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
 def app():
     st.set_page_config(page_title="Document Extractor", layout="wide")
     st.title("📄 Document Extractor (Groq LLM)")
-    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’. ")
+    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’.")
 
     col1, col2, col3 = st.columns([1, 1, 2])
-
     with col1:
         st.subheader("1️⃣ Upload documenten")
         uploads = st.file_uploader(
@@ -103,11 +99,9 @@ def app():
             type=["pdf", "docx", "txt"],
             accept_multiple_files=True
         )
-
     with col2:
         st.subheader("2️⃣ Kolomnamen (optioneel)")
         names = [st.text_input(f"Veldnaam {i+1}", key=f"name_{i}") for i in range(10)]
-
     with col3:
         st.subheader("3️⃣ Promptbeschrijvingen")
         prompts = [
@@ -119,7 +113,11 @@ def app():
             for i in range(10)
         ]
 
-    field_prompts = {name.strip(): prompt.strip() for name, prompt in zip(names, prompts) if name.strip() and prompt.strip()}
+    field_prompts = {
+        name.strip(): prompt.strip()
+        for name, prompt in zip(names, prompts)
+        if name.strip() and prompt.strip()
+    }
 
     if uploads and field_prompts and st.button("🚀 Extraheer informatie"):
         all_rows = []
@@ -128,23 +126,26 @@ def app():
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
                 extracted = extract_fields(tmp, field_prompts)
-                # Bepaal hoeveel regels nodig: maximum lengte van alle lijsten
+                # Per document: max rijen
                 max_len = max(len(v) for v in extracted.values())
-                # Voor index i: maak rij met alle kolomwaarden op positie i
                 for i in range(max_len):
                     row = {"Document": uf.name}
                     for field, values in extracted.items():
                         row[field] = values[i] if i < len(values) else ""
                     all_rows.append(row)
-        # Zet om naar DataFrame
         df = pd.DataFrame(all_rows)
         cols = ["Document"] + [c for c in df.columns if c != "Document"]
         st.subheader("Extractie Resultaten")
         st.dataframe(df[cols], use_container_width=True)
         csv = df[cols].to_csv(index=False).encode("utf-8")
         st.download_button(
-    label="⬇️ Download CSV",
-    data=csv,
-    file_name="extracted_data.csv",
-    mime="text/csv"
-)
+            label="⬇️ Download CSV",
+            data=csv,
+            file_name="extracted_data.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("Upload documenten en definieer minstens één veldnaam + prompt om te starten.")
+
+if __name__ == '__main__':
+    app()
