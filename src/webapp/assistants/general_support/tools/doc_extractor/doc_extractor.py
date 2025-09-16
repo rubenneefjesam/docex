@@ -46,14 +46,9 @@ def read_text_from_file(file_path: Path) -> str:
 
 # ─── Extractie via Groq LLM (gepaarde output) ──────────────────────
 def extract_paired_entries(file_path: Path, field_prompts: dict) -> list[dict]:
-    """
-    Vraag voor alle velden één gecombineerde JSON-lijst op:
-    [{field1: waarde1, field2: waarde2, ...}, ...]
-    """
     if client is None:
         return []
     text = read_text_from_file(file_path)
-    # Bouw instructie
     fields = list(field_prompts.keys())
     instructions = "\n".join([f"- {f}: {p}" for f, p in field_prompts.items()])
     prompt = (
@@ -64,14 +59,12 @@ def extract_paired_entries(file_path: Path, field_prompts: dict) -> list[dict]:
         "Documenttekst:\n" + text + "\n"
         "Geef alleen de JSON-array terug, zonder extra tekst of markdown."
     )
-    # Roep de Groq chat API aan
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
     content = resp.choices[0].message.content.strip()
-    # Parse JSON
     try:
         data = json.loads(content)
         if isinstance(data, list):
@@ -95,23 +88,26 @@ def app():
             type=["pdf", "docx", "txt"],
             accept_multiple_files=True
         )
+        # Move button here
+        extract_btn = st.button("🚀 Extraheer informatie")
+
     with col2:
         st.subheader("2️⃣ Kolomnamen (optioneel)")
-        names = [st.text_input(f"Veldnaam {i+1}", key=f"name_{i}") for i in range(10)]
+        names = [st.text_input(f"Veldnaam {i+1}", key=f"name_{i}") for i in range(7)]
+
     with col3:
         st.subheader("3️⃣ Promptbeschrijvingen")
         prompts = [
-            st.text_area(
-                f"Prompt {i+1}", height=80,
+            st.text_input(
+                f"Prompt {i+1}",
                 placeholder=f"Instructie voor kolom {i+1}",
                 key=f"prompt_{i}"
-            ) for i in range(10)
+            ) for i in range(7)
         ]
 
-    # Filter velden
     field_prompts = {n: p for n, p in zip(names, prompts) if n.strip() and p.strip()}
 
-    if uploads and field_prompts and st.button("🚀 Extraheer informatie"):
+    if uploads and field_prompts and extract_btn:
         all_rows = []
         with st.spinner("Extraheren via Groq…"):
             for uf in uploads:
@@ -122,7 +118,6 @@ def app():
                     row = {"Document": uf.name}
                     row.update(entry)
                     all_rows.append(row)
-        # Toon resultaat
         if all_rows:
             df = pd.DataFrame(all_rows)
             cols = ["Document"] + [c for c in df.columns if c != "Document"]
