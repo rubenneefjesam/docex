@@ -1,2 +1,2 @@
-from .risk_plan_generator import run as app
+from .speech_2_document import run as app
 __all__ = ["app"]
