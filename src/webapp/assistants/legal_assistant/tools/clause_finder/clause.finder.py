@@ -3,16 +3,13 @@ import io
 import re
 import json
 import tempfile
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 import streamlit as st
 from groq import Groq
 import docx
 
-
-# =========================
-# Helpers: bestanden & tekst
-# =========================
+# ========= Helpers: bestanden & tekst =========
 
 def _safe_read_docx_text(path: str) -> str:
     try:
@@ -36,10 +33,7 @@ def _read_uploaded_text(uploaded) -> str:
     except Exception:
         return ""
 
-
-# =========================
-# Groq client
-# =========================
+# ========= Groq client =========
 
 def _get_groq_client() -> Groq:
     key = os.environ.get("GROQ_API_KEY", "").strip()
@@ -53,38 +47,32 @@ def _get_groq_client() -> Groq:
         st.stop()
     return Groq(api_key=key)
 
-
-# =========================
-# Prompting
-# =========================
+# ========= Prompting =========
 
 CLAUSE_SYSTEM = (
     "Je bent een juridisch assistent. "
     "Extraheer clausules uit contractteksten. "
-    "Geef altijd een JSON-array met objecten met velden: "
-    '{"clausule": "...", "tekst": "...", "uitleg": "...", "belang": "..."}'
+    'Geef ALLEEN een JSON-array met objecten: {"clausule":"...", "tekst":"...", "uitleg":"...", "belang":"..."}'
 )
 
 CLAUSE_USER_TMPL = """\
 Lees de onderstaande contracttekst en extraheer clausules die te maken hebben met:
-
 - Aansprakelijkheid
-- Duur / beëindiging
+- Duur en beëindiging
 - Geheimhouding
 - Betaling / prijs
 - Geschillenbeslechting
+- Intellectueel eigendom
 - Overige belangrijke voorwaarden
 
-Geef ALLEEN een JSON-array terug in dit formaat:
-
+Geef ALLEEN een JSON-array terug, bijv.:
 [
   {{
-    "clausule": "Naam van de clausule (bv. Aansprakelijkheid)",
-    "tekst": "Exact citaat uit het contract",
-    "uitleg": "Korte interpretatie in heldere taal",
-    "belang": "Waarom dit relevant is voor de partij"
-  }},
-  ...
+    "clausule": "Aansprakelijkheid",
+    "tekst": "Exact citaat uit het contract...",
+    "uitleg": "Korte interpretatie in heldere taal.",
+    "belang": "Waarom dit relevant is voor de partij."
+  }}
 ]
 
 TEKST:
@@ -103,16 +91,28 @@ def extract_clauses(groq_client: Groq, text: str) -> List[Dict]:
         ],
     )
     content = resp.choices[0].message.content or ""
+    # Pak het eerste JSON-array blok
+    m = re.search(r"\[\s*{.*}\s*\]", content, flags=re.S)
+    if not m:
+        return []
     try:
-        data = json.loads(re.search(r"\[.*\]", content, re.S).group())
-        return data if isinstance(data, list) else []
+        data = json.loads(m.group())
     except Exception:
         return []
+    # Normaliseer keys + UI-kolomnamen
+    out = []
+    for it in data if isinstance(data, list) else []:
+        if not isinstance(it, dict):
+            continue
+        out.append({
+            "Clausule": (it.get("clausule") or "").strip(),
+            "Tekst": (it.get("tekst") or "").strip(),
+            "Uitleg": (it.get("uitleg") or "").strip(),
+            "Belang": (it.get("belang") or "").strip(),
+        })
+    return out
 
-
-# =========================
-# Downloads
-# =========================
+# ========= Downloads =========
 
 def _download_bytes_csv(rows: List[Dict]) -> bytes:
     import csv
@@ -126,14 +126,12 @@ def _download_bytes_csv(rows: List[Dict]) -> bytes:
 def _download_bytes_json(rows: List[Dict]) -> bytes:
     return json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
 
-
-# =========================
-# UI
-# =========================
+# ========= UI =========
 
 def run(show_nav: bool = True):
     st.set_page_config(page_title="Clausulezoeker", layout="wide", initial_sidebar_state="expanded")
 
+    # CSS: wrapping in cellen + basisstijl
     st.markdown(
         """
         <style>
@@ -152,9 +150,9 @@ def run(show_nav: bool = True):
     )
 
     st.markdown("<div class='big-header'>📑 Clausulezoeker</div>", unsafe_allow_html=True)
-    st.caption("Upload een contract (.docx of .txt) en krijg de belangrijkste clausules eruit gefilterd.")
+    st.caption("Upload een contract (.docx of .txt) en vind snel de relevante clausules.")
 
-    # 📤 Upload
+    # Upload
     st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
     up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="clause_doc")
     text = _read_uploaded_text(up)
@@ -165,9 +163,10 @@ def run(show_nav: bool = True):
     elif up:
         st.warning("Kon geen tekst lezen uit het bestand.")
 
-    # 🔎 Extractie
+    # Extractie
     st.markdown("<div class='section-header'>🔎 Extractie</div>", unsafe_allow_html=True)
-    do_extract = st.button("🚀 Zoek clausules", type="primary", use_container_width=True, disabled=not (up and text.strip()))
+    do_extract = st.button("🚀 Zoek clausules", type="primary", use_container_width=True,
+                           disabled=not (up and text.strip()))
 
     rows: List[Dict] = []
     if do_extract and up and text.strip():
@@ -180,10 +179,10 @@ def run(show_nav: bool = True):
                 rows,
                 use_container_width=True,
                 column_config={
-                    "clausule": st.column_config.TextColumn("Clausule", width="small"),
-                    "tekst": st.column_config.TextColumn("Tekst", width="large"),
-                    "uitleg": st.column_config.TextColumn("Uitleg", width="medium"),
-                    "belang": st.column_config.TextColumn("Belang", width="medium"),
+                    "Clausule": st.column_config.TextColumn("Clausule", width="small"),
+                    "Tekst": st.column_config.TextColumn("Tekst", width="large"),
+                    "Uitleg": st.column_config.TextColumn("Uitleg", width="medium"),
+                    "Belang": st.column_config.TextColumn("Belang", width="medium"),
                 },
                 hide_index=True,
                 disabled=True
@@ -192,7 +191,6 @@ def run(show_nav: bool = True):
             st.markdown("<div class='section-header'>💾 Export</div>", unsafe_allow_html=True)
             csv_b = _download_bytes_csv(rows)
             json_b = _download_bytes_json(rows)
-
             c1, c2 = st.columns(2)
             with c1:
                 st.download_button("⬇️ CSV", data=csv_b, file_name="clausules.csv", mime="text/csv", use_container_width=True)
@@ -202,7 +200,6 @@ def run(show_nav: bool = True):
             st.info("Geen clausules gevonden.")
     else:
         st.info("Upload een document en klik op ‘Zoek clausules’.")
-
 
 def app():
     run(show_nav=False)
