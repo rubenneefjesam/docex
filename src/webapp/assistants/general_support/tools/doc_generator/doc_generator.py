@@ -12,7 +12,7 @@ import docx
 from docx.enum.text import WD_BREAK
 
 from . import steps  # keep top-level import for helper functions that use steps
-from webapp.core.utils.docx_utils import read_docx, apply_replacements
+from core.utils.docx_utils import read_docx, apply_replacements
 
 
 # -----------------------------
