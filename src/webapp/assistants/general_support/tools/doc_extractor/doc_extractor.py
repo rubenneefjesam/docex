@@ -52,14 +52,14 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
     except Exception as e:
         return {field: f"Error lezen: {e}" for field in field_prompts}
 
-    results: dict[str, str] = {}
+    results: dict[str, list[str]] = {}
     for field_name, prompt in field_prompts.items():
         full_prompt = (
             f"Je bent een assistent die specifieke informatie uit een document haalt.\n"
             f"Veldnaam: {field_name}\n"
             f"Instructie: {prompt}\n\n"
             f"Documenttekst:\n{text}\n"
-            f"Geef alleen de waarde voor '{field_name}' zonder extra uitleg."        
+            f"Geef de waarden voor '{field_name}' als een genummerde of door komma's gescheiden lijst."
         )
         try:
             resp = client.chat.completions.create(
@@ -67,9 +67,25 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
                 temperature=0,
                 messages=[{"role": "user", "content": full_prompt}]
             )
-            results[field_name] = resp.choices[0].message.content.strip()
+            content = resp.choices[0].message.content.strip()
+            # Splits op nummers, komma's of nieuwe regels
+            items = []
+            for part in content.replace('\r','\n').split('\n'):
+                # verwijder leading nummers of bullets
+                clean = part.strip()
+                if not clean:
+                    continue
+                # strip leading '1.', 'a)' etc.
+                clean = clean.lstrip('0123456789. )-')
+                # split further on commas if present
+                if ',' in clean:
+                    for c in clean.split(','):
+                        if c.strip(): items.append(c.strip())
+                else:
+                    items.append(clean)
+            results[field_name] = items
         except Exception as e:
-            results[field_name] = f"Error: {e}"
+            results[field_name] = [f"Error: {e}"]
     return results
 
 # ─── Streamlit-applicatie ─────────────────────────────────────────
@@ -103,33 +119,24 @@ def app():
             for i in range(10)
         ]
 
-    field_prompts = {
-        name.strip(): prompt.strip()
-        for name, prompt in zip(names, prompts)
-        if name.strip() and prompt.strip()
-    }
+    field_prompts = {name.strip(): prompt.strip() for name, prompt in zip(names, prompts) if name.strip() and prompt.strip()}
 
     if uploads and field_prompts and st.button("🚀 Extraheer informatie"):
-        results = []
+        all_rows = []
         with st.spinner("Extraheren via Groq…"):
             for uf in uploads:
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
                 extracted = extract_fields(tmp, field_prompts)
-                row = {"Document": uf.name, **extracted}
-                results.append(row)
-        # Bouw DataFrame en explodeer lists
-        df = pd.DataFrame(results)
+                for field, values in extracted.items():
+                    for val in values:
+                        all_rows.append({"Document": uf.name, field: val})
+        df = pd.DataFrame(all_rows)
+        # Herstel kolomvolgorde: Document eerst
         cols = ["Document"] + [c for c in df.columns if c != "Document"]
-        for col in cols[1:]:
-            # split op comma of newline
-            df[col] = df[col].str.replace("\n", ",")
-            df[col] = df[col].str.split(",")
-            df[col] = df[col].apply(lambda lst: [v.strip() for v in lst if v.strip()])
-            df = df.explode(col)
         st.subheader("Extractie Resultaten")
         st.dataframe(df[cols], use_container_width=True)
-        csv = df.to_csv(index=False).encode("utf-8")
+        csv = df[cols].to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime="text/csv")
     else:
         st.info("Upload documenten én definieer minstens één veldnaam + prompt om te starten.")
