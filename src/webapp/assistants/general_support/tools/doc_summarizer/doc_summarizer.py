@@ -55,10 +55,7 @@ class StructuredSummary:
 # ─── Samenvatting via Groq LLM ────────────────────────────────────
 def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
     prompt = (
-        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting in JSON. "
-        "JSON-object moet de volgende keys bevatten: title (string), executive_summary (string), "
-        "key_points (array van strings), actions (array van strings), risks (array van strings), "
-        "entities (object met lijsten: years, eur, emails, urls), word_count (aantal woorden)."
+        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting. "
         f"\nTekst: {text}\n"
         "Geef alleen de JSON-output zonder extra toelichting."
     )
