@@ -52,31 +52,29 @@ class StructuredSummary:
     entities: Dict[str, List[str]]
     word_count: int
 
-# ─── Samenvatting met Groq LLM ────────────────────────────────────
+# ─── Samenvatting via Groq LLM ────────────────────────────────────
 def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
     prompt = (
-        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting in JSON."
-        " JSON-object moet de volgende keys bevatten:"
-        " title (string), executive_summary (string), key_points (array van strings),"
-        " actions (array van strings), risks (array van strings),"
-        " entities (object met lijsten: years, eur, emails, urls), word_count (aantal woorden)."
+        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting in JSON. "
+        "JSON-object moet de volgende keys bevatten: title (string), executive_summary (string), "
+        "key_points (array van strings), actions (array van strings), risks (array van strings), "
+        "entities (object met lijsten: years, eur, emails, urls), word_count (aantal woorden)."
         f"\nTekst: {text}\n"
         "Geef alleen de JSON-output zonder extra toelichting."
     )
-        resp = client.chat.completions.create(
+    response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
-    raw = resp.choices[0].message.content.strip()
-    # Strip eventuele markdown code fences
+    raw = response.choices[0].message.content.strip()
+    # strip code fences
     if raw.startswith("```") and raw.endswith("```"):
         raw = raw.strip("```\n")
-    # Parse JSON
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        st.error("Fout bij parsen van samenvatting, raw output:")
+        st.error("Fout bij parsen van samenvatting:")
         st.code(raw)
         data = {
             "title": "",
@@ -87,10 +85,18 @@ def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
             "entities": {"years": [], "eur": [], "emails": [], "urls": []},
             "word_count": len(text.split())
         }
-    return StructuredSummary(file_name=file_name, **data)(file_name=file_name, **data)
+    return StructuredSummary(
+        file_name=file_name,
+        title=data.get("title", ""),
+        executive_summary=data.get("executive_summary", ""),
+        key_points=data.get("key_points", []),
+        actions=data.get("actions", []),
+        risks=data.get("risks", []),
+        entities=data.get("entities", {}),
+        word_count=data.get("word_count", len(text.split()))
+    )
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
-
 def app():
     st.set_page_config(page_title="📄 Document Summarizer (Groq)", layout="wide")
     st.title("📄 Document Summarizer")
@@ -119,16 +125,18 @@ def app():
             st.markdown("**Executive summary:**")
             st.write(ss.executive_summary)
             st.markdown("**Key points:**")
-            st.markdown("\n".join(f"- {kp}" for kp in ss.key_points))
+            for kp in ss.key_points:
+                st.write(f"- {kp}")
             st.markdown("**Actions:**")
-            st.markdown("\n".join(f"- {a}" for a in ss.actions))
+            for a in ss.actions:
+                st.write(f"- {a}")
             st.markdown("**Risks:**")
-            st.markdown("\n".join(f"- {r}" for r in ss.risks))
+            for r in ss.risks:
+                st.write(f"- {r}")
             st.markdown("**Entities:**")
-            for k,v in ss.entities.items():
-                st.write(f"- **{k}**: {', '.join(v)}")
+            for k, vals in ss.entities.items():
+                st.write(f"- **{k}**: {', '.join(vals)}")
             st.write(f"_Word count: {ss.word_count}_")
-            # Download JSON per document
             js = json.dumps(asdict(ss), ensure_ascii=False, indent=2).encode("utf-8")
             st.download_button(
                 label="⬇️ Download JSON",
