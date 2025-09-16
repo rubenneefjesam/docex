@@ -191,29 +191,36 @@ def run(show_nav: bool = True):
     )
 
     st.markdown("<div class='big-header'>⚠️ Risico Extractor</div>", unsafe_allow_html=True)
-    st.caption("Upload rechts een document (.docx of .txt). Links verschijnen de geëxtraheerde risico’s.")
+st.caption("Upload links een document (.docx of .txt). Rechts verschijnen de geëxtraheerde risico’s.")
 
-    col_left, col_right = st.columns([3, 2], gap="large")
+col_left, col_right = st.columns([2, 3], gap="large")
 
-    with col_right:
-        st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
-        up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
-        text = _read_uploaded_text(up)
-        groq_client = None
-        if up and text.strip():
-            groq_client = _get_groq_client()
-            st.success("Document geladen. Klik links op ‘Extractie starten’.")
-        elif up:
-            st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
+# ⬅️ LINKS: upload
+with col_left:
+    st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
+    up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
+    text = _read_uploaded_text(up)
+    groq_client = None
+    if up and text.strip():
+        groq_client = _get_groq_client()
+        st.success("Document geladen. Klik rechts op ‘Extractie starten’.")
+    elif up:
+        st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
 
-    with col_left:
-        st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
-        do_extract = st.button("🚀 Extractie starten", type="primary", use_container_width=True, disabled=not (up and text.strip()))
-        rows: List[Dict] = []
+# ➡️ RECHTS: extractie + tabel + downloads
+with col_right:
+    st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
+    do_extract = st.button(
+        "🚀 Extractie starten",
+        type="primary",
+        use_container_width=True,
+        disabled=not (up and text.strip())
+    )
+    rows: List[Dict] = []
 
-        if do_extract and up and text.strip():
-            with st.spinner("Risico’s extraheren…"):
-                rows = extract_risks(groq_client, text)
+    if do_extract and up and text.strip():
+        with st.spinner("Risico’s extraheren…"):
+            rows = extract_risks(groq_client, text)
 
             if rows:
                 st.success(f"Gevonden items: {len(rows)}")
