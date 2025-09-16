@@ -2,58 +2,68 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-# Placeholder for LLM extraction function
+# Placeholder voor LLM extractie
+# Vervang deze functie door echte LLM-aanroep
 def extract_fields(file_path: Path, field_prompts: dict) -> dict:
-    # TODO: implement actual extraction via LLM
-    # Should return a dict mapping field_name -> extracted_value
-    return {name: "" for name in field_prompts.keys()}
+    # Return dict met veldnaam -> gevonden waarde (nu lege strings)
+    return {field: "" for field in field_prompts.keys()}
 
-# Streamlit UI
+# Streamlit-applicatie
 def app():
-    st.header("📄 Document Extractor")
+    st.set_page_config(page_title="Document Extractor", layout="wide")
+    st.title("📄 Document Extractor")
     st.write("Upload documenten en definieer velden om informatie te extraheren.")
 
-    # Upload
-    uploads = st.file_uploader("Upload bestanden", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+    # Twee kolommen: links upload, rechts velddefinitie
+    col1, col2 = st.columns([1, 1])
 
-    # Define fields
-    st.sidebar.header("Definieer velden")
-    with st.sidebar.form(key="fields_form", clear_on_submit=False):
-        names = []
-        prompts = []
-        # First 10: kolomnamen      
-        st.subheader("Kolomnamen (optioneel)")
-        for i in range(10):
-            names.append(st.text_input(f"Veldnaam {i+1}", key=f"name_{i}"))
-        # Next 10: LLM prompts   
-        st.subheader("Prompt beschrijvingen")
-        for i in range(10):
-            prompts.append(st.text_area(f"Prompt {i+1}", height=60, key=f"prompt_{i}"))
+    with col1:
+        st.subheader("Upload documenten")
+        uploads = st.file_uploader(
+            label="Kies bestanden",
+            type=["pdf", "docx", "txt"],
+            accept_multiple_files=True,
+            help="Maximaal 10 documenten"
+        )
 
-        submit = st.form_submit_button("Opslaan velden")
+    with col2:
+        st.subheader("Definieer velden")
+        st.write("_Optioneel: ten minste één veld met prompt invullen._")
+        names = [st.text_input(f"Kolomnaam {i+1}", key=f"name_{i}") for i in range(10)]
+        prompts = [st.text_area(f"Prompt {i+1}", height=60, key=f"prompt_{i}") for i in range(10)]
 
-    # Ensure at least document column
-    field_names = [n for n in names if n]
-    field_prompts = {n: p for n, p in zip(names, prompts) if n and p}
+    # Combineer ingevulde velden
+    field_prompts = {name: prompt for name, prompt in zip(names, prompts) if name and prompt}
 
+    # Extractieknop en resultaat onderaan
     if uploads and field_prompts:
-        if st.button("Extraheer informatie"):
+        if st.button("🚀 Extraheer informatie"):
             results = []
-            with st.spinner("Bezig met extraheren..."):
+            with st.spinner("Extraheren..."):
                 for uf in uploads:
-                    tmp_path = Path(f"/tmp/{uf.name}")
-                    tmp_path.write_bytes(uf.getvalue())
-                    extracted = extract_fields(tmp_path, field_prompts)
+                    tmp = Path(f"/tmp/{uf.name}")
+                    tmp.write_bytes(uf.getvalue())
+                    extracted = extract_fields(tmp, field_prompts)
                     row = {"Document": uf.name}
                     row.update(extracted)
                     results.append(row)
-            # Display table
-            df = pd.DataFrame(results)
-            st.dataframe(df)
-            # Download PDF placeholder
-            st.download_button("⬇️ Download PDF", data=df.to_csv(index=False), file_name="extracted_table.pdf", mime="application/pdf")
+            # Toon resultaat als tabel
+            if results:
+                df = pd.DataFrame(results)
+                st.subheader("Extractie Resultaten")
+                st.dataframe(df, use_container_width=True)
+                # Download-knoppen
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Download CSV",
+                    data=csv,
+                    file_name="extracted_data.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.warning("Geen resultaten om weer te geven.")
     else:
-        st.info("Upload bestanden en definieer ten minste één veld prompt.")
+        st.info("Upload minimaal één document en definieer één veld met prompt om te starten.")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app()
