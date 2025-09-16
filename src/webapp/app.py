@@ -1,80 +1,43 @@
 # src/webapp/app.py
-
-# --- path safety net ---
-from pathlib import Path
-import sys
-project_root = Path(__file__).resolve().parents[2]   # .../docex
-src_path = project_root / "src"
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
-# -----------------------
-
-import sys
-from pathlib import Path
-import traceback
-
+import sys, os, traceback
 import streamlit as st
 
-# Ensure project root on sys.path
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from webapp.components.sidebar import render_sidebar
 from webapp.registry import ASSISTANTS
-from webapp.home.home import render as render_home
-from webapp.home.info import render as render_info
-from webapp.home.contact import render as render_contact
-from webapp.core.tool_loader import load_tool_module_candidate, call_first_callable
 
-st.set_page_config(page_title="Docgen Suite", layout="wide")
+st.set_page_config(page_title="Tools", layout="wide")
 
-def render_assistant_info(key: str):
-    """Dynamically import and call the render() of an assistant’s info module."""
-    module_path = f"webapp.assistants.{key}.info"
-    try:
-        mod = __import__(module_path, fromlist=["render"])
-        render = getattr(mod, "render", None)
-        if callable(render):
-            render()
-        else:
-            st.header(f"{ASSISTANTS[key]['label']} — Info")
-            st.write("Geen extra informatie beschikbaar.")
-    except Exception as e:
-        st.error(f"Kon info-module niet laden voor '{key}': {e}")
+# Debug-paneel bovenin: zie je welk Python/venv actief is
+with st.expander("Environment debug", expanded=False):
+    st.write({
+        "sys.executable": sys.executable,
+        "cwd": os.getcwd(),
+        "VIRTUAL_ENV": os.environ.get("VIRTUAL_ENV"),
+        "assistants": list(ASSISTANTS.keys()),
+    })
 
-# Sidebar selections
-page, assistant_key, tool_key = render_sidebar(default_assistant="general_support")
+# Kies assistant & tool
+asst_key = st.sidebar.selectbox("Assistant", list(ASSISTANTS.keys()))
+tool_keys = list(ASSISTANTS[asst_key]["tools"].keys())
+if not tool_keys:
+    st.warning("Deze assistant heeft nog geen tools.")
+    st.stop()
 
-if page == "Home":
-    render_home()
+tool_key = st.sidebar.selectbox("Tool", tool_keys)
+tool_info = ASSISTANTS[asst_key]["tools"][tool_key]
 
-elif page == "Info":
-    render_info()
+st.sidebar.write(f"→ {asst_key} / {tool_key}")
 
-elif page == "Contact":
-    render_contact()
+# Resolve entrypoint (app/run) via onze nieuwe registry
+try:
+    entry = tool_info["resolver"]()  # <— BELANGRIJK: gebruikt nieuwe registry
+except Exception as e:
+    st.error(f"Kon entrypoint niet resolven voor {asst_key}.{tool_key}:\n{e}")
+    st.code("".join(traceback.format_exc()))
+    st.stop()
 
-else:
-    # Assistenten-mode
-    # 1) Only assistant selected → show its info
-    if assistant_key in ASSISTANTS and not tool_key:
-        render_assistant_info(assistant_key)
-
-    # 2) Assistant + tool selected → load and run the tool
-    elif assistant_key in ASSISTANTS and tool_key in ASSISTANTS[assistant_key]["tools"]:
-        meta = ASSISTANTS[assistant_key]["tools"][tool_key]
-        candidates = meta.get("page_module_candidates", [])
-        mod = load_tool_module_candidate(meta["label"], *candidates)
-        try:
-            call_first_callable(mod, meta["label"])
-        except Exception:
-            error_text = traceback.format_exc()
-            st.error(f"Fout bij starten '{meta['label']}':\n{error_text}")
-            # Print the full traceback to the console for debugging
-            print(error_text)
-
-    else:
-        # Should never happen if sidebar restricts keys correctly
-        st.warning("Ongeldige selectie. Kies een assistent en een tool.")
-        render_home()
+# Draai de tool binnen de Streamlit context
+try:
+    entry()  # verwacht een functie die de Streamlit UI rendert
+except Exception as e:
+    st.error(f"Fout bij uitvoeren van {asst_key}.{tool_key}: {e}")
+    st.code("".join(traceback.format_exc()))
