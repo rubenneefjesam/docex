@@ -1,4 +1,4 @@
-# src/webapp/assistants/general_support/tools/doc_structured_summary/doc_summarizer.py
+# src/webapp/assistants/general_support/tools/doc_summarize/doc_summarizer.py
 from __future__ import annotations
 
 import io

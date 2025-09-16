@@ -1,4 +1,4 @@
-# src/webapp/assistants/general_support/tools/doc_structured_summary/readers.py
+# src/webapp/assistants/general_support/tools/doc_summarizer/readers.py
 from __future__ import annotations
 from pathlib import Path
 from typing import Tuple
