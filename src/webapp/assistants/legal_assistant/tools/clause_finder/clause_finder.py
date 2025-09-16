@@ -53,28 +53,21 @@ def show_pdf_inline(pdf_bytes: bytes, height: int = 900) -> None:
 
 SYSTEM = (
     "Je bent een juridisch assistent. "
-    "Extraheer clausules uit contracttekst en geef UITSLUITEND een JSON-array terug met objecten: "
-    '{"clausule":"...","citaat":"...","uitleg":"...","belang":"..."} '
-    "waarbij 'citaat' exact uit het contract komt (liefst 1–3 zinnen)."
+    "Zoek in contracttekst uitsluitend naar clausules die relevant zijn voor de gevraagde zoekterm. "
+    "Geef UITSLUITEND een JSON-array terug met objecten: "
+    '{"clausule":"...","citaat":"...","uitleg":"..."} '
+    "waarbij 'citaat' exact uit het contract komt."
 )
 
 USER_TMPL = """\
-Lees onderstaande contracttekst en extraheer clausules over o.a.:
-- Aansprakelijkheid
-- Duur en beëindiging
-- Geheimhouding
-- Betaling / prijs
-- Geschillenbeslechting
-- Intellectueel eigendom
-- Overige belangrijke voorwaarden (bv. audit, boete, overmacht, overdracht, sub-licentie)
+Lees onderstaande contracttekst en zoek ALLEEN naar clausules die relevant zijn voor: "{SEARCH}"
 
 Geef ALLEEN een JSON-array terug, bijv.:
 [
   {{
     "clausule": "Aansprakelijkheid",
     "citaat": "Exact citaat uit het contract...",
-    "uitleg": "Korte interpretatie in heldere taal.",
-    "belang": "Waarom dit relevant is voor de partij."
+    "uitleg": "Korte interpretatie in heldere taal."
   }}
 ]
 
@@ -82,7 +75,7 @@ TEKST:
 {DOC}
 """
 
-def extract_clauses(text: str) -> List[Dict]:
+def extract_clauses(text: str, search: str) -> List[Dict]:
     if not (text or "").strip():
         return []
     client = get_groq_client()
@@ -92,7 +85,7 @@ def extract_clauses(text: str) -> List[Dict]:
             temperature=0.2,
             messages=[
                 {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": USER_TMPL.format(DOC=text[:200_000])},
+                {"role": "user", "content": USER_TMPL.format(DOC=text[:200_000], SEARCH=search)},
             ],
         )
         content = resp.choices[0].message.content or ""
@@ -119,7 +112,6 @@ def extract_clauses(text: str) -> List[Dict]:
             "Clausule": (it.get("clausule") or "").strip(),
             "Citaat": (it.get("citaat") or "").strip(),
             "Uitleg": (it.get("uitleg") or "").strip(),
-            "Belang": (it.get("belang") or "").strip(),
         })
     return out
 
@@ -127,26 +119,6 @@ def extract_clauses(text: str) -> List[Dict]:
 # =========================
 # Annotaties
 # =========================
-
-# Kleuren per type clausule (RGB 0..1)
-COLOR_MAP = {
-    "aansprakelijkheid": (0.95, 0.8, 0.2),   # geel
-    "duur":              (0.1, 0.7, 0.1),    # groen
-    "beëindiging":       (0.1, 0.7, 0.1),    # groen
-    "geheimhouding":     (0.2, 0.6, 0.95),   # blauw
-    "betaling":          (0.9, 0.4, 0.2),    # oranje
-    "prijs":             (0.9, 0.4, 0.2),    # oranje
-    "geschillen":        (0.7, 0.3, 0.9),    # paars
-    "intellectueel":     (0.95, 0.3, 0.5),   # roze
-    "overmacht":         (0.4, 0.4, 0.4),    # grijs
-}
-
-def color_for_clause(name: str) -> Tuple[float, float, float]:
-    n = (name or "").lower()
-    for key, col in COLOR_MAP.items():
-        if key in n:
-            return col
-    return (1.0, 0.85, 0.0)  # default geel
 
 def add_highlight_with_note(page, snippet: str, color: Tuple[float, float, float], note: str) -> int:
     if not snippet:
@@ -174,14 +146,12 @@ def annotate_clauses(pdf_bytes: bytes, rows: List[Dict]) -> Tuple[bytes, int]:
             clause = row.get("Clausule") or ""
             quote  = row.get("Citaat") or ""
             uitleg = row.get("Uitleg") or ""
-            belang = row.get("Belang") or ""
             snippet = pick_search_snippet(quote, max_len=180)
             if not snippet:
                 continue
-            color = color_for_clause(clause)
-            note = f"{clause} — {uitleg or belang or 'clausule aangetroffen'}"
+            note = f"{clause} — {uitleg or 'clausule aangetroffen'}"
             for p in doc:
-                total += add_highlight_with_note(p, snippet, color, note)
+                total += add_highlight_with_note(p, snippet, (1.0, 0.85, 0.0), note)
 
         out = io.BytesIO()
         doc.save(out, deflate=True)
@@ -200,6 +170,8 @@ def app() -> None:
 
     with col_left:
         up = st.file_uploader("📤 Contract (PDF)", type=["pdf"], key="clause_pdf")
+        search = st.text_input("🔍 Waar wil je naar zoeken? (bijv. 'aansprakelijkheid')", value="")
+
         if not up:
             st.info("Upload een PDF om te starten.")
             return
@@ -210,23 +182,22 @@ def app() -> None:
             pages = pdf_text_by_page(pdf_bytes)
             text = full_text(pages)
 
-        st.markdown("### 🔎 Extractie")
-        do_extract = st.button("🚀 Zoeken en annoteren", type="primary", use_container_width=True)
+        do_extract = st.button("🚀 Zoeken en annoteren", type="primary", use_container_width=True, disabled=not search)
 
     with col_right:
         if not up:
             return
-        st.markdown("### 👀 Preview geannoteerde PDF")
+        st.markdown("### 👀 Preview PDF")
 
         if not do_extract:
             show_pdf_inline(pdf_bytes, height=900)
             return
 
-        with st.spinner("Clausules zoeken…"):
-            rows = extract_clauses(text)
+        with st.spinner(f"Clausules zoeken voor '{search}'…"):
+            rows = extract_clauses(text, search)
 
         if not rows:
-            st.info("Geen clausules gevonden door het model.")
+            st.info(f"Geen clausules gevonden voor '{search}'.")
             show_pdf_inline(pdf_bytes, height=900)
             return
 
@@ -234,26 +205,11 @@ def app() -> None:
             annotated_bytes, total_marks = annotate_clauses(pdf_bytes, rows)
 
         st.success(f"Gevonden clausules: **{len(rows)}** | Highlights geplaatst: **{total_marks}**")
-
-        st.markdown("### 📋 Gevonden clausules")
-        st.data_editor(
-            rows,
-            use_container_width=True,
-            hide_index=True,
-            disabled=True,
-            column_config={
-                "Clausule": st.column_config.TextColumn("Clausule", width="small"),
-                "Citaat":   st.column_config.TextColumn("Citaat", width="large"),
-                "Uitleg":   st.column_config.TextColumn("Uitleg", width="medium"),
-                "Belang":   st.column_config.TextColumn("Belang", width="medium"),
-            },
-        )
-
         show_pdf_inline(annotated_bytes, height=900)
         st.download_button(
             "⬇️ Download geannoteerde PDF",
             data=annotated_bytes,
-            file_name=f"{up.name.rsplit('.pdf',1)[0]}_clausules.pdf",
+            file_name=f"{up.name.rsplit('.pdf',1)[0]}_{search}.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
