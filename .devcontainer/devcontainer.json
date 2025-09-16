@@ -5,4 +5,22 @@
   }
 }
 
-{ "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install -e ." }
+{
+  "name": "docex",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {},
+  "settings": {
+    // Laat VS Code automatisch de venv-interpreter pakken
+    "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
+  },
+  "remoteEnv": {
+    // Zorgt dat shells standaard de venv-bin in PATH hebben
+    "VIRTUAL_ENV": "${containerWorkspaceFolder}/.venv",
+    "PATH": "${containerWorkspaceFolder}/.venv/bin:${containerEnv:PATH}"
+  },
+  "postCreateCommand": "bash -lc 'python -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/pip install -e .'",
+  "postAttachCommand": {
+    // optioneel: rooktest na attach
+    "server": "bash -lc \"python -c 'import webapp,sys; print(\\\"OK:\\\", webapp.__file__, \\\"py:\\\", sys.executable)'\""
+  }
+}
