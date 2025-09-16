@@ -1,5 +1,6 @@
 import os
 import io
+import json
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -43,53 +44,48 @@ def read_text_from_file(file_path: Path) -> str:
         raise ValueError(f"Onbekend bestandstype: {suffix}")
     return text
 
-# ─── Extractie via Groq LLM ──────────────────────────────────────
-def extract_fields(file_path: Path, field_prompts: dict) -> dict:
+# ─── Extractie via Groq LLM (gepaarde output) ──────────────────────
+def extract_paired_entries(file_path: Path, field_prompts: dict) -> list[dict]:
+    """
+    Vraag voor alle velden één gecombineerde JSON-lijst op:
+    [{field1: waarde1, field2: waarde2, ...}, ...]
+    """
     if client is None:
-        return {field: ["Geen client"] for field in field_prompts}
+        return []
+    text = read_text_from_file(file_path)
+    # Bouw instructie
+    fields = list(field_prompts.keys())
+    instructions = "\n".join([f"- {f}: {p}" for f, p in field_prompts.items()])
+    prompt = (
+        "Je bent een assistent die specifieke informatie uit een document haalt.\n"
+        "Geef als output een JSON-array van objecten, waarbij elk object de volgende properties bevat:\n"
+        f"  {', '.join(fields)}\n"
+        f"Gebruik de volgende instructies per property (veld):\n{instructions}\n"
+        "Documenttekst:\n" + text + "\n"
+        "Geef alleen de JSON-array terug, zonder extra tekst of markdown."
+    )
+    # Roep de Groq chat API aan
+    resp = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        temperature=0,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    content = resp.choices[0].message.content.strip()
+    # Parse JSON
     try:
-        text = read_text_from_file(file_path)
-    except Exception as e:
-        return {field: [f"Error lezen: {e}"] for field in field_prompts}
-
-    results: dict[str, list[str]] = {}
-    for field_name, prompt in field_prompts.items():
-        full_prompt = (
-            f"Je bent een assistent die specifieke informatie uit een document haalt.\n"
-            f"Veldnaam: {field_name}\n"
-            f"Instructie: {prompt}\n\n"
-            f"Documenttekst:\n{text}\n"
-            f"Geef de waarden voor '{field_name}' als een genummerde of door komma's gescheiden lijst."
-        )
-        try:
-            resp = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                temperature=0,
-                messages=[{"role": "user", "content": full_prompt}]
-            )
-            content = resp.choices[0].message.content.strip()
-            # Splits op nummers, komma's of nieuwe regels
-            items = []
-            for part in content.replace('\r','\n').split('\n'):
-                clean = part.strip()
-                if not clean:
-                    continue
-                clean = clean.lstrip('0123456789. )-')
-                if ',' in clean:
-                    for c in clean.split(','):
-                        if c.strip(): items.append(c.strip())
-                else:
-                    items.append(clean)
-            results[field_name] = items or [""]
-        except Exception as e:
-            results[field_name] = [f"Error: {e}"]
-    return results
+        data = json.loads(content)
+        if isinstance(data, list):
+            return data
+    except json.JSONDecodeError:
+        st.error("Kan JSON niet parsen, krijg:")
+        st.code(content)
+    return []
 
 # ─── Streamlit-applicatie ─────────────────────────────────────────
 def app():
     st.set_page_config(page_title="Document Extractor", layout="wide")
     st.title("📄 Document Extractor (Groq LLM)")
-    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’.")
+    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’. ")
 
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
@@ -109,15 +105,11 @@ def app():
                 f"Prompt {i+1}", height=80,
                 placeholder=f"Instructie voor kolom {i+1}",
                 key=f"prompt_{i}"
-            )
-            for i in range(10)
+            ) for i in range(10)
         ]
 
-    field_prompts = {
-        name.strip(): prompt.strip()
-        for name, prompt in zip(names, prompts)
-        if name.strip() and prompt.strip()
-    }
+    # Filter velden
+    field_prompts = {n: p for n, p in zip(names, prompts) if n.strip() and p.strip()}
 
     if uploads and field_prompts and st.button("🚀 Extraheer informatie"):
         all_rows = []
@@ -125,27 +117,28 @@ def app():
             for uf in uploads:
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
-                extracted = extract_fields(tmp, field_prompts)
-                # Per document: max rijen
-                max_len = max(len(v) for v in extracted.values())
-                for i in range(max_len):
+                entries = extract_paired_entries(tmp, field_prompts)
+                for entry in entries:
                     row = {"Document": uf.name}
-                    for field, values in extracted.items():
-                        row[field] = values[i] if i < len(values) else ""
+                    row.update(entry)
                     all_rows.append(row)
-        df = pd.DataFrame(all_rows)
-        cols = ["Document"] + [c for c in df.columns if c != "Document"]
-        st.subheader("Extractie Resultaten")
-        st.dataframe(df[cols], use_container_width=True)
-        csv = df[cols].to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label="⬇️ Download CSV",
-            data=csv,
-            file_name="extracted_data.csv",
-            mime="text/csv"
-        )
+        # Toon resultaat
+        if all_rows:
+            df = pd.DataFrame(all_rows)
+            cols = ["Document"] + [c for c in df.columns if c != "Document"]
+            st.subheader("Extractie Resultaten")
+            st.dataframe(df[cols], use_container_width=True)
+            csv = df[cols].to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Download CSV",
+                data=csv,
+                file_name="extracted_data.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("Geen gestructureerde entries gevonden.")
     else:
-        st.info("Upload documenten en definieer minstens één veldnaam + prompt om te starten.")
+        st.info("Upload documenten en definieer minimaal één veldnaam + prompt om te starten.")
 
 if __name__ == '__main__':
     app()
