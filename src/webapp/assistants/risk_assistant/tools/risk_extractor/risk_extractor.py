@@ -78,9 +78,7 @@ def _parse_json_list(text: str) -> List[Dict]:
     cand = cleaned[start:end] if start != -1 and end != -1 else cleaned
     try:
         data = json.loads(cand)
-        if isinstance(data, list):
-            return data
-        return []
+        return data if isinstance(data, list) else []
     except Exception:
         return []
 
@@ -123,7 +121,6 @@ def extract_risks(groq_client: Groq, text: str) -> List[Dict]:
     """Roep LLM aan en normaliseer de uitkomst."""
     if not (text or "").strip():
         return []
-
     try:
         resp = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -140,7 +137,6 @@ def extract_risks(groq_client: Groq, text: str) -> List[Dict]:
     content = resp.choices[0].message.content or ""
     items = _parse_json_list(content)
 
-    # Normaliseer keys en filter lege entries
     normed: List[Dict] = []
     for it in items:
         if not isinstance(it, dict):
@@ -176,9 +172,7 @@ def _download_bytes_json(rows: List[Dict]) -> bytes:
     return json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
 
 def _download_bytes_excel(rows: List[Dict]) -> bytes:
-    """
-    Schrijf naar .xlsx met xlsxwriter of openpyxl; val terug naar CSV als geen engine beschikbaar is.
-    """
+    """Schrijf naar .xlsx met xlsxwriter of openpyxl; val terug naar CSV als geen engine beschikbaar is."""
     try:
         import pandas as pd
     except Exception:
@@ -189,12 +183,10 @@ def _download_bytes_excel(rows: List[Dict]) -> bytes:
     b = BytesIO()
 
     engine: Optional[str] = None
-    # Probeer xlsxwriter
     try:
         import xlsxwriter  # noqa: F401
         engine = "xlsxwriter"
     except Exception:
-        # Probeer openpyxl
         try:
             import openpyxl  # noqa: F401
             engine = "openpyxl"
@@ -213,11 +205,11 @@ def _download_bytes_excel(rows: List[Dict]) -> bytes:
 def run(show_nav: bool = True):
     st.set_page_config(page_title="Risico Extractor", layout="wide", initial_sidebar_state="expanded")
 
-# 🔹 CSS: wrapping in de tabel + basisstijl
+    # 🔹 CSS (1 blok): wrapping in tabel + basisstijl
     st.markdown(
         """
         <style>
-        /* Forceer wrapping in st.data_editor cellen */
+        /* Forceer wrapping in cellen van data editor/frames */
         div[data-testid="stDataFrame"] td div,
         div[data-testid="stDataEditor"] td div {
             white-space: normal !important;
@@ -233,96 +225,71 @@ def run(show_nav: bool = True):
         unsafe_allow_html=True
     )
 
-# CSS toevoegen voor wrapping
-    st.markdown(
-        """
-        <style>
-        /* Forceer wrapping in datatabel cellen */
-        .stDataFrame, .stDataEditor td div, .stDataEditor td {
-            white-space: normal !important;
-            word-wrap: break-word !important;
-            overflow-wrap: anywhere !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <style>
-        .big-header {font-size:2.2rem; font-weight:800; margin-bottom:0.25em;}
-        .section-header {font-size:1.3rem; font-weight:700; margin:0.5em 0;}
-        .stButton>button, .stDownloadButton>button {font-size:16px; font-weight:600;}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
     st.markdown("<div class='big-header'>⚠️ Risico Extractor</div>", unsafe_allow_html=True)
-    st.caption("Upload links een document (.docx of .txt). Rechts verschijnen de geëxtraheerde risico’s.")
+    st.caption("Upload hieronder een document (.docx of .txt). Daaronder verschijnen de geëxtraheerde risico’s.")
 
-    col_left, col_right = st.columns([2, 3], gap="large")
+    # 📤 Document upload (boven)
+    st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
+    up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
+    text = _read_uploaded_text(up)
+    groq_client = None
+    if up and (text or "").strip():
+        groq_client = _get_groq_client()
+        st.success("Document geladen. Klik hieronder op ‘Extractie starten’.")
+    elif up:
+        st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
 
-    # 📤 Document upload
-st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
-up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="risk_doc")
-text = _read_uploaded_text(up)
-groq_client = None
-if up and text.strip():
-    groq_client = _get_groq_client()
-    st.success("Document geladen. Klik hieronder op ‘Extractie starten’.")
-elif up:
-    st.warning("Kon geen tekst lezen uit het bestand. Is het een geldige .docx of .txt?")
+    # 🧠 Extractie + tabel + downloads (onder)
+    st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
+    do_extract = st.button(
+        "🚀 Extractie starten",
+        type="primary",
+        use_container_width=True,
+        disabled=not (up and (text or "").strip())
+    )
 
-# 🧠 Extractie + tabel + downloads
-st.markdown("<div class='section-header'>🧠 Extractie</div>", unsafe_allow_html=True)
-do_extract = st.button(
-    "🚀 Extractie starten",
-    type="primary",
-    use_container_width=True,
-    disabled=not (up and (text or "").strip())
-)
-rows: List[Dict] = []
+    rows: List[Dict] = []
+    if do_extract and up and (text or "").strip():
+        with st.spinner("Risico’s extraheren…"):
+            rows = extract_risks(groq_client, text)
 
-if do_extract and up and (text or "").strip():
-    with st.spinner("Risico’s extraheren…"):
-        rows = extract_risks(groq_client, text)
+        if rows:
+            st.success(f"Gevonden items: {len(rows)}")
+            st.data_editor(
+                rows,
+                use_container_width=True,
+                height=min(520, 80 + 32 * (len(rows) + 1)),
+                column_config={
+                    "Risico": st.column_config.TextColumn("Risico", width="small"),
+                    "Oorzaak": st.column_config.TextColumn("Oorzaak", width="medium"),
+                    "Gevolg": st.column_config.TextColumn("Gevolg", width="medium"),
+                    "Beheersmaatregel (uitgebreid)": st.column_config.TextColumn("Beheersmaatregel (uitgebreid)", width="large"),
+                },
+                hide_index=True,
+                disabled=True
+            )
 
-    if rows:
-        st.success(f"Gevonden items: {len(rows)}")
-        st.data_editor(
-            rows,
-            use_container_width=True,
-            height=min(520, 80 + 32 * (len(rows) + 1)),
-            column_config={
-                "Risico": st.column_config.TextColumn("Risico", width="small"),
-                "Oorzaak": st.column_config.TextColumn("Oorzaak", width="medium"),
-                "Gevolg": st.column_config.TextColumn("Gevolg", width="medium"),
-                "Beheersmaatregel (uitgebreid)": st.column_config.TextColumn("Beheersmaatregel (uitgebreid)", width="large"),
-            },
-            hide_index=True,
-            disabled=True
-        )
+            st.markdown("<div class='section-header'>💾 Export</div>", unsafe_allow_html=True)
+            csv_b = _download_bytes_csv(rows)
+            json_b = _download_bytes_json(rows)
+            xls_b = _download_bytes_excel(rows)
 
-        st.markdown("<div class='section-header'>💾 Export</div>", unsafe_allow_html=True)
-        csv_b = _download_bytes_csv(rows)
-        json_b = _download_bytes_json(rows)
-        xls_b = _download_bytes_excel(rows)
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.download_button("⬇️ CSV", data=csv_b, file_name="risico_extractie.csv", mime="text/csv", use_container_width=True)
-        with c2:
-            st.download_button("⬇️ JSON", data=json_b, file_name="risico_extractie.json", mime="application/json", use_container_width=True)
-        with c3:
-            st.download_button("⬇️ Excel", data=xls_b, file_name="risico_extractie.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                               use_container_width=True)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.download_button("⬇️ CSV", data=csv_b, file_name="risico_extractie.csv",
+                                   mime="text/csv", use_container_width=True)
+            with c2:
+                st.download_button("⬇️ JSON", data=json_b, file_name="risico_extractie.json",
+                                   mime="application/json", use_container_width=True)
+            with c3:
+                st.download_button("⬇️ Excel", data=xls_b, file_name="risico_extractie.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   use_container_width=True)
+        else:
+            st.info("Geen risico’s gevonden of model gaf geen bruikbare output.")
     else:
-        st.info("Geen risico’s gevonden of model gaf geen bruikbare output.")
-else:
-    st.info("Upload een document en klik op ‘Extractie starten’.")
+        st.info("Upload een document en klik op ‘Extractie starten’.")
+
 
 # Compat/entry points voor je loader
 def app():
