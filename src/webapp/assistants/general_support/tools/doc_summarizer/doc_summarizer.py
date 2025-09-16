@@ -63,19 +63,31 @@ def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
         f"\nTekst: {text}\n"
         "Geef alleen de JSON-output zonder extra toelichting."
     )
-    resp = client.chat.completions.create(
+        resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
+    raw = resp.choices[0].message.content.strip()
+    # Strip eventuele markdown code fences
+    if raw.startswith("```") and raw.endswith("```"):
+        raw = raw.strip("```\n")
+    # Parse JSON
     try:
-        data = json.loads(resp.choices[0].message.content)
+        data = json.loads(raw)
     except json.JSONDecodeError:
-        st.error("Fout bij parsen van samenvatting:")
-        st.code(resp.choices[0].message.content)
-        # fallback lege
-        data = {"title":"","executive_summary":"","key_points":[],"actions":[],"risks":[],"entities":{},"word_count":len(text.split())}
-    return StructuredSummary(file_name=file_name, **data)
+        st.error("Fout bij parsen van samenvatting, raw output:")
+        st.code(raw)
+        data = {
+            "title": "",
+            "executive_summary": "",
+            "key_points": [],
+            "actions": [],
+            "risks": [],
+            "entities": {"years": [], "eur": [], "emails": [], "urls": []},
+            "word_count": len(text.split())
+        }
+    return StructuredSummary(file_name=file_name, **data)(file_name=file_name, **data)
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
 
