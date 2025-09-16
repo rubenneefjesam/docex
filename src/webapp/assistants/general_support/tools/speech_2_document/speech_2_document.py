@@ -70,7 +70,8 @@ def run():
             # Export Word
             buf = io.BytesIO()
             doc = Document()
-            for line in minutes.split("\n"):
+            for line in minutes.split("
+"):
                 if ":" in line:
                     title, body = line.split(":",1)
                     doc.add_heading(title.strip(), level=2)
