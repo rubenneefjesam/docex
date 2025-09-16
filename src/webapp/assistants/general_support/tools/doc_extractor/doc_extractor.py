@@ -142,7 +142,7 @@ def app():
         st.subheader("Extractie Resultaten")
         st.dataframe(df[cols], use_container_width=True)
         csv = df[cols].to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime=("🚀 Extraheer informatie"):
+        st.download_button("⬇️ Download CSV", data=csv, file_name="extracted_data.csv", mime="text/csv")("🚀 Extraheer informatie"):
         all_rows = []
         with st.spinner("Extraheren via Groq…"):
             for uf in uploads:
