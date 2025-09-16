@@ -169,7 +169,7 @@ def run(show_nav: bool = True):
 
     # Upload
     st.markdown("<div class='section-header'>📤 Document upload</div>", unsafe_allow_html=True)
-    up = st.file_uploader("Kies .docx of .txt", type=["docx", "txt"], key="clause_doc")
+    up = st.file_uploader("Kies .docx, .pdf of .txt", type=["docx", "pdf", "txt"], key="clause_doc")
     text = _read_uploaded_text(up)
     groq_client = None
     if up and text.strip():
