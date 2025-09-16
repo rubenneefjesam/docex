@@ -1,9 +1,6 @@
-from __future__ import annotations
-import os, json
-from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import List, Dict
+import os
 import streamlit as st
+from pathlib import Path
 from groq import Groq
 from PyPDF2 import PdfReader
 import docx
@@ -40,64 +37,30 @@ def read_text(file_path: Path) -> str:
     else:
         raise ValueError(f"Onbekend bestandstype: {suffix}")
 
-# ─── Dataclass voor samenvatting ──────────────────────────────────
-@dataclass
-class StructuredSummary:
-    file_name: str
-    title: str
-    executive_summary: str
-    key_points: List[str]
-    actions: List[str]
-    risks: List[str]
-    entities: Dict[str, List[str]]
-    word_count: int
-
 # ─── Samenvatting via Groq LLM ────────────────────────────────────
-def summarize_with_groq(text: str, file_name: str) -> StructuredSummary:
+def generate_summary(text: str) -> str:
     prompt = (
-        "Je bent een documentassistent. Maak van de volgende tekst een gestructureerde samenvatting. "
-        f"\nTekst: {text}\n"
-        "Geef alleen de JSON-output zonder extra toelichting."
+        "Je bent een documentassistent. Maak een heldere, gestructureerde samenvatting van de onderstaande tekst. "
+        "Gebruik bulletpoints voor de belangrijkste punten en cursieve tekst voor opvallende bevindingen of waarschuwingen."
+        f"\nTekst:\n{text[:4000]}\n"
+        "Geef de output als markdown-formaat, zonder extra toelichting."
     )
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        temperature=0,
+        temperature=0.3,
         messages=[{"role": "user", "content": prompt}]
     )
     raw = response.choices[0].message.content.strip()
-    # strip code fences
-    if raw.startswith("```") and raw.endswith("```"):
-        raw = raw.strip("```\n")
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        st.error("Fout bij parsen van samenvatting:")
-        st.code(raw)
-        data = {
-            "title": "",
-            "executive_summary": "",
-            "key_points": [],
-            "actions": [],
-            "risks": [],
-            "entities": {"years": [], "eur": [], "emails": [], "urls": []},
-            "word_count": len(text.split())
-        }
-    return StructuredSummary(
-        file_name=file_name,
-        title=data.get("title", ""),
-        executive_summary=data.get("executive_summary", ""),
-        key_points=data.get("key_points", []),
-        actions=data.get("actions", []),
-        risks=data.get("risks", []),
-        entities=data.get("entities", {}),
-        word_count=data.get("word_count", len(text.split()))
-    )
+    # Strip mogelijke code fences
+    if raw.startswith("```"):
+        raw = raw.strip('`')
+    return raw
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="📄 Document Summarizer (Groq)", layout="wide")
     st.title("📄 Document Summarizer")
-    st.write("Upload één of meerdere documenten en klik op ‘Genereer samenvatting’ om een JSON-samenvatting te ontvangen.")
+    st.write("Upload documenten en klik op ‘Genereer samenvatting’ om een gestructureerde samenvatting te ontvangen.")
 
     uploads = st.file_uploader(
         "Upload PDF / DOCX / TXT / MD", type=["pdf", "docx", "txt", "md"], accept_multiple_files=True
@@ -109,37 +72,20 @@ def app():
     if not st.button("🚀 Genereer samenvatting via Groq"):
         return
 
-    summaries: List[StructuredSummary] = []
     for uf in uploads:
         tmp = Path(f"/tmp/{uf.name}")
         tmp.write_bytes(uf.getvalue())
         text = read_text(tmp)
-        summaries.append(summarize_with_groq(text, uf.name))
+        summary = generate_summary(text)
 
-    for ss in summaries:
-        with st.expander(f"📘 {ss.file_name}", expanded=True):
-            st.subheader(ss.title)
-            st.markdown("**Executive summary:**")
-            st.write(ss.executive_summary)
-            st.markdown("**Key points:**")
-            for kp in ss.key_points:
-                st.write(f"- {kp}")
-            st.markdown("**Actions:**")
-            for a in ss.actions:
-                st.write(f"- {a}")
-            st.markdown("**Risks:**")
-            for r in ss.risks:
-                st.write(f"- {r}")
-            st.markdown("**Entities:**")
-            for k, vals in ss.entities.items():
-                st.write(f"- **{k}**: {', '.join(vals)}")
-            st.write(f"_Word count: {ss.word_count}_")
-            js = json.dumps(asdict(ss), ensure_ascii=False, indent=2).encode("utf-8")
+        with st.expander(f"📘 {uf.name}", expanded=True):
+            st.markdown(summary)
+            # Download als markdown
             st.download_button(
-                label="⬇️ Download JSON",
-                data=js,
-                file_name=f"{ss.file_name}_summary.json",
-                mime="application/json"
+                label="⬇️ Download Samenvatting",
+                data=summary.encode("utf-8"),
+                file_name=f"{uf.name}_summary.md",
+                mime="text/markdown"
             )
 
 if __name__ == '__main__':
