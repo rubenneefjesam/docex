@@ -59,7 +59,7 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
             f"Veldnaam: {field_name}\n"
             f"Instructie: {prompt}\n\n"
             f"Documenttekst:\n{text}\n"
-            f"Geef alleen de waarde voor '{field_name}' zonder extra uitleg."
+            f"Geef alleen de waarde voor '{field_name}' zonder extra uitleg."        
         )
         try:
             resp = client.chat.completions.create(
@@ -76,7 +76,7 @@ def extract_fields(file_path: Path, field_prompts: dict) -> dict:
 def app():
     st.set_page_config(page_title="Document Extractor", layout="wide")
     st.title("📄 Document Extractor (Groq LLM)")
-    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’.")
+    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’. ")
 
     col1, col2, col3 = st.columns([1, 1, 2])
 
@@ -115,12 +115,18 @@ def app():
             for uf in uploads:
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
-                row = {"Document": uf.name}
                 extracted = extract_fields(tmp, field_prompts)
-                row.update(extracted)
+                row = {"Document": uf.name, **extracted}
                 results.append(row)
+        # Bouw DataFrame en explodeer lists
         df = pd.DataFrame(results)
         cols = ["Document"] + [c for c in df.columns if c != "Document"]
+        for col in cols[1:]:
+            # split op comma of newline
+            df[col] = df[col].str.replace("\n", ",")
+            df[col] = df[col].str.split(",")
+            df[col] = df[col].apply(lambda lst: [v.strip() for v in lst if v.strip()])
+            df = df.explode(col)
         st.subheader("Extractie Resultaten")
         st.dataframe(df[cols], use_container_width=True)
         csv = df.to_csv(index=False).encode("utf-8")
