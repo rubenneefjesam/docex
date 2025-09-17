@@ -1,15 +1,12 @@
 import os
 import streamlit as st
-import hashlib
-import numpy as np
-
 from groq import Groq
 from webapp.assistants.general_support.tools.doc_comparison.doc_comparison import (
     extract_pdf_lines,
     full_text,
 )
 
-# ─── Groq‐client initiëren ────────────────────────────────────────
+# ─── Groq-client init ────────────────────────────────────────────
 @st.cache_resource
 def init_groq_client():
     key = (
@@ -26,48 +23,36 @@ if client is None:
     st.stop()
 
 # ─── Configuratie ────────────────────────────────────────────────
-EMBEDDING_MODEL      = "groq-embedding-1.0"
 CHAT_MODEL           = "llama-3.1-8b-instant"
 MAX_PDF_MB           = 10
-MAX_CHARS_PER_PROMPT = 30000  # ter bescherming tegen te grote prompts
+MAX_CHARS_PER_PROMPT = 30000  # limiet voor prompt-size
 
-# ─── Document laden ─────────────────────────────────────────────
+# ─── Document inladen & taggen ───────────────────────────────────
 @st.cache_data(show_spinner=False)
-def load_document(pdf_bytes: bytes) -> str:
-    pages = extract_pdf_lines(pdf_bytes)
-    return full_text(pages)
+def load_and_tag(pdf_bytes: bytes) -> str:
+    """
+    Extraheert per pagina de tekst, voegt [pX] tags toe, en returned 
+    één grote string met getagde paragrafen.
+    """
+    pages = extract_pdf_lines(pdf_bytes)  # lijst van lijsten: per pagina regels
+    tagged = []
+    for pi, lines in enumerate(pages, start=1):
+        for ln in lines:
+            ln = ln.strip()
+            if ln:
+                tagged.append(f"[p{pi}] {ln}")
+    return "\n".join(tagged)
 
-# ─── Embedding voor bron‐retrieval ──────────────────────────────
+# ─── Samenvatting maken ──────────────────────────────────────────
 @st.cache_data(show_spinner=False)
-def embed_document(text: str) -> list[dict]:
-    lines = [ln for ln in text.splitlines() if ln.strip()]
-    embeddings = []
-    batch_size = 256
-    for i in range(0, len(lines), batch_size):
-        batch = lines[i : i + batch_size]
-        resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
-        embeddings.extend(resp.data)
-    return [{"text": ln, "emb": e.embedding} for ln, e in zip(lines, embeddings)]
-
-@st.cache_data(show_spinner=False)
-def retrieve_relevant(query: str, docs: list[dict], top_k: int = 3) -> list[str]:
-    q_emb = client.embeddings.create(model=EMBEDDING_MODEL, input=[query]).data[0].embedding
-    q_arr = np.array(q_emb)
-    sims = [
-        (float(np.dot(np.array(d["emb"]), q_arr) / (np.linalg.norm(d["emb"]) * np.linalg.norm(q_arr))), d["text"])
-        for d in docs
-    ]
-    sims.sort(key=lambda x: x[0], reverse=True)
-    return [txt for _, txt in sims[:top_k]]
-
-# ─── Korte samenvatting ─────────────────────────────────────────
-@st.cache_data(show_spinner=False)
-def build_summary(text: str) -> str:
-    snippet = text if len(text) <= MAX_CHARS_PER_PROMPT else text[:MAX_CHARS_PER_PROMPT]
+def build_summary(tagged_text: str) -> str:
+    snippet = tagged_text
+    if len(snippet) > MAX_CHARS_PER_PROMPT:
+        snippet = "\n".join(snippet.splitlines()[:5000])  # eerste X regels
     prompt = (
         "Je bent een beknopte documentassistent. Geef een korte samenvatting "
-        "van de onderstaande tekst (maximaal 5 zinnen):\n\n"
-        f"{snippet}\n\n"
+        "van de onderstaande tekst (max. 5 zinnen), zonder citaties:\n\n"
+        f"{snippet}\n"
     )
     resp = client.chat.completions.create(
         model=CHAT_MODEL,
@@ -76,15 +61,18 @@ def build_summary(text: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ─── Q&A aanroep ────────────────────────────────────────────────
-def build_qa_prompt(text: str, question: str) -> str:
-    snippet = text if len(text) <= MAX_CHARS_PER_PROMPT else text[-MAX_CHARS_PER_PROMPT:]
+# ─── Q&A prompt bouwen ───────────────────────────────────────────
+def build_qa_prompt(tagged_text: str, question: str) -> str:
+    snippet = tagged_text
+    if len(snippet) > MAX_CHARS_PER_PROMPT:
+        snippet = "\n".join(snippet.splitlines()[-5000:])  # laatste X regels
     return (
-        "Je bent een behulpzame assistent. Gebruik alleen de onderstaande tekst\n"
-        "om de vraag te beantwoorden:\n\n"
+        "Je bent een behulpzame assistent. Gebruik **uitsluitend** de tekst hieronder. "
+        "Beantwoord de vraag en geef NA je antwoord een lijst met bronvermeldingen "
+        "in de vorm [pX], corresponderend met de gebruikte paragrafen.\n\n"
         f"{snippet}\n\n"
         f"Vraag: {question}\n"
-        "Antwoord:"
+        "Antwoord (gevolgd door citaties):"
     )
 
 def ask_chat(prompt: str) -> str:
@@ -98,61 +86,72 @@ def ask_chat(prompt: str) -> str:
 # ─── Streamlit UI ───────────────────────────────────────────────
 def app():
     st.set_page_config(layout="wide")
-    st.title("🗂️ Document Q&A & Samenvatting met Bronvermelding")
+    st.title("🗂️ Document Q&A & Samenvatting (zonder embeddings)")
 
-    uploaded = st.file_uploader("Upload PDF", type="pdf")
-    if not uploaded:
-        st.info("Upload een PDF om te beginnen.")
-        return
-    if uploaded.size > MAX_PDF_MB * 1024**2:
-        st.error(f"Max bestandsgrootte is {MAX_PDF_MB} MB.")
-        return
-
-    # Laad en embed document
-    pdf_bytes = uploaded.getvalue()
-    try:
-        doc_text = load_document(pdf_bytes)
-        docs     = embed_document(doc_text)
-    except Exception as e:
-        st.error(f"Fout bij documentverwerking: {e}")
-        return
-
-    # Genereer korte samenvatting (rechtsboven)
-    summary = build_summary(doc_text)
-
-    # Vraag & antwoord
-    question = st.text_input("Stel je vraag over het document")
-
-    answer = None
-    sources = []
-    if question:
-        prompt = build_qa_prompt(doc_text, question)
-        try:
-            answer = ask_chat(prompt)
-            # Bepaal bronnen voor dit antwoord
-            sources = retrieve_relevant(question, docs, top_k=3)
-        except Exception as e:
-            st.error(f"Fout bij chat-aanroep of retrieval: {e}")
-            return
-
-    # Toon in twee kolommen
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1,1])
 
     with col1:
-        st.header("📥 Q&A")
-        if not question:
-            st.info("Typ een vraag om te starten.")
-        else:
-            st.markdown("**Antwoord:**")
-            st.write(answer)
+        st.header("📥 Upload & Vraag")
+        up = st.file_uploader("Upload PDF", type="pdf")
+        if not up:
+            st.info("Upload een PDF om te beginnen.")
+            return
+        if up.size > MAX_PDF_MB * 1024**2:
+            st.error(f"Max bestandsgrootte is {MAX_PDF_MB} MB.")
+            return
+
+        pdf_bytes = up.getvalue()
+        try:
+            tagged = load_and_tag(pdf_bytes)
+        except Exception as e:
+            st.error(f"Fout bij PDF-verwerking: {e}")
+            return
+
+        st.success("Document geladen en getagd met paginanummers.")
+        question = st.text_input("Stel je vraag")
+
+        answer, citations = None, []
+        if question:
+            prompt = build_qa_prompt(tagged, question)
+            with st.spinner("Bezig met beantwoorden…"):
+                try:
+                    raw = ask_chat(prompt)
+                except Exception as e:
+                    st.error(f"Fout bij chat-aanroep: {e}")
+                    return
+            # split het antwoord in twee delen: vóór de citaties en de citaties-lijst
+            if "\n[" in raw:
+                ans_part, cit_part = raw.split("\n[", 1)
+                answer = ans_part.strip()
+                # reconstruct list van [pX]
+                citations = ["[" + c.strip("[] ") for c in cit_part.replace("]", "").split("[") if c]
+            else:
+                answer = raw
+                citations = []
+
+        with st.expander("🔍 Antwoord & Citaten", expanded=bool(question)):
+            if not question:
+                st.info("Typ een vraag om te starten.")
+            else:
+                st.markdown("**Antwoord:**")
+                st.write(answer)
+                if citations:
+                    st.markdown("**Bronvermeldingen:**")
+                    for c in citations:
+                        st.markdown(f"- {c}")
 
     with col2:
         st.header("📝 Korte Samenvatting")
-        st.markdown(summary)
-        if question:
-            st.subheader("🔍 Bronnen voor dit antwoord")
-            for i, src in enumerate(sources, start=1):
-                st.markdown(f"{i}. {src}")
+        if 'tagged' not in locals():
+            st.info("Wacht op upload om samenvatting te tonen…")
+        else:
+            with st.spinner("Samenvatting genereren…"):
+                try:
+                    summary = build_summary(tagged)
+                except Exception as e:
+                    st.error(f"Fout bij samenvatting: {e}")
+                    return
+            st.markdown(summary)
 
 if __name__ == "__main__":
     app()
