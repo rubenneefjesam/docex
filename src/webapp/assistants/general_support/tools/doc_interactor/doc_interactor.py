@@ -20,52 +20,46 @@ EMBEDDING_MODEL = st.sidebar.selectbox(
 CHAT_MODEL = st.sidebar.selectbox(
     "Chatmodel", ["llama-3.1-8b-instant", "llama-3.1-16b-instant"], index=0
 )
-MAX_PDF_MB = 10  # Max uploadgrootte
-
+MAX_PDF_MB = 10  # Max uploadgrootte in MB
 
 # =========================
-# Singleton Groq-client
+# Lazy singleton voor Groq-client
 # =========================
-@st.experimental_singleton
+_groq_client: Any = None
+
 def groq_client() -> Any:
-    return get_groq_client()
-
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = get_groq_client()
+    return _groq_client
 
 # =========================
-# Helpers (zonder UI-calls)
+# Hulpfuncties (zonder UI-calls)
 # =========================
-def hash_for_cache(*args: Any) -> str:
-    m = hashlib.sha256()
+def _make_cache_key(*args: Any) -> str:
+    h = hashlib.sha256()
     for a in args:
-        m.update(str(a).encode("utf-8"))
-    return m.hexdigest()
-
+        h.update(str(a).encode("utf-8"))
+    return h.hexdigest()
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def load_document(pdf_bytes: bytes, cache_key: str) -> str:
-    """Extraheer volledige tekst uit de PDF."""
     pages = extract_pdf_lines(pdf_bytes)
     return full_text(pages)
-
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def embed_document(
     text: str, model: str, cache_key: str, batch_size: int = 256
 ) -> List[Dict[str, Any]]:
-    """
-    Genereer embeddings per regel in batches.
-    - `model`: modelnaam
-    - `batch_size`: grootte per Groq API-call
-    """
     client = groq_client()
-    lines = [line for line in text.splitlines() if line.strip()]
+    # Splits op schone niet-lege regels
+    lines = [ln for ln in text.splitlines() if ln.strip()]
     embeddings = []
     for i in range(0, len(lines), batch_size):
         batch = lines[i : i + batch_size]
         resp = client.embeddings.create(model=model, input=batch)
         embeddings.extend(resp.data)
-    return [{"text": line, "emb": emb.embedding} for line, emb in zip(lines, embeddings)]
-
+    return [{"text": ln, "emb": emb.embedding} for ln, emb in zip(lines, embeddings)]
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def retrieve_relevant(
@@ -75,21 +69,17 @@ def retrieve_relevant(
     cache_key: str,
     top_k: int = 5,
 ) -> List[str]:
-    """Vind de meest relevante regels op basis van cosine-similarity."""
     client = groq_client()
     q_emb = client.embeddings.create(model=model, input=[query]).data[0].embedding
-    scores = []
     q_arr = np.array(q_emb)
-    for d in docs:
-        v = np.array(d["emb"])
-        sim = float(np.dot(v, q_arr) / (np.linalg.norm(v) * np.linalg.norm(q_arr)))
-        scores.append((sim, d["text"]))
-    scores.sort(key=lambda x: x[0], reverse=True)
-    return [text for _, text in scores[:top_k]]
-
+    sims = [
+        (float(np.dot(np.array(d["emb"]), q_arr) / (np.linalg.norm(d["emb"]) * np.linalg.norm(q_arr))), d["text"])
+        for d in docs
+    ]
+    sims.sort(key=lambda x: x[0], reverse=True)
+    return [txt for _, txt in sims[:top_k]]
 
 def ask_chat(context: str, query: str, model: str) -> str:
-    """Stuur prompt naar chat-API en geef het antwoord terug."""
     client = groq_client()
     system_msg = (
         "Je bent een behulpzame assistent. Gebruik **uitsluitend** de context hieronder:\n"
@@ -105,16 +95,15 @@ def ask_chat(context: str, query: str, model: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-
 # =========================
-# Streamlit-app
+# Streamlit-applicatie
 # =========================
 def app() -> None:
     st.title("🗂️ Document Chatbot")
-    st.sidebar.markdown("#### Configuratie")
-    uploaded = st.file_uploader("Upload PDF", type="pdf")
+    st.sidebar.markdown("#### Instellingen")
+    uploaded = st.file_uploader("Upload je PDF-bestand", type="pdf")
     if not uploaded:
-        st.info("Upload een PDF om te starten.")
+        st.info("Upload een PDF om te beginnen.")
         return
 
     if uploaded.size > MAX_PDF_MB * 1024**2:
@@ -122,45 +111,42 @@ def app() -> None:
         return
 
     pdf_bytes = uploaded.getvalue()
-    # Unieke key voor caching: bestand + model-versie
-    cache_key = hash_for_cache(hashlib.sha256(pdf_bytes).hexdigest(), EMBEDDING_MODEL)
+    # cache key: inhoud PDF + gekozen embed-model
+    key = _make_cache_key(hashlib.sha256(pdf_bytes).hexdigest(), EMBEDDING_MODEL)
 
     try:
-        doc_text = load_document(pdf_bytes, cache_key)
-        docs = embed_document(doc_text, EMBEDDING_MODEL, cache_key)
+        text = load_document(pdf_bytes, key)
+        docs = embed_document(text, EMBEDDING_MODEL, key)
     except Exception as e:
-        st.error(f"Fout tijdens documentverwerking: {e}")
+        st.error(f"Fout bij documentverwerking: {e}")
         return
 
-    st.success(f"Document geladen: {len(doc_text.splitlines())} regels.")
-    query = st.text_input("Vraag:")
+    st.success(f"Document geladen, {len(text.splitlines())} regels gevonden.")
+    query = st.text_input("Typ je vraag")
 
     if not query:
         return
 
-    with st.spinner("Ophalen relevante content…"):
+    with st.spinner("Content ophalen…"):
         try:
-            snippets = retrieve_relevant(
-                query, docs, EMBEDDING_MODEL, cache_key
-            )
+            snippets = retrieve_relevant(query, docs, EMBEDDING_MODEL, key)
         except Exception as e:
-            st.error(f"Fout tijdens retrieval: {e}")
+            st.error(f"Fout bij ophalen relevante content: {e}")
             return
 
     if not snippets:
-        st.warning("Geen relevante content gevonden.")
+        st.warning("Geen relevante tekstdelen gevonden.")
         return
 
     context = "\n".join(snippets)
     try:
         answer = ask_chat(context, query, CHAT_MODEL)
     except Exception as e:
-        st.error(f"Chatfout: {e}")
+        st.error(f"Fout bij chat-aanroep: {e}")
         return
 
     st.markdown("**Antwoord:**")
     st.write(answer)
-
 
 if __name__ == "__main__":
     app()
