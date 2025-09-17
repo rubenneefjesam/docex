@@ -20,8 +20,7 @@ def init_groq_client():
         return None
     try:
         client = Groq(api_key=key)
-        # Optioneel: test verbinding door ophalen van modellen
-        client.models.list()
+        client.models.list()  # verbindingscheck
         return client
     except Exception as e:
         st.error(f"❌ Fout bij initialisatie Groq-client: {e}")
@@ -57,73 +56,72 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
 # ─── Embedding en Opslag in sessiestate ──────────────────────────
 @st.cache_data(show_spinner=False)
 def embed_chunks(chunks: list[str]) -> np.ndarray:
-    if not client:
-        return np.array([])
-    try:
-        resp = client.embeddings.create(model="embed-english-v1", input=chunks)
-        return np.array([c.embedding for c in resp.data])
-    except Exception as e:
-        st.error(f"❌ Fout bij embeddings: {e}")
-        return np.array([])
+    resp = client.embeddings.create(model="embed-english-v1", input=chunks)
+    return np.array([c.embedding for c in resp.data])
 
 # ─── Vraag beantwoording ─────────────────────────────────────────
 def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) -> str:
-    if embeddings.size == 0:
-        return "Kan de embeddings niet laden; controleer de logs."
-    try:
-        q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
-        q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
-        sims = cosine_similarity(q_emb, embeddings).flatten()
-        top_idx = sims.argsort()[::-1][:5]
-        context = "\n\n".join(chunks[i] for i in top_idx)
-        prompt = (
-            "Je bent een slimme documentassistent. Beantwoord de vraag op basis van de onderstaande context. "
-            f"Context:\n{context}\n\nVraag: {question}\nAntwoord in duidelijke, beknopte taal."
-        )
-        resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            temperature=0.2,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        return f"❌ Fout bij het beantwoorden van de vraag: {e}"
+    q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
+    q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
+    sims = cosine_similarity(q_emb, embeddings).flatten()
+    top_idx = sims.argsort()[::-1][:5]
+    context = "\n\n".join(chunks[i] for i in top_idx)
+    prompt = (
+        "Je bent een slimme documentassistent. Beantwoord de vraag op basis van de onderstaande context. "
+        f"Context:\n{context}\n\nVraag: {question}\nAntwoord in duidelijke, beknopte taal."
+    )
+    resp = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        temperature=0.2,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return resp.choices[0].message.content.strip()
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="🤖 Document Bevrager", layout="wide")
     st.title("🤖 Document Bevrager")
-    st.write("Upload een document en stel vragen over de inhoud.")
+    st.write("Upload één document en verwerk het om daarna vragen te stellen.")
 
     upload = st.file_uploader(
-        "Upload PDF / DOCX / TXT / MD", type=["pdf", "docx", "txt", "md"], accept_multiple_files=False
+        "Stap 1: Upload PDF/DOCX/TXT/MD", type=["pdf", "docx", "txt", "md"], accept_multiple_files=False
     )
     if not upload:
         st.info("Nog geen document geüpload.")
         return
 
     if not client:
+        st.error("Groq-client niet beschikbaar.")
         return
 
-    # Bij nieuwe upload, verwerk document
-    if ("doc_name" not in st.session_state) or (st.session_state.doc_name != upload.name):
-        tmp_dir = Path(tempfile.gettempdir())
-        tmp_path = tmp_dir / upload.name
+    # Lade bestandsinhoud enkel bij klik
+    if st.button("Stap 2: Verwerk document"):  
+        st.session_state.doc_loading = True
+        tmp_path = Path(tempfile.gettempdir()) / upload.name
         tmp_path.write_bytes(upload.getvalue())
         text = read_text(tmp_path)
-        chunks = chunk_text(text)
-        embeddings = embed_chunks(chunks)
+        with st.spinner("Chunks maken…"):  
+            chunks = chunk_text(text)
+        with st.spinner("Embeddings berekenen… dit kan even duren."):  
+            embeddings = embed_chunks(chunks)
         st.session_state.chunks = chunks
         st.session_state.embeddings = embeddings
         st.session_state.doc_name = upload.name
+        st.success("Document verwerkt! Stel nu je vragen.")
 
-    question = st.text_input("Stel je vraag:")
-    if st.button("❓ Beantwoord vraag"):
+    if "chunks" not in st.session_state:
+        return
+
+    question = st.text_input("Stap 3: Stel je vraag:")
+    if st.button("Beantwoord vraag"):  
         if not question.strip():
             st.warning("Voer eerst een vraag in.")
         else:
-            with st.spinner("Bezig met beantwoorden…"):
-                answer = answer_question(question, st.session_state.chunks, st.session_state.embeddings)
+            with st.spinner("Bezig met beantwoorden…"):  
+                try:
+                    answer = answer_question(question, st.session_state.chunks, st.session_state.embeddings)
+                except Exception as e:
+                    answer = f"❌ Fout bij beantwoorden: {e}"
             st.markdown(f"**Antwoord:** {answer}")
 
 if __name__ == '__main__':
