@@ -1,6 +1,7 @@
 import streamlit as st
 from typing import List
-from webapp.assistants.general_support.tools.doc_interactor.doc_interactor import extract_pdf_lines, full_text
+# Haal extractors op uit doc_comparison om cirkelimport te voorkomen
+from webapp.assistants.general_support.tools.doc_comparison.doc_comparison import extract_pdf_lines, full_text
 from webapp.assistants.general_support.tools.doc_generator.doc_generator import get_groq_client
 
 # =========================
@@ -31,7 +32,6 @@ def embed_document(text: str) -> List[dict]:
     except Exception as e:
         st.error(f"Embeddingfout: controleer EMBEDDING_MODEL of API-toegang. Details: {e}")
         return []
-    # Return list van {"text": regel, "embedding": vector}
     return [{"text": line, "embedding": emb.embedding} for line, emb in zip(lines, response.data)]
 
 @st.cache_data(show_spinner=False)
@@ -60,7 +60,6 @@ def retrieve_relevant(query: str, docs: List[dict], top_k: int = 5) -> List[str]
 # =========================
 def app() -> None:
     st.title("🗂️ Document Chatbot")
-
     uploaded = st.file_uploader("Upload PDF", type="pdf")
     if not uploaded:
         st.info("Upload een PDF om te starten.")
@@ -82,7 +81,7 @@ def app() -> None:
             return
         context = "\n".join(snippets)
         system_msg = (
-            "Je bent een behulpzame assistant. Gebruik alleen de onderstaande context uit het document om de vraag te beantwoorden."
+            "Je bent een behulpzame assistent. Gebruik alleen de onderstaande context uit het document om de vraag te beantwoorden."
             f"\nContext:\n{context}\n"
         )
         client = get_groq_client()
@@ -105,7 +104,6 @@ def app() -> None:
 
 def run() -> None:
     return app()
-
 
 def render() -> None:
     return app()
