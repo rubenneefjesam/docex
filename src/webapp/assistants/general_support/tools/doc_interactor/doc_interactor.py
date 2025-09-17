@@ -3,7 +3,6 @@ import streamlit as st
 from pathlib import Path
 import tempfile
 from groq import Groq
-from groq.error import GroqError
 from PyPDF2 import PdfReader
 import docx
 import numpy as np
@@ -22,9 +21,9 @@ def init_groq_client():
     try:
         client = Groq(api_key=key)
         # Optioneel: test verbinding door ophalen van modellen
-        models = client.models.list()
+        client.models.list()
         return client
-    except GroqError as e:
+    except Exception as e:
         st.error(f"❌ Fout bij initialisatie Groq-client: {e}")
         return None
 
@@ -58,10 +57,12 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
 # ─── Embedding en Opslag in sessiestate ──────────────────────────
 @st.cache_data(show_spinner=False)
 def embed_chunks(chunks: list[str]) -> np.ndarray:
+    if not client:
+        return np.array([])
     try:
         resp = client.embeddings.create(model="embed-english-v1", input=chunks)
         return np.array([c.embedding for c in resp.data])
-    except GroqError as e:
+    except Exception as e:
         st.error(f"❌ Fout bij embeddings: {e}")
         return np.array([])
 
@@ -85,7 +86,7 @@ def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) ->
             messages=[{"role": "user", "content": prompt}]
         )
         return resp.choices[0].message.content.strip()
-    except GroqError as e:
+    except Exception as e:
         return f"❌ Fout bij het beantwoorden van de vraag: {e}"
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
@@ -104,6 +105,7 @@ def app():
     if not client:
         return
 
+    # Bij nieuwe upload, verwerk document
     if ("doc_name" not in st.session_state) or (st.session_state.doc_name != upload.name):
         tmp_dir = Path(tempfile.gettempdir())
         tmp_path = tmp_dir / upload.name
