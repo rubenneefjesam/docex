@@ -3,6 +3,7 @@ import streamlit as st
 from pathlib import Path
 import tempfile
 from groq import Groq
+from groq.error import GroqError
 from PyPDF2 import PdfReader
 import docx
 import numpy as np
@@ -19,9 +20,12 @@ def init_groq_client():
         st.error("⚠️ Geen Groq-API-key gevonden; tool werkt niet.")
         return None
     try:
-        return Groq(api_key=key)
-    except Exception:
-        st.error("❌ Ongeldige Groq-API-key.")
+        client = Groq(api_key=key)
+        # Optioneel: test verbinding door ophalen van modellen
+        models = client.models.list()
+        return client
+    except GroqError as e:
+        st.error(f"❌ Fout bij initialisatie Groq-client: {e}")
         return None
 
 client = init_groq_client()
@@ -54,31 +58,35 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
 # ─── Embedding en Opslag in sessiestate ──────────────────────────
 @st.cache_data(show_spinner=False)
 def embed_chunks(chunks: list[str]) -> np.ndarray:
-    resp = client.embeddings.create(
-        model="embed-english-v1", input=chunks
-    )
-    return np.array([c.embedding for c in resp.data])
+    try:
+        resp = client.embeddings.create(model="embed-english-v1", input=chunks)
+        return np.array([c.embedding for c in resp.data])
+    except GroqError as e:
+        st.error(f"❌ Fout bij embeddings: {e}")
+        return np.array([])
 
 # ─── Vraag beantwoording ─────────────────────────────────────────
 def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) -> str:
-    # Embed vraag
-    q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
-    q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
-    # Cosine similarity
-    sims = cosine_similarity(q_emb, embeddings).flatten()
-    top_idx = sims.argsort()[::-1][:5]
-    context = "\n\n".join(chunks[i] for i in top_idx)
-    # Build prompt
-    prompt = (
-        "Je bent een slimme documentassistent. Beantwoord de vraag op basis van de onderstaande context. "
-        f"Context:\n{context}\n\nVraag: {question}\nAntwoord in duidelijke, beknopte taal."
-    )
-    response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        temperature=0.2,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return response.choices[0].message.content.strip()
+    if embeddings.size == 0:
+        return "Kan de embeddings niet laden; controleer de logs."
+    try:
+        q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
+        q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
+        sims = cosine_similarity(q_emb, embeddings).flatten()
+        top_idx = sims.argsort()[::-1][:5]
+        context = "\n\n".join(chunks[i] for i in top_idx)
+        prompt = (
+            "Je bent een slimme documentassistent. Beantwoord de vraag op basis van de onderstaande context. "
+            f"Context:\n{context}\n\nVraag: {question}\nAntwoord in duidelijke, beknopte taal."
+        )
+        resp = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return resp.choices[0].message.content.strip()
+    except GroqError as e:
+        return f"❌ Fout bij het beantwoorden van de vraag: {e}"
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
 def app():
@@ -93,7 +101,9 @@ def app():
         st.info("Nog geen document geüpload.")
         return
 
-    # Bij nieuwe upload, verwerk document
+    if not client:
+        return
+
     if ("doc_name" not in st.session_state) or (st.session_state.doc_name != upload.name):
         tmp_dir = Path(tempfile.gettempdir())
         tmp_path = tmp_dir / upload.name
