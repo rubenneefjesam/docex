@@ -56,7 +56,8 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
     start = 0
     while start < len(tokens):
         end = min(start + chunk_size, len(tokens))
-        chunks.append(" ".join(tokens[start:end]))
+        chunk = " ".join(tokens[start:end])
+        chunks.append(chunk)
         if end == len(tokens):
             break
         start = end - overlap
@@ -68,8 +69,8 @@ def embed_chunks(chunks: list[str]) -> np.ndarray:
     if not chunks:
         return np.array([])
     try:
-        # Let op: parameternaam 'inputs' ipv 'input'
-        resp = client.embeddings.create(model="embed-english-v1", inputs=chunks)
+        # Correct gebruik: parameter 'input'
+        resp = client.embeddings.create(model="embed-english-v1", input=chunks)
         return np.array([c.embedding for c in resp.data])
     except Exception as e:
         st.error(f"❌ Fout bij embeddings: {e}")
@@ -80,7 +81,8 @@ def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) ->
     if not chunks or embeddings.size == 0:
         return "Er is geen context om uit te putten."
     try:
-        q_resp = client.embeddings.create(model="embed-english-v1", inputs=[question])
+        # Ook hier 'input'
+        q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
         q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
         sims = cosine_similarity(q_emb, embeddings).flatten()
         top_idx = sims.argsort()[::-1][:5]
