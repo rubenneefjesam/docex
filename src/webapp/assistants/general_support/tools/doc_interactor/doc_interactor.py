@@ -48,13 +48,24 @@ def read_text(file_path: Path) -> str:
 # ─── Tekst Chunking ──────────────────────────────────────────────
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
     tokens = text.split()
+    # Als er geen tokens zijn, niks te chunk’en
+    if not tokens:
+        return []
+
+    # Veiligheid: overlap moet kleiner zijn dan chunk_size
+    if overlap >= chunk_size:
+        raise ValueError("`overlap` moet kleiner zijn dan `chunk_size`")
+
     chunks = []
     start = 0
     while start < len(tokens):
         end = min(start + chunk_size, len(tokens))
         chunks.append(" ".join(tokens[start:end]))
+        # Als we aan het einde zijn gekomen, klaar
+        if end == len(tokens):
+            break
+        # Beweeg start met overlap
         start = end - overlap
-    return chunks
 
 # ─── Embedding en Opslag in sessiestate ──────────────────────────
 @st.cache_data(show_spinner=False)
