@@ -20,7 +20,6 @@ def init_groq_client():
         return None
     try:
         client = Groq(api_key=key)
-        # Verbindingstest en modeloverzicht ophalen
         models = client.models.list()
         available = [m.id for m in models.data]
         st.info(f"Beschikbare modellen: {available}")
@@ -48,11 +47,8 @@ def read_text(file_path: Path) -> str:
 # ─── Tekst Chunking ──────────────────────────────────────────────
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
     tokens = text.split()
-    # Als er geen tokens zijn, niks te chunk’en
     if not tokens:
         return []
-
-    # Veiligheid: overlap moet kleiner zijn dan chunk_size
     if overlap >= chunk_size:
         raise ValueError("`overlap` moet kleiner zijn dan `chunk_size`")
 
@@ -61,17 +57,19 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[st
     while start < len(tokens):
         end = min(start + chunk_size, len(tokens))
         chunks.append(" ".join(tokens[start:end]))
-        # Als we aan het einde zijn gekomen, klaar
         if end == len(tokens):
             break
-        # Beweeg start met overlap
         start = end - overlap
+    return chunks
 
 # ─── Embedding en Opslag in sessiestate ──────────────────────────
 @st.cache_data(show_spinner=False)
 def embed_chunks(chunks: list[str]) -> np.ndarray:
+    if not chunks:
+        return np.array([])
     try:
-        resp = client.embeddings.create(model="embed-english-v1", input=chunks)
+        # Let op: parameternaam 'inputs' ipv 'input'
+        resp = client.embeddings.create(model="embed-english-v1", inputs=chunks)
         return np.array([c.embedding for c in resp.data])
     except Exception as e:
         st.error(f"❌ Fout bij embeddings: {e}")
@@ -79,8 +77,10 @@ def embed_chunks(chunks: list[str]) -> np.ndarray:
 
 # ─── Vraag beantwoording ─────────────────────────────────────────
 def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) -> str:
+    if not chunks or embeddings.size == 0:
+        return "Er is geen context om uit te putten."
     try:
-        q_resp = client.embeddings.create(model="embed-english-v1", input=[question])
+        q_resp = client.embeddings.create(model="embed-english-v1", inputs=[question])
         q_emb = np.array(q_resp.data[0].embedding).reshape(1, -1)
         sims = cosine_similarity(q_emb, embeddings).flatten()
         top_idx = sims.argsort()[::-1][:5]
@@ -96,7 +96,7 @@ def answer_question(question: str, chunks: list[str], embeddings: np.ndarray) ->
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        st.error(f"❌ Fout bij ques- & chat-call: {e}")
+        st.error(f"❌ Fout bij vraag-beantwoording: {e}")
         return "Er is iets misgegaan tijdens het beantwoorden. Controleer modelnamen en API-toegang."
 
 # ─── Streamlit UI ──────────────────────────────────────────────────
@@ -105,7 +105,7 @@ def app():
     st.title("🤖 Document Bevrager")
     st.write("Upload één document, verwerk en stel vragen.")
 
-    upload = st.file_uploader("Stap 1: Upload PDF/DOCX/TXT/MD", type=["pdf", "docx", "txt", "md"] )
+    upload = st.file_uploader("Stap 1: Upload PDF/DOCX/TXT/MD", type=["pdf", "docx", "txt", "md"])
     if not upload:
         st.info("Nog geen document geüpload.")
         return
@@ -116,12 +116,22 @@ def app():
     if st.button("Stap 2: Verwerk document"):
         tmp_path = Path(tempfile.gettempdir()) / upload.name
         tmp_path.write_bytes(upload.getvalue())
+
         text = read_text(tmp_path)
-        with st.spinner("Chunks maken…"): chunks = chunk_text(text)
-        with st.spinner("Embeddings berekenen…"): embeddings = embed_chunks(chunks)
+        chunks = chunk_text(text)
+        if not chunks:
+            st.error("Geen tekst gevonden in het document.")
+            return
+
+        with st.spinner("Embeddings berekenen…"):
+            embeddings = embed_chunks(chunks)
+        if embeddings.size == 0:
+            st.error("Embeddings zijn mislukt of hebben geen data opgeleverd.")
+            return
+
         st.session_state.chunks = chunks
         st.session_state.embeddings = embeddings
-        st.success("Document verwerkt! Beschikbare chunk-count: " + str(len(chunks)))
+        st.success(f"Document verwerkt! Aantal chunks: {len(chunks)}")
 
     if "chunks" not in st.session_state:
         return
@@ -131,8 +141,12 @@ def app():
         if not question.strip():
             st.warning("Voer eerst een vraag in.")
         else:
-            with st.spinner("Bezig…"):
-                answer = answer_question(question, st.session_state.chunks, st.session_state.embeddings)
+            with st.spinner("Bezig met beantwoorden…"):
+                answer = answer_question(
+                    question,
+                    st.session_state.chunks,
+                    st.session_state.embeddings
+                )
             st.markdown(f"**Antwoord:** {answer}")
 
 if __name__ == '__main__':
