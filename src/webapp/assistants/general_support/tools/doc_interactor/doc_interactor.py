@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from pathlib import Path
+import tempfile
 from groq import Groq
 from PyPDF2 import PdfReader
 import docx
@@ -85,28 +86,28 @@ def app():
     st.title("🤖 Document Bevrager")
     st.write("Upload een document en stel vragen over de inhoud.")
 
-    # Upload
-    files = st.file_uploader(
+    upload = st.file_uploader(
         "Upload PDF / DOCX / TXT / MD", type=["pdf", "docx", "txt", "md"], accept_multiple_files=False
     )
-    if not files:
+    if not upload:
         st.info("Nog geen document geüpload.")
         return
 
-    if "chunks" not in st.session_state or st.session_state.get("doc_name") != files.name:
-        # Nieuwe upload: lees, chunk en embed
-        tmp = Path(f"/tmp/{files.name}")
-        tmp.write_bytes(files.getvalue())
-        text = read_text(tmp)
+    # Bij nieuwe upload, verwerk document
+    if ("doc_name" not in st.session_state) or (st.session_state.doc_name != upload.name):
+        tmp_dir = Path(tempfile.gettempdir())
+        tmp_path = tmp_dir / upload.name
+        tmp_path.write_bytes(upload.getvalue())
+        text = read_text(tmp_path)
         chunks = chunk_text(text)
         embeddings = embed_chunks(chunks)
         st.session_state.chunks = chunks
         st.session_state.embeddings = embeddings
-        st.session_state.doc_name = files.name
+        st.session_state.doc_name = upload.name
 
     question = st.text_input("Stel je vraag:")
     if st.button("❓ Beantwoord vraag"):
-        if question.strip() == "":
+        if not question.strip():
             st.warning("Voer eerst een vraag in.")
         else:
             with st.spinner("Bezig met beantwoorden…"):
