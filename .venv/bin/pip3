@@ -1,4 +1,4 @@
-#!/workspaces/docex/.venv/bin/python
+#!/workspaces/docex/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
