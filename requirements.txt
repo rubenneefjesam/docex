@@ -17,6 +17,7 @@ black
 isort
 mypy
 streamlit
+groq
 
 # type hints voor externe libs (optioneel)
 types-requests
