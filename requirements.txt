@@ -1,1 +1,26 @@
+# core
+python-docx
+
+# web (kies Flask of FastAPI/ASGI - hier beide gereed staan, verwijder wat je niet gebruikt)
+Flask
+uvicorn        # ASGI server (voor FastAPI of ASGI apps)
+gunicorn       # WSGI server (voor Flask productie)
+
+# HTTP & utilities
+requests
+python-dotenv  # .env config loader
+
+# development & testing
+pytest
+pytest-cov
+black
+isort
+mypy
 streamlit
+
+# type hints voor externe libs (optioneel)
+types-requests
+
+# optional / common extras (vervang/voeg toe als jouw project ze nodig heeft)
+python-magic   # file type sniffing (optioneel)
+python-slugify # slug generation (optioneel)
