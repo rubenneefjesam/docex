@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-from invoice_utils import extract_line_items
+from .invoice_utils import extract_line_items
 
 
 def app():
