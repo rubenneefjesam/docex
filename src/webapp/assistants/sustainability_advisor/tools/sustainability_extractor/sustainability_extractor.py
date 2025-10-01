@@ -1,4 +1,3 @@
-# sustainability_extractor.py
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -8,10 +7,19 @@ from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
 from .emissions_utils import compute_emissions, clean_keep_best_rows
 
-client = init_groq_client()
+# Page config best bovenaan in Streamlit
+st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
+
+@st.cache_data
+def _load_categories_and_factors():
+    csv_path = Path(__file__).parent / 'categorieen.csv'
+    return load_categories_data(csv_path)
+
+def _lazy_client():
+    # Init pas wanneer nodig
+    return init_groq_client()
 
 def app():
-    st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
     st.write("Upload PDF/DOCX/TXT-facturen, extraheer regels en classificeer op basis van categorieën + CO₂-berekening.")
 
@@ -21,17 +29,13 @@ def app():
         help="Voer direct na het extraheren ook de classificatie en CO₂-berekening uit."
     )
 
-    # 1) Categorieën + emissiefactoren
-    if "categories" not in st.session_state or "factor_map" not in st.session_state:
-        csv_path = Path(__file__).parent / 'categorieen.csv'
-        cats, factor_map, _meta = load_categories_data(csv_path)
-        st.session_state["categories"] = cats
-        st.session_state["factor_map"] = factor_map
+    summarize_per_invoice = st.toggle(
+        "Toon samenvatting per factuur (CO₂ en bedragen)",
+        value=True
+    )
 
-    categories = st.session_state.get("categories", [])
-    factor_map = st.session_state.get("factor_map", {})
-    if not categories or not factor_map:
-        st.stop()
+    # 1) Categorieën + emissiefactoren
+    cats, factor_map, _meta = _load_categories_and_factors()
 
     # 2) Upload
     files = st.file_uploader(
@@ -45,6 +49,7 @@ def app():
         if not files:
             st.warning("Upload eerst ten minste één document.")
         else:
+            client = _lazy_client()
             rows = []
             with st.spinner("Controleren en extraheren…"):
                 for up in files:
@@ -78,7 +83,7 @@ def app():
 
                 if auto_classify:
                     st.info("Automatische classificatie en CO₂-berekening wordt uitgevoerd…")
-                    out_df = classify_rows_with_llm(base_df.copy(), categories, client)
+                    out_df = classify_rows_with_llm(base_df.copy(), cats, client)
                     out_df = compute_emissions(out_df, factor_map)
                     out_df = clean_keep_best_rows(out_df)
                     st.session_state["df"] = out_df
@@ -103,6 +108,27 @@ def app():
     st.subheader("Resultaten")
     st.dataframe(df[cols], use_container_width=True)
 
+    # Samenvatting per factuur (optioneel)
+    if summarize_per_invoice:
+        group_cols = [c for c in ["Document", "Factuurnummer", "Leverancier"] if c in df.columns]
+        if group_cols:
+            agg_df = df.groupby(group_cols, dropna=False).agg(
+                Regels=("Beschrijving product", "count"),
+                Totaal_EUR=("Bedrag (EUR) [num]", "sum"),
+                Totaal_kgCO2e=("Totale kg CO₂e", "sum")
+            ).reset_index()
+            st.markdown("### Samenvatting per factuur")
+            st.dataframe(agg_df, use_container_width=True)
+
+            # Download samenvatting
+            csv_sum = agg_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Download samenvatting per factuur",
+                data=csv_sum,
+                file_name="factuur_samenvatting_co2.csv",
+                mime="text/csv"
+            )
+
     # Download
     if "Totale kg CO₂e" in df.columns:
         csv2 = df[cols].to_csv(index=False).encode('utf-8')
@@ -119,7 +145,8 @@ def app():
             if df.empty:
                 st.warning("Er zijn geen regels om te classificeren.")
                 return
-            out_df = classify_rows_with_llm(df.copy(), categories, client)
+            client = _lazy_client()
+            out_df = classify_rows_with_llm(df.copy(), cats, client)
             out_df = compute_emissions(out_df, factor_map)
             out_df = clean_keep_best_rows(out_df)
             st.session_state["df"] = out_df
