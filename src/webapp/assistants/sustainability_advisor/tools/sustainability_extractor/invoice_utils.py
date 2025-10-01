@@ -45,15 +45,17 @@ def extract_line_items(file_path: Path) -> list[dict]:
     if client is None:
         return []
     text = read_text_from_file(file_path)
+    # Velden (nu met Prijs: totaalbedrag per regel)
     field_prompts = {
         "Bedrijfsnaam": "Extraheren van de naam van het bedrijf dat de factuur verzendt.",
         "Factuurnummer": "Extraheren van het factuurnummer.",
         "Datum": "Extraheren van de factuurdatum in formaat DD-MM-YYYY.",
         "Productomschrijving": "Kort omschrijven welk product of welke dienst vermeld staat.",
         "Hoeveelheid": "Extraheren van de hoeveelheid (numeriek gedeelte).",
-        "Eenheid": "Extraheren van de eenheid (bijv. stuks, kg, liter)."
+        "Eenheid": "Extraheren van de eenheid (bijv. stuks, kg, liter).",
+        "Prijs": "Totaalbedrag van de betreffende lijn in EUR. Geef alleen het getal, EU-notatie mag (bijv. 1.234,56)."
     }
-    instructions = "\n".join([f"- {f}: {p}" for f, p in field_prompts.items()])
+    instructions = "\n".join([f"- {field}: {instr}" for field, instr in field_prompts.items()])
     prompt = (
         "Je bent een assistent die factuurlijnitems uit een document haalt.\n"
         "Geef als output een JSON-array van objecten, waarbij elk object de volgende velden bevat:\n"
