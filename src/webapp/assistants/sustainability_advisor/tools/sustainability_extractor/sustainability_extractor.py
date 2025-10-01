@@ -9,13 +9,15 @@ from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_w
 
 client = init_groq_client()
 
+# ────────────────────────────────────────────────────────────────
+# Helpers voor bedragen & emissie
+# ────────────────────────────────────────────────────────────────
 def _to_float_eu_fast(x) -> float | None:
-    """Kleine helper voor bedragen: accepteert '1.234,56' of '1234.56' of '€ 1.234,56'."""
+    """Accepteert '1.234,56' of '1234.56' of '€ 1.234,56' en pakt 1e getal."""
     import re
     if x is None:
         return None
     s = str(x).strip()
-    # pak eerste getal
     m = re.search(r"[-+]?\d[\d.,]*", s)
     if not m:
         return None
@@ -28,7 +30,7 @@ def _to_float_eu_fast(x) -> float | None:
         return None
 
 def _compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.DataFrame:
-    # normaliseer mogelijke kolommen voor bedrag
+    # Eventueel alias
     if "Bedrag (EUR)" not in df.columns and "Kosten" in df.columns:
         df["Bedrag (EUR)"] = df["Kosten"]
 
@@ -37,15 +39,13 @@ def _compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Dat
     else:
         df["Bedrag (EUR) [num]"] = None
 
-    # lookup factor
-    def get_factor(catnum: str) -> float | None:
+    def get_factor(catnum: str):
         if not catnum:
             return None
         return factor_map.get(str(catnum))
 
     df["Emissiefactor (kg CO₂e/€)"] = df.get("Categorie nummer", "").apply(get_factor)
 
-    # bereken totale kg CO2e
     def mul(a, b):
         try:
             if a is None or b is None:
@@ -59,14 +59,23 @@ def _compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Dat
         axis=1
     )
 
-    # afronden/opschonen optioneel
+    # afronden
     if "Totale kg CO₂e" in df.columns:
-        df["Totale kg CO₂e"] = df["Totale kg CO₂e"].astype("float64", errors="ignore").round(4)
+        try:
+            df["Totale kg CO₂e"] = pd.to_numeric(df["Totale kg CO₂e"], errors="coerce").round(4)
+        except Exception:
+            pass
     if "Emissiefactor (kg CO₂e/€)" in df.columns:
-        df["Emissiefactor (kg CO₂e/€)"] = df["Emissiefactor (kg CO₂e/€)"].astype("float64", errors="ignore").round(6)
+        try:
+            df["Emissiefactor (kg CO₂e/€)"] = pd.to_numeric(df["Emissiefactor (kg CO₂e/€)"], errors="coerce").round(6)
+        except Exception:
+            pass
 
     return df
 
+# ────────────────────────────────────────────────────────────────
+# App
+# ────────────────────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
@@ -78,7 +87,7 @@ def app():
         help="Voer direct na het extraheren ook de classificatie en CO₂-berekening uit."
     )
 
-    # 1) Laad categorieën + factors
+    # 1) Categorieën + emissiefactoren inladen
     if "categories" not in st.session_state or "factor_map" not in st.session_state:
         csv_path = Path(__file__).parent / 'categorieen.csv'
         cats, factor_map, _meta = load_categories_data(csv_path)
@@ -90,14 +99,14 @@ def app():
     if not categories or not factor_map:
         st.stop()
 
-    # 2) Upload facturen
+    # 2) Upload
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
         accept_multiple_files=True
     )
 
-    # 3) Extracteer (incl. optioneel automatische classificatie + CO2)
+    # 3) Extractie + (optioneel) classificatie + CO₂
     if st.button("🚀 Extraheer factuurdata", type="primary"):
         if not files:
             st.warning("Upload eerst ten minste één document.")
@@ -111,31 +120,29 @@ def app():
                     if not is_invoice(txt):
                         st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
                         continue
-                    entries = extract_invoice_fields(txt, client)
-                    for e in entries:
-                        # Als een veld een lijst is, bepalen we de MAX lengte over alle lijstvelden
-                        list_lengths = [len(v) for v in e.values() if isinstance(v, list)]
-                        if list_lengths:
-                            max_len = max(list_lengths)
-                            for i in range(max_len):
-                                row = {"Document": up.name}
-                                for k, val in e.items():
-                                    if isinstance(val, list):
-                                        row[k] = val[i] if i < len(val) else None
-                                    else:
-                                        row[k] = val
-                                rows.append(row)
-                        else:
-                            # al per-regel-objecten? Dan gewoon toevoegen
-                            row = {"Document": up.name}
-                            row.update(e)
-                            rows.append(row)
 
+                    # LLM → list[dict] (scalars)
+                    entries = extract_invoice_fields(txt, client)
+                    for r in entries:
+                        row = {"Document": up.name}
+                        row.update(r)
+                        rows.append(row)
+
+            # Bewaar ruwe regels
             st.session_state["extracted_rows"] = rows
             st.session_state.pop("df", None)
 
             if rows:
                 base_df = pd.DataFrame(rows)
+
+                # De-dup op logische subset
+                subset = [c for c in [
+                    "Document", "Factuurnummer", "Leverancier",
+                    "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"
+                ] if c in base_df.columns]
+                if subset:
+                    base_df = base_df.drop_duplicates(subset=subset).reset_index(drop=True)
+
                 if auto_classify:
                     st.info("Automatische classificatie en CO₂-berekening wordt uitgevoerd…")
                     out_df = classify_rows_with_llm(base_df.copy(), categories, client)
@@ -145,14 +152,13 @@ def app():
                 else:
                     st.session_state["df"] = base_df
 
-    # 4) Toon hoofdtabel
+    # 4) Tabel tonen
     df = st.session_state.get("df", pd.DataFrame())
     if df.empty:
         st.info("Nog geen gegevens om te tonen.")
         st.button("Classificeer & bereken CO₂", disabled=True)
         return
 
-    # kolomvolgorde
     cols_order = [
         "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
         "Kwantiteit", "Eenheid", "Bedrag (EUR)", "Categorie nummer", "Categorie",
@@ -173,7 +179,7 @@ def app():
             mime="text/csv"
         )
 
-    # 5) Handmatige classificatie + CO₂ (alleen als toggle uit staat)
+    # 5) Handmatig (alleen als auto uit staat)
     if not auto_classify:
         if st.button("Classificeer & bereken CO₂"):
             if df.empty:

@@ -7,6 +7,9 @@ import pandas as pd
 import streamlit as st
 from groq import Groq
 
+# ────────────────────────────────────────────────────────────────
+# Groq client
+# ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def init_groq_client():
     key = (
@@ -22,6 +25,9 @@ def init_groq_client():
         st.error(f"❌ Groq-client kon niet initialiseren: {e}")
         return None
 
+# ────────────────────────────────────────────────────────────────
+# JSON helpers
+# ────────────────────────────────────────────────────────────────
 def parse_llm_json(content: str):
     s = (content or "").strip()
     s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
@@ -36,47 +42,110 @@ def parse_llm_json(content: str):
     except Exception:
         return ast.literal_eval(s)
 
+def _normalize_entries_llm(data):
+    """
+    Normaliseer LLM-output naar list[dict] met alleen scalars.
+    - dict met lijsten -> list[dict] als alle lijsten even lang; anders pak eerste element.
+    - list[dict] met lijstwaarden -> reduceer lijstwaarden naar eerste element.
+    - anders -> []
+    """
+    def is_scalar(x):
+        return not isinstance(x, (list, dict))
+
+    if isinstance(data, dict):
+        list_fields = {k: v for k, v in data.items() if isinstance(v, list)}
+        if list_fields:
+            lengths = {len(v) for v in list_fields.values()}
+            if len(lengths) == 1:
+                n = lengths.pop()
+                out = []
+                for i in range(n):
+                    row = {}
+                    for k, v in data.items():
+                        row[k] = (v[i] if isinstance(v, list) else v)
+                    out.append(row)
+                return out
+            else:
+                # ongelijkmatige lijsten → neem eerste element per lijst
+                row = {}
+                for k, v in data.items():
+                    row[k] = (v[0] if isinstance(v, list) and v else None) if isinstance(v, list) else v
+                return [row]
+        else:
+            return [data]
+
+    if isinstance(data, list):
+        out = []
+        for item in data:
+            if isinstance(item, dict):
+                row = {}
+                for k, v in item.items():
+                    row[k] = v[0] if isinstance(v, list) and v else (None if isinstance(v, list) else v)
+                out.append(row)
+        return out
+
+    return []
+
+# ────────────────────────────────────────────────────────────────
+# Extractie via LLM
+# ────────────────────────────────────────────────────────────────
 def extract_invoice_fields(text: str, client: Groq) -> list[dict]:
     """
-    Extraheert per regel o.a.: Beschrijving product, Kwantiteit, Eenheid, Factuurnummer, Leverancier, en
-    NIEUW: 'Bedrag (EUR)' (regel-totaal in euro's, numeriek).
+    Geeft list[dict] terug; elke dict is één REGEL met scalars:
+      'Factuurnummer', 'Leverancier', 'Beschrijving product', 'Kwantiteit', 'Eenheid', 'Bedrag (EUR)'
     """
     if client is None:
         return []
-    prompts = {
-        "Factuurnummer": "Haal het factuurnummer uit (inclusief letters en streepjes).",
-        "Leverancier": "Noem de naam van de leverancier zoals vermeld op de factuur.",
-        "Beschrijving product": "Geef per regel de productomschrijving.",
-        "Kwantiteit": "Haal de aantallen per productregel op (numeriek).",
-        "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m.",
-        "Bedrag (EUR)": "Haal per regel het TOTAALBEDRAG in EURO (alleen getal, zonder €-teken of duizendtallen)."
-    }
-    fields = list(prompts.keys())
-    instr = "\n".join(f"- {k}: {v}" for k,v in prompts.items())
+
     prompt = (
-        "Je bent een assistent die factuurinformatie uit een document haalt.\n"
-        "Reageer ALLEEN met pure JSON (zonder code fences, zonder uitleg), gebruik dubbele aanhalingstekens en geen trailing comma’s.\n"
-        f"Geef als output een JSON-array met objecten met de velden: {', '.join(fields)}\n"
-        f"{instr}\n\nDocumenttekst:\n{text}"
+        "Je bent een assistent die factuurinformatie per REGEL uit een document haalt.\n"
+        "Output-SCHEMA (ZEER BELANGRIJK):\n"
+        "- Geef ALLEEN een JSON-ARRAY terug.\n"
+        "- Elke array-entry is ÉÉN REGEL (object) met uitsluitEND SCALARS (géén arrays in een object).\n"
+        "- Voor elke regel: gebruik exact de velden: "
+        "'Factuurnummer', 'Leverancier', 'Beschrijving product', 'Kwantiteit', 'Eenheid', 'Bedrag (EUR)'.\n"
+        "- 'Kwantiteit' en 'Bedrag (EUR)' moeten numeriek zijn (string met alleen getal, geen €-teken of duizendtallen).\n"
+        "- Als iets onbekend is, laat het veld leeg of gebruik null.\n"
+        "—\n"
+        "Geef GEEN uitleg, GEEN code fences — ALLEEN de JSON-array.\n\n"
+        f"Documenttekst:\n{text}"
     )
+
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
-        messages=[{"role":"user","content":prompt}]
+        messages=[{"role": "user", "content": prompt}]
     )
     content = resp.choices[0].message.content
+
     try:
         data = parse_llm_json(content)
     except Exception:
         st.error("Kan JSON niet parsen, ontvangen payload:\n" + str(content))
         return []
-    if isinstance(data, dict):
-        data = [data]
-    if not isinstance(data, list):
-        st.error("Onbekend formaat: verwacht JSON-array.")
-        return []
-    return data
 
+    norm = _normalize_entries_llm(data)
+
+    # Schoon & forceer sleutelset
+    clean = []
+    keys = ["Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"]
+    for r in norm:
+        if not isinstance(r, dict):
+            continue
+        # trim strings
+        r = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
+        for k in keys:
+            r.setdefault(k, None)
+        # Laat alleen regels toe die iets zinnigs bevatten
+        if not any([r.get("Beschrijving product"), r.get("Bedrag (EUR)"), r.get("Kwantiteit")]):
+            continue
+        clean.append(r)
+
+    return clean
+
+# ────────────────────────────────────────────────────────────────
+# Classificatie via LLM
+# ────────────────────────────────────────────────────────────────
 def classify_rows_with_llm(df: pd.DataFrame, categories: list[dict], client: Groq) -> pd.DataFrame:
     if client is None:
         st.error("Geen Groq-client actief. Controleer GROQ_API_KEY.")
