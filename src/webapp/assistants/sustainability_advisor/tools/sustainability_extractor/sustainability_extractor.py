@@ -22,8 +22,8 @@ def init_groq_client():
     try:
         return Groq(api_key=key)
     except Exception:
-        st.error("❌ Ongeldige Groq-API-key.")
-        return None
+                st.error("Kan classificatie JSON niet parsen:\n" + resp.choices[0].message.content)
+                return None
 
 client = init_groq_client()
 
