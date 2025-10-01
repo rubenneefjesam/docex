@@ -5,19 +5,36 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-def load_categories_csv(csv_path: Path) -> list[dict]:
+_NUM_RE = re.compile(r"[-+]?\d[\d.,]*")
+
+def _to_float_eu(s: str | float | int) -> float | None:
+    """Robuust getal parsen uit strings als '2,832 kg CO₂e/€ climatiq.io' of '1.262,5'."""
+    if s is None:
+        return None
+    if isinstance(s, (int, float)):
+        return float(s)
+    s = str(s)
+    m = _NUM_RE.search(s)
+    if not m:
+        return None
+    num = m.group(0)
+    # EU-notatie: als er een komma in staat, neem die als decimaal en strip punten
+    if "," in num:
+        num = num.replace(".", "").replace(",", ".")
+    return float(num)
+
+def load_categories_data(csv_path: Path):
     """
-    Laadt categorieën.csv robuust in:
-    - Herkent delimiters (; , \t)
-    - Verwijdert BOM en unicode whitespace
-    - Matcht kolomnamen flexibel ('Categorie nummer', 'Categorie')
-    - Toont debug info via Streamlit
+    Laadt categorieen.csv robuust in en retourneert:
+      - categories: list[dict] met 'Categorie nummer' en 'Categorie'
+      - factor_map: dict[str categorie nummer] -> float emissiefactor (kg CO₂e/€)
+      - meta_df: volledige DataFrame (optioneel nuttig voor debug)
     """
     if not csv_path.exists():
         st.error(f"categorieen.csv niet gevonden op {csv_path}")
-        return []
+        return [], {}, pd.DataFrame()
 
-    # 1) Delimiter detectie
+    # delimiter detectie
     with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
         header = f.readline()
     if "\t" in header:
@@ -27,24 +44,19 @@ def load_categories_csv(csv_path: Path) -> list[dict]:
     else:
         sep = ","
 
-    # 2) Inlezen
-    cat_df = pd.read_csv(csv_path, sep=sep, dtype=str, encoding="utf-8")
+    df = pd.read_csv(csv_path, sep=sep, dtype=str, encoding="utf-8")
 
-    # 3) Kolomnamen normaliseren
+    # kolomnamen normaliseren
     def norm_ws(s: str) -> str:
-        if s is None:
-            return ""
-        s = s.replace("\ufeff", "")  # BOM
-        s = "".join(
-            " " if unicodedata.category(ch) == "Zs" or ch.isspace() else ch
-            for ch in s
-        )
+        if s is None: return ""
+        s = s.replace("\ufeff", "")
+        s = "".join(" " if unicodedata.category(ch) == "Zs" or ch.isspace() else ch for ch in s)
         s = re.sub(r"\s+", " ", s).strip()
         return s
 
-    cat_df.columns = [norm_ws(c) for c in cat_df.columns]
+    df.columns = [norm_ws(c) for c in df.columns]
 
-    # 4) Fuzzy mapping
+    # fuzzy renaming
     def squash(s: str) -> str:
         s = norm_ws(s).lower()
         s = s.replace("categorie-nummer", "categorienummer")
@@ -52,32 +64,39 @@ def load_categories_csv(csv_path: Path) -> list[dict]:
         s = re.sub(r"[^a-z0-9]", "", s)
         return s
 
-    target_keys = {
+    targets = {
         "categorienummer": "Categorie nummer",
         "categorie": "Categorie",
+        "emissiefactorkgco2ee": "Emissiefactor (kg CO₂e/€)",
+        "emissiefactor": "Emissiefactor (kg CO₂e/€)",  # fallback
     }
-
     rename_map = {}
-    for orig in cat_df.columns:
+    for orig in df.columns:
         squ = squash(orig)
-        if squ in target_keys:
-            rename_map[orig] = target_keys[squ]
-
+        if squ in targets:
+            rename_map[orig] = targets[squ]
     if rename_map:
-        cat_df = cat_df.rename(columns=rename_map)
+        df = df.rename(columns=rename_map)
 
-    # 5) Debug
-    st.caption(f"📄 Gevonden kolommen in categorieën CSV: {', '.join(cat_df.columns)} (sep='{sep}')")
+    st.caption(f"📄 Kolommen CSV: {', '.join(df.columns)} (sep='{sep}')")
 
-    # 6) Validatie
-    required = {"Categorie nummer", "Categorie"}
-    if not required.issubset(set(cat_df.columns)):
+    # verplichte kolommen
+    req = {"Categorie nummer", "Categorie", "Emissiefactor (kg CO₂e/€)"}
+    if not req.issubset(df.columns):
         st.error(
             "categorieen.csv mist verplichte kolommen. "
-            f"Gevonden: {', '.join(cat_df.columns)}. "
-            "Vereist: 'Categorie nummer' en 'Categorie'."
+            f"Gevonden: {', '.join(df.columns)}. "
+            "Vereist: 'Categorie nummer', 'Categorie', 'Emissiefactor (kg CO₂e/€)'."
         )
-        return []
+        return [], {}, df
 
-    base_df = cat_df[["Categorie nummer", "Categorie"]].copy()
-    return base_df.to_dict(orient="records")
+    # factor map parsen
+    df["Emissiefactor (kg CO₂e/€) [num]"] = df["Emissiefactor (kg CO₂e/€)"].apply(_to_float_eu)
+    factor_map = {
+        str(row["Categorie nummer"]): float(row["Emissiefactor (kg CO₂e/€) [num]"])
+        for _, row in df.iterrows()
+        if row["Emissiefactor (kg CO₂e/€) [num]"] is not None
+    }
+
+    categories = df[["Categorie nummer", "Categorie"]].to_dict(orient="records")
+    return categories, factor_map, df

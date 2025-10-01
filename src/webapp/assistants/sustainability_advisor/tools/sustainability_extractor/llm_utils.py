@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 from groq import Groq
 
-# ─── Groq client ─────────────────────────────────────────────────
 @st.cache_resource
 def init_groq_client():
     key = (
@@ -23,7 +22,6 @@ def init_groq_client():
         st.error(f"❌ Groq-client kon niet initialiseren: {e}")
         return None
 
-# ─── JSON helper ─────────────────────────────────────────────────
 def parse_llm_json(content: str):
     s = (content or "").strip()
     s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
@@ -38,16 +36,20 @@ def parse_llm_json(content: str):
     except Exception:
         return ast.literal_eval(s)
 
-# ─── Extractie via LLM ───────────────────────────────────────────
 def extract_invoice_fields(text: str, client: Groq) -> list[dict]:
+    """
+    Extraheert per regel o.a.: Beschrijving product, Kwantiteit, Eenheid, Factuurnummer, Leverancier, en
+    NIEUW: 'Bedrag (EUR)' (regel-totaal in euro's, numeriek).
+    """
     if client is None:
         return []
     prompts = {
         "Factuurnummer": "Haal het factuurnummer uit (inclusief letters en streepjes).",
         "Leverancier": "Noem de naam van de leverancier zoals vermeld op de factuur.",
         "Beschrijving product": "Geef per regel de productomschrijving.",
-        "Kwantiteit": "Haal de aantallen per productregel op.",
-        "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m."
+        "Kwantiteit": "Haal de aantallen per productregel op (numeriek).",
+        "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m.",
+        "Bedrag (EUR)": "Haal per regel het TOTAALBEDRAG in EURO (alleen getal, zonder €-teken of duizendtallen)."
     }
     fields = list(prompts.keys())
     instr = "\n".join(f"- {k}: {v}" for k,v in prompts.items())
@@ -75,7 +77,6 @@ def extract_invoice_fields(text: str, client: Groq) -> list[dict]:
         return []
     return data
 
-# ─── Classificatie via LLM ───────────────────────────────────────
 def classify_rows_with_llm(df: pd.DataFrame, categories: list[dict], client: Groq) -> pd.DataFrame:
     if client is None:
         st.error("Geen Groq-client actief. Controleer GROQ_API_KEY.")
@@ -94,7 +95,8 @@ def classify_rows_with_llm(df: pd.DataFrame, categories: list[dict], client: Gro
     for idx, row in df.iterrows():
         lines.append(
             f"Regel={idx}, Beschrijving={row.get('Beschrijving product','')}, "
-            f"Aantal={row.get('Kwantiteit','')}, Eenheid={row.get('Eenheid','')}"
+            f"Aantal={row.get('Kwantiteit','')}, Eenheid={row.get('Eenheid','')}, "
+            f"BedragEUR={row.get('Bedrag (EUR)','')}"
         )
     full_prompt = "\n".join(lines)
 
@@ -127,9 +129,9 @@ def classify_rows_with_llm(df: pd.DataFrame, categories: list[dict], client: Gro
                 status.update(state="error")
                 return df
 
-            cat_map = {c['Categorie nummer']: c['Categorie'] for c in categories}
             df['Categorie nummer'] = 'Onbekend'
             df['Categorie'] = 'Onbekend'
+            cat_map = {c['Categorie nummer']: c['Categorie'] for c in categories}
 
             for item in result:
                 try:
