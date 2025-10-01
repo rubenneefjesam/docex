@@ -117,6 +117,10 @@ def app():
                     continue
                 entries = extract_invoice_fields(text)
                 for entry in entries:
+                # Converteer lijsten naar strings
+                    for key, val in entry.items():
+                        if isinstance(val, list):
+                            entry[key] = ", ".join(str(v) for v in val)
                     row = {"Document": uf.name}
                     row.update(entry)
                     all_rows.append(row)
