@@ -97,25 +97,72 @@ def extract_invoice_fields(text: str) -> list[dict]:
         return []
     return data
 
+# ─── CSV loader (robuust voor ; , \t + BOM/whitespace) ────────────
+def load_categories_csv(csv_path: Path) -> list[dict]:
+    if not csv_path.exists():
+        st.error(f"categorieen.csv niet gevonden op {csv_path}")
+        return []
+
+    # Detecteer delimiter op de header
+    with open(csv_path, "r", encoding="utf-8", errors="ignore") as f:
+        header = f.readline()
+
+    if "\t" in header:
+        sep = "\t"
+    elif ";" in header:
+        sep = ";"
+    else:
+        sep = ","  # fallback
+
+    cat_df = pd.read_csv(csv_path, sep=sep, dtype=str, encoding="utf-8")
+
+    # Normaliseer kolomnamen
+    def _norm_col(s: str) -> str:
+        import re
+        return re.sub(r"\s+", " ", s.replace("\ufeff", "")).strip()
+
+    cat_df.columns = [_norm_col(c) for c in cat_df.columns]
+
+    # Alias/varianten naar vereiste namen
+    # (hier kun je evt. extra varianten toevoegen)
+    alias_map = {
+        "Categorie nummer": {"Categorie nummer", "Categorie-nummer", "Categorie­nummer", "Categorie nummer"},
+        "Categorie": {"Categorie"},
+    }
+    renamed = {}
+    for c in cat_df.columns:
+        for target, variants in alias_map.items():
+            if c in variants:
+                renamed[c] = target
+                break
+    if renamed:
+        cat_df = cat_df.rename(columns=renamed)
+
+    required = {"Categorie nummer", "Categorie"}
+    if not required.issubset(set(cat_df.columns)):
+        st.error(
+            "categorieen.csv mist verplichte kolommen. "
+            f"Gevonden: {', '.join(cat_df.columns)}. "
+            "Vereist: 'Categorie nummer' en 'Categorie'."
+        )
+        return []
+
+    # Houd extra kolommen (zoals Regio/Jaar/Emissiefactor) gewoon bij — kan later nuttig zijn
+    # maar we geven aan de classificeerder alleen de twee verplichte mee.
+    base_df = cat_df[["Categorie nummer", "Categorie"]].copy()
+    return base_df.to_dict(orient="records")
+
 # ─── Streamlit-app ────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
     st.write("Upload PDF/DOCX/TXT-facturen, extraheer regels en classificeer op basis van categorieën.")
 
-    # 1) Laad categorieën
+    # 1) Laad categorieën (robuust)
     csv_path = Path(__file__).parent / 'categorieen.csv'
-    if not csv_path.exists():
-        st.error(f"categorieen.csv niet gevonden op {csv_path}")
+    categories = load_categories_csv(csv_path)
+    if not categories:
         return
-    first_line = csv_path.read_text(encoding="utf-8", errors="ignore").splitlines()[0] if csv_path.stat().st_size else ""
-    sep = '\t' if first_line.count('\t') > 0 else ','
-    cat_df = pd.read_csv(csv_path, sep=sep, dtype=str)
-    if not {'Categorie nummer','Categorie'}.issubset(cat_df.columns):
-        st.error("categorieen.csv mist de kolommen 'Categorie nummer' en/of 'Categorie'.")
-        return
-    cat_df = cat_df[['Categorie nummer','Categorie']]
-    categories = cat_df.to_dict(orient='records')
 
     # 2) Upload facturen
     files = st.file_uploader(
