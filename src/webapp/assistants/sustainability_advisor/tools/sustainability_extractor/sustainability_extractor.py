@@ -2,63 +2,56 @@
 
 import streamlit as st
 import pandas as pd
-from pathlib import Path
 import json
+from pathlib import Path
 
 from .csv_utils import load_categories_data
 from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
 from .emissions_utils import compute_emissions, clean_keep_best_rows
 
-# ────────────────────────────────────────────────────────────────
-# Pagina-configuratie
-# ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
 
 @st.cache_data
 def _load_categories_and_factors():
     csv_path = Path(__file__).parent / "categorieen.csv"
-    return load_categories_data(csv_path)  # returns (cats, factor_map, meta)
+    return load_categories_data(csv_path)  # (cats, factor_map, meta)
 
 def _lazy_client():
     return init_groq_client()
 
-# ────────────────────────────────────────────────────────────────
-# Hoofd-applicatie
-# ────────────────────────────────────────────────────────────────
 def app():
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
-    st.write("Upload PDF, DOCX of TXT facturen om regels te extraheren, te classificeren en CO₂ te berekenen.")
+    st.write("Upload PDF, DOCX of TXT om regels te extraheren, classificeren en CO₂ te berekenen.")
 
-    # 1) Laad categorieën + emissiefactoren
+    # 1) Categorieën + emissiefactoren laden
     cats, factor_map, _ = _load_categories_and_factors()
 
-    # 2) Bestand upload
+    # 2) Upload
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
         accept_multiple_files=True
     )
 
-    # 3) Knop: extract & classify
+    # 3) Start pipeline
     if not st.button("🚀 Extraheer & Classificeer"):
         return
-
     if not files:
         st.warning("Upload eerst minimaal één document.")
         return
 
     client = _lazy_client()
     rows = []
-    with st.spinner("Controleren en extraheren…"):
+    with st.spinner("Extraheren…"):
         for up in files:
             tmp = Path(f"/tmp/{up.name}")
             tmp.write_bytes(up.getvalue())
-            text = read_text_from_file(tmp)
-            if not is_invoice(text):
+            txt = read_text_from_file(tmp)
+            if not is_invoice(txt):
                 st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
                 continue
-            entries = extract_invoice_fields(text, client)
+            entries = extract_invoice_fields(txt, client)
             for r in entries:
                 rows.append({"Document": up.name, **r})
 
@@ -66,34 +59,36 @@ def app():
         st.info("Geen factuurregels gevonden.")
         return
 
-    # ─── Dedup vóór classification ──────────────────────────────────
+    # ─── Dedup vóór classification ───────────────────────────────────
     df = pd.DataFrame(rows)
-    subset = [
-        c for c in [
-            "Document", "Factuurnummer", "Beschrijving product",
-            "Kwantiteit", "Eenheid"
-        ] if c in df.columns
+    dedup_keys = [
+        c for c in ["Document","Factuurnummer","Beschrijving product","Kwantiteit","Eenheid"]
+        if c in df.columns
     ]
-    if subset:
-        df = df.drop_duplicates(subset=subset).reset_index(drop=True)
+    if dedup_keys:
+        df = df.drop_duplicates(subset=dedup_keys).reset_index(drop=True)
 
-    # ─── Classificatie via LLM + JSON-parse (met debug) ────────────
+    # ─── Classificatie via LLM ──────────────────────────────────────
     try:
-        # verwacht: raw JSON-string van classify_rows_with_llm
         raw = classify_rows_with_llm(df, cats, client)
-        # parse naar DataFrame
-        parsed = json.loads(raw)
-        out_df = pd.DataFrame(parsed)
+        # Als de LLM-client direct een DataFrame teruggeeft, gebruik dat:
+        if isinstance(raw, pd.DataFrame):
+            out_df = raw
+        else:
+            # Anders verwachten we een JSON-string
+            parsed = json.loads(raw)
+            out_df = pd.DataFrame(parsed)
     except Exception as e:
-        st.error(f"❌ Kan classificatie JSON niet parsen: {e}")
+        st.error(f"❌ Kan classificatie niet parsen: {e}")
+        # toon de ruwe output voor debug
         st.code(raw, language="json")
         return
 
-    # ─── CO₂ berekenen en dedup/ranking ────────────────────────────
+    # ─── CO₂-berekening & best-row selectie ─────────────────────────
     out_df = compute_emissions(out_df, factor_map)
     out_df = clean_keep_best_rows(out_df)
 
-    # ─── Resultaten tonen ─────────────────────────────────────────
+    # ─── Resultaten tonen ───────────────────────────────────────────
     display_cols = [
         "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
         "Kwantiteit", "Eenheid", "Bedrag (EUR)", "Categorie nummer", "Categorie",
@@ -111,7 +106,6 @@ def app():
         file_name="factuur_data_co2.csv",
         mime="text/csv"
     )
-
 
 if __name__ == "__main__":
     app()
