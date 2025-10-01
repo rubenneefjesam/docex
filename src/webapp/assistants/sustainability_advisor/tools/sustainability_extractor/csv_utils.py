@@ -13,7 +13,7 @@ import pandas as pd
 _NUM_RE = re.compile(r"[-+]?\d[\d.,]*")
 
 def _to_float_eu(s: Any) -> float | None:
-    """Robuust getal parsen uit strings als '2,832 kg CO₂e/€' of '1.262,5' of 3.1."""
+    """Parseert robuust EU-genoteerde getallen (bijv. '2,832', '1.262,5', '3.1')."""
     if s is None:
         return None
     if isinstance(s, (int, float)):
@@ -32,7 +32,7 @@ def _to_float_eu(s: Any) -> float | None:
         return None
 
 def _norm_ws(s: str | None) -> str:
-    """Normaliseer whitespace (incl. unicode spaces) en BOM’s."""
+    """Normaliseer whitespace (incl. unicode spaces, BOM’s)."""
     if s is None:
         return ""
     s = s.replace("\ufeff", "")
@@ -68,7 +68,7 @@ def load_categories_data(source: Union[Path, str, bytes, io.BytesIO, io.StringIO
       - category (str)
       - factor (float)
       - unit (str, default 'kgCO2e/€')
-      - category_number (optie)
+      - category_number (optioneel)
     """
     # 1) Lees rauwe CSV in string
     if isinstance(source, (bytes, bytearray)):
@@ -99,42 +99,60 @@ def load_categories_data(source: Union[Path, str, bytes, io.BytesIO, io.StringIO
             mapping[orig] = "factor"
         elif squ in {"unit", "eenheid"}:
             mapping[orig] = "unit"
-        elif squ in {"categorienummer"}:
+        elif squ == "categorienummer":
             mapping[orig] = "category_number"
 
+    # Extra fallback-routes
     lower_cols = {c.lower(): c for c in df.columns}
+
+    # Category fallback
+    if "category" not in mapping:
+        if "categorie" in lower_cols:
+            mapping[lower_cols["categorie"]] = "category"
+        else:
+            for k in lower_cols:
+                if "categor" in _squash_colname(k):
+                    mapping[lower_cols[k]] = "category"
+                    break
+
+    # Factor fallback
     if "factor" not in mapping:
         for k in lower_cols:
             if "emissiefactor" in _squash_colname(k):
                 mapping[lower_cols[k]] = "factor"
                 break
-    if "category" not in mapping and "categorie" in lower_cols:
-        mapping[lower_cols["categorie"]] = "category"
-    if "category_number" not in mapping:
+
+    # Unit fallback
+    if "unit" not in mapping:
         for k in lower_cols:
-            if "categorienummer" in _squash_colname(k):
-                mapping[lower_cols[k]] = "category_number"
+            if _squash_colname(k) in {"unit", "eenheid"}:
+                mapping[lower_cols[k]] = "unit"
                 break
 
     # 6) Bouw genormaliseerd frame
     out = pd.DataFrame()
+
+    # category
     if "category" in mapping:
         out["category"] = df[next(k for k, v in mapping.items() if v == "category")].astype(str).map(_norm_ws)
     else:
         raise ValueError(f"Kon geen kolom voor 'category' vinden. Gevonden: {original_cols}")
 
+    # factor
     if "factor" in mapping:
         factor_raw = df[next(k for k, v in mapping.items() if v == "factor")]
         out["factor"] = factor_raw.map(_to_float_eu)
     else:
         raise ValueError(f"Kon geen kolom voor 'factor' vinden. Gevonden: {original_cols}")
 
+    # unit (optioneel)
     if "unit" in mapping:
         out["unit"] = df[next(k for k, v in mapping.items() if v == "unit")].astype(str).map(_norm_ws)
         out["unit"] = out["unit"].replace("", "kgCO2e/€")
     else:
         out["unit"] = "kgCO2e/€"
 
+    # category_number (optioneel)
     if "category_number" in mapping:
         out["category_number"] = df[next(k for k, v in mapping.items() if v == "category_number")].astype(str).map(_norm_ws)
 
@@ -142,18 +160,15 @@ def load_categories_data(source: Union[Path, str, bytes, io.BytesIO, io.StringIO
     out["category"] = out["category"].fillna("").str.strip()
     out["factor"] = pd.to_numeric(out["factor"], errors="coerce").fillna(0.0)
     out["unit"] = out["unit"].fillna("kgCO2e/€").replace("", "kgCO2e/€")
-
     out = out[out["category"] != ""].reset_index(drop=True)
+
     return out
 
 
 def ensure_categories_index(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Zet index op lowercased 'category' voor eenvoudige lookups.
-    """
+    """Zet index op lowercased 'category' voor eenvoudige lookups."""
     if "category" not in df.columns:
         raise ValueError("Kolom 'category' ontbreekt.")
     df = df.copy()
     df["__key__"] = df["category"].astype(str).str.lower().str.strip()
-    df = df.set_index("__key__", drop=True)
-    return df
+    return df.set_index("__key__", drop=True)
