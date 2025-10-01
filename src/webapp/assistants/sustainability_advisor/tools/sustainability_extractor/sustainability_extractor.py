@@ -93,16 +93,24 @@ def extract_invoice_fields(text: str) -> list[dict]:
     if isinstance(data, dict):
         data = [data]
     if not isinstance(data, list):
-        st.error("Onverwacht formaat, verwacht JSON-array.")
+        st.error("Onbekend formaat: verwacht JSON-array.")
         return []
     return data
 
 # ─── Streamlit-app ────────────────────────────────────────────────
 def app():
-    st.set_page_config(page_title="Factuur Extractor", layout="wide")
-    st.title("📄 Factuur Extractor (Groq LLM)")
-    st.write("Upload PDF/DOCX/TXT-facturen en ontvang een CSV met één rij per productregel.")
+    st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
+    st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
+    st.write("Upload PDF/DOCX/TXT-facturen, extraheer regels en classificeer op basis van categorieën.")
 
+    # 1) Laad categorieën
+    csv_path = Path(__file__).parent / 'categorieen.csv'
+    sep = '\t' if csv_path.read_text().splitlines()[0].count('\t') > 0 else ','
+    cat_df = pd.read_csv(csv_path, sep=sep, dtype=str)
+    cat_df = cat_df[['Categorie nummer','Categorie']]
+    categories = cat_df.to_dict(orient='records')
+
+    # 2) Upload facturen
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf","docx","txt"],
@@ -114,6 +122,7 @@ def app():
     if not st.button("🚀 Extraheer factuurdata"):
         return
 
+    # 3) Extractie
     rows = []
     with st.spinner("Controleren en extraheren…"):
         for up in files:
@@ -125,7 +134,6 @@ def app():
                 continue
             entries = extract_invoice_fields(txt)
             for e in entries:
-                # als één van de velden een lijst is, breek uit naar rijen per index
                 list_keys = [k for k,v in e.items() if isinstance(v, list)]
                 if list_keys:
                     length = len(e[list_keys[0]])
@@ -147,8 +155,44 @@ def app():
     cols = [c for c in ["Document","Factuurnummer","Leverancier","Beschrijving product","Kwantiteit","Eenheid"] if c in df.columns]
     st.subheader("Extractie Resultaten")
     st.dataframe(df[cols], use_container_width=True)
-    csv = df[cols].to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Download CSV", data=csv, file_name="factuur_data.csv", mime="text/csv")
+
+    # 4) Classificeer-knop
+    if st.button("Classificeer regels"):
+        with st.spinner("Classificeren…"):
+            # Prompt bouwen
+            lines = [
+                "Je bent een assistent die factuurregels classificeert.",
+                "Categorieën (nummer: naam):"
+            ]
+            for cat in categories:
+                lines.append(f"{cat['Categorie nummer']}: {cat['Categorie']}")
+            lines.append("\nClassificeer de onderstaande regels en geef als output een JSON-array met objecten met 'Regel' (index) en 'Categorie' (nummer). Gebruik 'Onbekend' als fallback.")
+            for idx,row in df.iterrows():
+                lines.append(f"Regel={idx}, Beschrijving={row.get('Beschrijving product','')}, Aantal={row.get('Kwantiteit','')}, Eenheid={row.get('Eenheid','')}")
+            full_prompt = "\n".join(lines)
+            resp = client.chat.completions.create(
+                model="llama-3.1-8b-instant", temperature=0,
+                messages=[{"role":"user","content":full_prompt}]
+            )
+            try:
+                result = parse_llm_json(resp.choices[0].message.content)
+            except Exception:
+                st.error("Kan classificatie JSON niet parsen:
+" + resp.choices[0].message.content)
+                return
+            cat_map = {c['Categorie nummer']:c['Categorie'] for c in categories}
+            df['Categorie nummer'] = 'Onbekend'
+            df['Categorie'] = 'Onbekend'
+            for item in result:
+                idx = int(item.get('Regel', -1))
+                cat_num = item.get('Categorie', 'Onbekend')
+                if idx in df.index:
+                    df.at[idx,'Categorie nummer'] = cat_num
+                    df.at[idx,'Categorie'] = cat_map.get(cat_num,'Onbekend')
+        st.subheader("Geklasseerde Resultaten")
+        st.dataframe(df[cols + ['Categorie nummer','Categorie']], use_container_width=True)
+        csv2 = df[cols + ['Categorie nummer','Categorie']].to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Download met Categorieën", data=csv2, file_name="factuur_data_geclassificeerd.csv", mime="text/csv")
 
 if __name__ == '__main__':
     app()
