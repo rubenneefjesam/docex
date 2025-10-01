@@ -190,11 +190,10 @@ def load_categories_data(source: Union[Path, str, bytes, io.BytesIO, io.StringIO
 
     return out
 
-
 def ensure_categories_index(df: pd.DataFrame) -> pd.DataFrame:
     """Zet index op lowercased 'category' voor eenvoudige lookups."""
     if "category" not in df.columns:
         raise ValueError("Kolom 'category' ontbreekt.")
     df = df.copy()
     df["__key__"] = df["category"].astype(str).str.lower().str.strip()
-    return df.s
+    return df.set_index("__key__", drop=True)
