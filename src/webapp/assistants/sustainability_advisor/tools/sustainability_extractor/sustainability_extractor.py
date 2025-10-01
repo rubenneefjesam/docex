@@ -31,20 +31,17 @@ client = init_groq_client()
 # ─── Helper om JSON uit LLM-antwoorden te parsen ────────────────
 def parse_llm_json(content: str):
     s = content.strip()
-    # Verwijder ``` of ```json fences
+    # Verwijder code fences ``` of ```json
     s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'\s*```\s*$', '', s)
-    # Houd alleen het deel tussen eerste [/{ en laatste ]/}
-    start_idx = None
-    for ch in ['[', '{']:
-        i = s.find(ch)
-        if i != -1:
-            start_idx = i if start_idx is None else min(start_idx, i)
-    end_idx = max(s.rfind(']'), s.rfind('}'))
-    if start_idx is not None and end_idx != -1 and end_idx > start_idx:
-        s = s[start_idx:end_idx+1]
+    # Extract het JSON-deel
+    start = min((idx for idx in (s.find('['), s.find('{')) if idx != -1), default=None)
+    end = max(s.rfind(']'), s.rfind('}'))
+    if start is not None and end is not None and end > start:
+        s = s[start:end+1]
     # Verwijder trailing komma's
     s = re.sub(r',(?=\s*[\]}])', '', s)
+    # Probeer JSON laden
     try:
         return json.loads(s)
     except json.JSONDecodeError:
@@ -78,21 +75,21 @@ def is_invoice(text: str) -> bool:
 def extract_invoice_fields(text: str) -> list[dict]:
     if client is None:
         return []
-    field_prompts = {
+    prompts = {
         "Factuurnummer": "Haal het factuurnummer uit (inclusief letters en streepjes).",
         "Leverancier": "Noem de naam van de leverancier zoals vermeld op de factuur.",
         "Beschrijving product": "Geef per regel de productomschrijving.",
         "Kwantiteit": "Haal de aantallen per productregel op.",
         "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m."
     }
-    fields = list(field_prompts.keys())
-    instructions = "\n".join(f"- {f}: {p}" for f, p in field_prompts.items())
+    fields = list(prompts.keys())
+    instruction_lines = "\n".join(f"- {f}: {p}" for f, p in prompts.items())
     prompt = (
         "Je bent een assistent die factuurinformatie uit een document haalt.\n"
         "Reageer ALLEEN met pure JSON (zonder code fences, zonder uitleg), gebruik dubbele aanhalingstekens en geen trailing comma’s.\n"
-        "Geef als output een JSON-array van objecten met de velden: " + ", ".join(fields) + "\n"
-        + instructions + "\n\n"
-        "Documenttekst:\n" + text + "\n"
+        f"Geef als output een JSON-array van objecten met de velden: {', '.join(fields)}\n"
+        f"{instruction_lines}\n\n"
+        f"Documenttekst:\n{text}"
     )
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -105,7 +102,6 @@ def extract_invoice_fields(text: str) -> list[dict]:
     except Exception:
         st.error("Kan JSON niet parsen, ontvang:\n" + content)
         return []
-    # Ondersteun zowel dict als list
     if isinstance(data, dict):
         data = [data]
     if not isinstance(data, list):
@@ -130,9 +126,9 @@ def app():
         all_rows = []
         with st.spinner("Controleren en extraheren…"):
             for uf in uploads:
-                tmp = Path(f"/tmp/{uf.name}")
-                tmp.write_bytes(uf.getvalue())
-                text = read_text_from_file(tmp)
+                tmp_path = Path(f"/tmp/{uf.name}")
+                tmp_path.write_bytes(uf.getvalue())
+                text = read_text_from_file(tmp_path)
                 if not is_invoice(text):
                     st.warning(f"❌ {uf.name} lijkt geen factuur te zijn.")
                     continue
@@ -148,12 +144,12 @@ def app():
 
         if all_rows:
             df = pd.DataFrame(all_rows)
-            # Bepaal welke kolommen daadwerkelijk bestaan
-default_cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
-cols = [c for c in default_cols if c in df.columns]
-if not cols:
-    st.error("Geen verwachte kolommen gevonden in de DataFrame: " + ", ".join(df.columns))
-    return
+            # Filter alleen bestaande kolommen
+            default_cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
+            cols = [c for c in default_cols if c in df.columns]
+            if not cols:
+                st.error("Geen verwachte kolommen gevonden. Beschikbare: " + ", ".join(df.columns))
+                return
             st.subheader("Extractie Resultaten")
             st.dataframe(df[cols], use_container_width=True)
             csv = df[cols].to_csv(index=False).encode("utf-8")
@@ -165,7 +161,6 @@ if not cols:
             )
         else:
             st.info("Geen factuurdata gevonden of alle documenten afgewezen.")
-
     else:
         st.info("Upload één of meer documenten en klik op ‘Extraheer factuurdata’ om te starten.")
 
