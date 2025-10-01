@@ -21,10 +21,9 @@ def init_groq_client():
         return None
     try:
         return Groq(api_key=key)
-    except Exception:
-                st.error("Kan classificatie JSON niet parsen:\n" + resp.choices[0].message.content)
-" + resp.choices[0].message.content)
-                return None
+    except Exception as e:
+        st.error(f"❌ Groq-client kon niet initialiseren: {e}")
+        return None
 
 client = init_groq_client()
 
@@ -89,7 +88,7 @@ def extract_invoice_fields(text: str) -> list[dict]:
     try:
         data = parse_llm_json(content)
     except Exception:
-        st.error("Kan JSON niet parsen, ontvang:\n" + content)
+        st.error("Kan JSON niet parsen, ontvangen payload:\n" + content)
         return []
     if isinstance(data, dict):
         data = [data]
@@ -106,8 +105,15 @@ def app():
 
     # 1) Laad categorieën
     csv_path = Path(__file__).parent / 'categorieen.csv'
-    sep = '\t' if csv_path.read_text().splitlines()[0].count('\t') > 0 else ','
+    if not csv_path.exists():
+        st.error(f"categorieen.csv niet gevonden op {csv_path}")
+        return
+    first_line = csv_path.read_text(encoding="utf-8", errors="ignore").splitlines()[0] if csv_path.stat().st_size else ""
+    sep = '\t' if first_line.count('\t') > 0 else ','
     cat_df = pd.read_csv(csv_path, sep=sep, dtype=str)
+    if not {'Categorie nummer','Categorie'}.issubset(cat_df.columns):
+        st.error("categorieen.csv mist de kolommen 'Categorie nummer' en/of 'Categorie'.")
+        return
     cat_df = cat_df[['Categorie nummer','Categorie']]
     categories = cat_df.to_dict(orient='records')
 
@@ -171,17 +177,19 @@ def app():
             for idx,row in df.iterrows():
                 lines.append(f"Regel={idx}, Beschrijving={row.get('Beschrijving product','')}, Aantal={row.get('Kwantiteit','')}, Eenheid={row.get('Eenheid','')}")
             full_prompt = "\n".join(lines)
+
             resp = client.chat.completions.create(
-                model="llama-3.1-8b-instant", temperature=0,
+                model="llama-3.1-8b-instant",
+                temperature=0,
                 messages=[{"role":"user","content":full_prompt}]
             )
             try:
                 result = parse_llm_json(resp.choices[0].message.content)
             except Exception:
-                st.error("Kan classificatie JSON niet parsen:
-" + resp.choices[0].message.content)
+                st.error("Kan classificatie JSON niet parsen:\n" + resp.choices[0].message.content)
                 return
-            cat_map = {c['Categorie nummer']:c['Categorie'] for c in categories}
+
+            cat_map = {c['Categorie nummer']: c['Categorie'] for c in categories}
             df['Categorie nummer'] = 'Onbekend'
             df['Categorie'] = 'Onbekend'
             for item in result:
@@ -190,6 +198,7 @@ def app():
                 if idx in df.index:
                     df.at[idx,'Categorie nummer'] = cat_num
                     df.at[idx,'Categorie'] = cat_map.get(cat_num,'Onbekend')
+
         st.subheader("Geklasseerde Resultaten")
         st.dataframe(df[cols + ['Categorie nummer','Categorie']], use_container_width=True)
         csv2 = df[cols + ['Categorie nummer','Categorie']].to_csv(index=False).encode('utf-8')
