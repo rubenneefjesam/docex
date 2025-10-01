@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -44,20 +45,38 @@ def read_text_from_file(file_path: Path) -> str:
         raise ValueError(f"Onbekend bestandstype: {suffix}")
     return text
 
-# ─── Extractie via Groq LLM (gepaarde output) ──────────────────────
-def extract_paired_entries(file_path: Path, field_prompts: dict) -> list[dict]:
+# ─── Eenvoudige factuur-detectie ─────────────────────────────────
+def is_invoice(text: str) -> bool:
+    keywords = [
+        r"factuurnummer", r"factuur\s*nr", r"btw", r"totaal\s*bedrag",
+        r"leverancier", r"datum", r"omschrijving"
+    ]
+    hits = sum(bool(re.search(kw, text, re.IGNORECASE)) for kw in keywords)
+    # Minimal één factuurnummer én één bedrag
+    return bool(re.search(r"factuurnummer|factuur\s*nr", text, re.IGNORECASE)) and \
+           bool(re.search(r"€\s*\d", text))
+
+# ─── Extractie via Groq LLM ────────────────────────────────────────
+def extract_invoice_fields(text: str) -> list[dict]:
     if client is None:
         return []
-    text = read_text_from_file(file_path)
+    # Vaste kolomnamen met instructies
+    field_prompts = {
+        "Factuurnummer": "Haal het factuurnummer uit (inclusief letters en streepjes).",
+        "Leverancier": "Noem de naam van de leverancier zoals vermeld op de factuur.",
+        "Beschrijving product": "Geef per regel de productomschrijving.",
+        "Kwantiteit": "Haal de aantallen per productregel op.",
+        "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m."
+    }
     fields = list(field_prompts.keys())
-    instructions = "\n".join([f"- {f}: {p}" for f, p in field_prompts.items()])
+    instructions = "\n".join(f"- {f}: {p}" for f, p in field_prompts.items())
     prompt = (
-        "Je bent een assistent die specifieke informatie uit een document haalt.\n"
-        "Geef als output een JSON-array van objecten, waarbij elk object de volgende properties bevat:\n"
+        "Je bent een assistent die factuurinformatie uit een document haalt.\n"
+        "Geef als output een JSON-array van objecten, waarbij elk object de volgende velden bevat:\n"
         f"  {', '.join(fields)}\n"
-        f"Gebruik de volgende instructies per property (veld):\n{instructions}\n"
+        f"{instructions}\n\n"
         "Documenttekst:\n" + text + "\n"
-        "Geef alleen de JSON-array terug, zonder extra tekst of markdown."
+        "Geef alleen de JSON-array terug, zonder extra toelichting."
     )
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -70,70 +89,55 @@ def extract_paired_entries(file_path: Path, field_prompts: dict) -> list[dict]:
         if isinstance(data, list):
             return data
     except json.JSONDecodeError:
-        st.error("Kan JSON niet parsen, krijg:")
-        st.code(content)
+        st.error("Kan JSON niet parsen, ontvang:\n" + content)
     return []
 
 # ─── Streamlit-applicatie ─────────────────────────────────────────
 def app():
-    st.set_page_config(page_title="Sustainability Extractor", layout="wide")
-    st.title("📄 Sustainability Extractor (Groq LLM)")
-    st.write("Upload documenten, definieer kolommen en prompts, en klik op ‘Extraheer informatie’. ")
+    st.set_page_config(page_title="Factuur Extractor", layout="wide")
+    st.title("📄 Factuur Extractor (Groq LLM)")
+    st.write("Upload PDF/DOCX/TXT-facturen en krijg een CSV met factuurnummer, leverancier, productbeschrijving, kwantiteit en eenheid.")
 
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        st.subheader("1️⃣ Upload documenten")
-        uploads = st.file_uploader(
-            "Kies documenten (PDF, DOCX, TXT)",
-            type=["pdf", "docx", "txt"],
-            accept_multiple_files=True
-        )
-        # Move button here
-        extract_btn = st.button("🚀 Extraheer informatie")
+    uploads = st.file_uploader(
+        "Kies documenten (PDF, DOCX, TXT)",
+        type=["pdf", "docx", "txt"],
+        accept_multiple_files=True
+    )
+    extract_btn = st.button("🚀 Extraheer factuurdata")
 
-    with col2:
-        st.subheader("2️⃣ Kolomnamen (optioneel)")
-        names = [st.text_input(f"Veldnaam {i+1}", key=f"name_{i}") for i in range(7)]
-
-    with col3:
-        st.subheader("3️⃣ Promptbeschrijvingen")
-        prompts = [
-            st.text_input(
-                f"Prompt {i+1}",
-                placeholder=f"Instructie voor kolom {i+1}",
-                key=f"prompt_{i}"
-            ) for i in range(7)
-        ]
-
-    field_prompts = {n: p for n, p in zip(names, prompts) if n.strip() and p.strip()}
-
-    if uploads and field_prompts and extract_btn:
+    if uploads and extract_btn:
         all_rows = []
-        with st.spinner("Extraheren via Groq…"):
+        with st.spinner("Controleren en extraheren…"):
             for uf in uploads:
                 tmp = Path(f"/tmp/{uf.name}")
                 tmp.write_bytes(uf.getvalue())
-                entries = extract_paired_entries(tmp, field_prompts)
+                text = read_text_from_file(tmp)
+                if not is_invoice(text):
+                    st.warning(f"❌ {uf.name} lijkt geen factuur te zijn.")
+                    continue
+                entries = extract_invoice_fields(text)
                 for entry in entries:
                     row = {"Document": uf.name}
                     row.update(entry)
                     all_rows.append(row)
+
         if all_rows:
             df = pd.DataFrame(all_rows)
-            cols = ["Document"] + [c for c in df.columns if c != "Document"]
+            cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
             st.subheader("Extractie Resultaten")
             st.dataframe(df[cols], use_container_width=True)
             csv = df[cols].to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="⬇️ Download CSV",
                 data=csv,
-                file_name="extracted_data.csv",
+                file_name="factuur_data.csv",
                 mime="text/csv"
             )
         else:
-            st.warning("Geen gestructureerde entries gevonden.")
+            st.info("Geen factuurdata gevonden of alle documenten afgewezen.")
+
     else:
-        st.info("Upload documenten en definieer minimaal één veldnaam + prompt om te starten.")
+        st.info("Upload één of meer documenten en klik op ‘Extraheer factuurdata’ om te starten.")
 
 if __name__ == '__main__':
     app()
