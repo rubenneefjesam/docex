@@ -75,9 +75,9 @@ import os
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-from invoice_utils import extract_line_items
-from csv_utils import load_categories_data, ensure_categories_index
-from llm_utils import classify_category, client
+from .invoice_utils import extract_line_items
+from .csv_utils import load_categories_data, ensure_categories_index
+from .llm_utils import classify_category, client
 
 CATEGORIES_CSV = Path(__file__).parent / "categorieen.csv"
 
