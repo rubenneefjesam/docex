@@ -7,7 +7,7 @@ from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
 from .emissions_utils import compute_emissions, clean_keep_best_rows
 
-# Page config best bovenaan in Streamlit
+# Page config
 st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
 
 @st.cache_data
@@ -16,142 +16,76 @@ def _load_categories_and_factors():
     return load_categories_data(csv_path)
 
 def _lazy_client():
-    # Init pas wanneer nodig
     return init_groq_client()
 
 def app():
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
     st.write("Upload PDF/DOCX/TXT-facturen, extraheer regels en classificeer op basis van categorieën + CO₂-berekening.")
 
-    auto_classify = st.toggle(
-        "Automatisch classificeren na extractie",
-        value=True,
-        help="Voer direct na het extraheren ook de classificatie en CO₂-berekening uit."
-    )
-
-    summarize_per_invoice = st.toggle(
-        "Toon samenvatting per factuur (CO₂ en bedragen)",
-        value=True
-    )
-
-    # 1) Categorieën + emissiefactoren
+    # laad categorieën & emissiefactoren
     cats, factor_map, _meta = _load_categories_and_factors()
 
-    # 2) Upload
+    # bestand upload
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
         accept_multiple_files=True
     )
 
-    # 3) Extractie (+ optioneel classificatie & CO₂)
-    if st.button("🚀 Extraheer factuurdata", type="primary"):
+    if st.button("🚀 Extraheer & Classificeer"):
         if not files:
             st.warning("Upload eerst ten minste één document.")
-        else:
-            client = _lazy_client()
-            rows = []
-            with st.spinner("Controleren en extraheren…"):
-                for up in files:
-                    tmp = Path(f"/tmp/{up.name}")
-                    tmp.write_bytes(up.getvalue())
-                    txt = read_text_from_file(tmp)
-                    if not is_invoice(txt):
-                        st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
-                        continue
+            return
 
-                    # LLM → list[dict] (scalars per regel)
-                    entries = extract_invoice_fields(txt, client)
-                    for r in entries:
-                        row = {"Document": up.name}
-                        row.update(r)
-                        rows.append(row)
+        client = _lazy_client()
+        rows = []
+        with st.spinner("Extraheren…"):
+            for up in files:
+                tmp = Path(f"/tmp/{up.name}")
+                tmp.write_bytes(up.getvalue())
+                txt = read_text_from_file(tmp)
+                if not is_invoice(txt):
+                    st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
+                    continue
+                entries = extract_invoice_fields(txt, client)
+                for r in entries:
+                    row = {"Document": up.name}
+                    row.update(r)
+                    rows.append(row)
 
-            st.session_state["extracted_rows"] = rows
-            st.session_state.pop("df", None)
+        if not rows:
+            st.info("Geen regels gevonden.")
+            return
 
-            if rows:
-                base_df = pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+        subset = [c for c in [
+            "Document", "Factuurnummer", "Leverancier",
+            "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"
+        ] if c in df.columns]
+        if subset:
+            df = df.drop_duplicates(subset=subset).reset_index(drop=True)
 
-                # Dedup op logische subset
-                subset = [c for c in [
-                    "Document", "Factuurnummer", "Leverancier",
-                    "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"
-                ] if c in base_df.columns]
-                if subset:
-                    base_df = base_df.drop_duplicates(subset=subset).reset_index(drop=True)
+        df = classify_rows_with_llm(df, cats, client)
+        df = compute_emissions(df, factor_map)
+        df = clean_keep_best_rows(df)
 
-                if auto_classify:
-                    st.info("Automatische classificatie en CO₂-berekening wordt uitgevoerd…")
-                    out_df = classify_rows_with_llm(base_df.copy(), cats, client)
-                    out_df = compute_emissions(out_df, factor_map)
-                    out_df = clean_keep_best_rows(out_df)
-                    st.session_state["df"] = out_df
-                    st.success("Extractie + classificatie + CO₂ voltooid ✅")
-                else:
-                    st.session_state["df"] = base_df
+        st.subheader("Resultaten")
+        cols = [
+            c for c in [
+                "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
+                "Kwantiteit", "Eenheid", "Bedrag (EUR)", "Categorie nummer", "Categorie",
+                "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
+            ] if c in df.columns
+        ]
+        st.dataframe(df[cols], use_container_width=True)
 
-    # 4) Tabel tonen
-    df = st.session_state.get("df", pd.DataFrame())
-    if df.empty:
-        st.info("Nog geen gegevens om te tonen.")
-        st.button("Classificeer & bereken CO₂", disabled=True)
-        return
-
-    cols_order = [
-        "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
-        "Kwantiteit", "Eenheid", "Bedrag (EUR)", "Categorie nummer", "Categorie",
-        "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
-    ]
-    cols = [c for c in cols_order if c in df.columns]
-
-    st.subheader("Resultaten")
-    st.dataframe(df[cols], use_container_width=True)
-
-    # Samenvatting per factuur (optioneel)
-    if summarize_per_invoice:
-        group_cols = [c for c in ["Document", "Factuurnummer", "Leverancier"] if c in df.columns]
-        if group_cols:
-            agg_df = df.groupby(group_cols, dropna=False).agg(
-                Regels=("Beschrijving product", "count"),
-                Totaal_EUR=("Bedrag (EUR) [num]", "sum"),
-                Totaal_kgCO2e=("Totale kg CO₂e", "sum")
-            ).reset_index()
-            st.markdown("### Samenvatting per factuur")
-            st.dataframe(agg_df, use_container_width=True)
-
-            # Download samenvatting
-            csv_sum = agg_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇️ Download samenvatting per factuur",
-                data=csv_sum,
-                file_name="factuur_samenvatting_co2.csv",
-                mime="text/csv"
-            )
-
-    # Download
-    if "Totale kg CO₂e" in df.columns:
-        csv2 = df[cols].to_csv(index=False).encode('utf-8')
+        csv_bytes = df[cols].to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Download met Categorieën & CO₂",
-            data=csv2,
-            file_name="factuur_data_geclassificeerd_co2.csv",
+            "⬇️ Download CSV",
+            data=csv_bytes,
+            file_name="facturen_co2.csv",
             mime="text/csv"
         )
-
-    # 5) Handmatig (wanneer auto uit staat)
-    if not auto_classify:
-        if st.button("Classificeer & bereken CO₂"):
-            if df.empty:
-                st.warning("Er zijn geen regels om te classificeren.")
-                return
-            client = _lazy_client()
-            out_df = classify_rows_with_llm(df.copy(), cats, client)
-            out_df = compute_emissions(out_df, factor_map)
-            out_df = clean_keep_best_rows(out_df)
-            st.session_state["df"] = out_df
-            st.success("Classificatie + CO₂ voltooid ✅")
-            st.rerun()
 
 if __name__ == '__main__':
     app()

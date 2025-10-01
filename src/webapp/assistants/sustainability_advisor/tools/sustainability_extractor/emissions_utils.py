@@ -1,4 +1,3 @@
-# emissions_utils.py
 import re
 import pandas as pd
 
@@ -66,12 +65,10 @@ def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Data
     cat_col = next((c for c in possible_cat_cols if c in out.columns), None)
 
     if cat_col is None:
-        # Geen kolom gevonden → lege serie, dus geen lookup mogelijk
         cat_series = _series_or_na(out, "Categorie nummer")
     else:
         raw_series = out[cat_col].astype(str)
 
-        # Extracteer het eerste cijferblok als categorie-key
         def normalize_cat_key(x: str) -> str | None:
             x = (x or "").strip()
             if not x:
@@ -79,7 +76,6 @@ def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Data
             m = re.search(r"\d+", x)
             if not m:
                 return None
-            # Normaliseer naar '7' (dus '07'->'7', '7.0'->'7')
             return str(int(m.group(0)))
 
         cat_series = raw_series.map(normalize_cat_key)
@@ -105,16 +101,11 @@ def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Data
             out["Emissiefactor (kg CO₂e/€)"], errors="coerce"
         ).round(6)
 
-    # ── Diagnostiek (handig bij debuggen; kun je later uitzetten)
+    # ── Diagnostiek (kan je later weghalen)
     try:
         total = len(out)
         matched = out["Emissiefactor (kg CO₂e/€)"].notna().sum()
         print(f"[emissions] factor matches: {matched}/{total}")
-        if cat_col is not None:
-            uniq_vals = sorted(set(map(str, out[cat_col].dropna().astype(str))))
-            print(f"[emissions] unieke waarden in '{cat_col}': {uniq_vals[:20]}{' ...' if len(uniq_vals) > 20 else ''}")
-        else:
-            print("[emissions] geen categorie-kolom gevonden (probeerde varianten).")
     except Exception:
         pass
 
@@ -142,7 +133,6 @@ def clean_keep_best_rows(df: pd.DataFrame) -> pd.DataFrame:
     cat_series = _series_or_na(out, "Categorie nummer").astype(str).fillna("")
     cat_text  = _series_or_na(out, "Categorie").astype(str).fillna("")
 
-    # Houd regels die iets zinnigs hebben
     keep = (
         co2_series.notna()
         | (cat_series.str.casefold() != "onbekend")
@@ -152,13 +142,11 @@ def clean_keep_best_rows(df: pd.DataFrame) -> pd.DataFrame:
     if out.empty:
         return out
 
-    out["__co2_notnull__"] = pd.to_numeric(_series_or_na(out, "Totale kg CO₂e"), errors="coerce").notna().astype(int)
-    out["__cat_known__"]   = (_series_or_na(out, "Categorie nummer").astype(str).fillna("").str.casefold() != "onbekend").astype(int)
+    out["__co2_notnull__"] = co2_series.notna().astype(int)
+    out["__cat_known__"]   = (cat_series.str.casefold() != "onbekend").astype(int)
     out["__amount__"]      = pd.to_numeric(_series_or_na(out, "Bedrag (EUR) [num]"), errors="coerce").fillna(-1)
 
     key_cols = [c for c in ["Document","Factuurnummer","Beschrijving product","Kwantiteit","Eenheid"] if c in out.columns]
-
-    # Sorteer op sleutel + prioriteit
     sort_cols = key_cols + ["__co2_notnull__", "__cat_known__", "__amount__"]
     sort_asc  = [True]*len(key_cols) + [False, False, False]
 
