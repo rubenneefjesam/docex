@@ -148,7 +148,12 @@ def app():
 
         if all_rows:
             df = pd.DataFrame(all_rows)
-            cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
+            # Bepaal welke kolommen daadwerkelijk bestaan
+default_cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
+cols = [c for c in default_cols if c in df.columns]
+if not cols:
+    st.error("Geen verwachte kolommen gevonden in de DataFrame: " + ", ".join(df.columns))
+    return
             st.subheader("Extractie Resultaten")
             st.dataframe(df[cols], use_container_width=True)
             csv = df[cols].to_csv(index=False).encode("utf-8")
