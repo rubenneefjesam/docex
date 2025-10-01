@@ -8,7 +8,7 @@ from pathlib import Path
 from .csv_utils import load_categories_data
 from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
-from .emissions_utils import compute_emissions, clean_keep_best_rows
+from .emissions_utils import compute_emissions
 
 st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
 
@@ -24,16 +24,18 @@ def app():
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
     st.write("Upload PDF, DOCX of TXT om regels te extraheren, classificeren en CO₂ te berekenen.")
 
-    # 1) Categorieën + emissiefactoren
+    # 1) Laad categorieën + factor_map
     cats, factor_map, _ = _load_categories_and_factors()
 
-    # 2) Upload
+    # 2) Bestand upload
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
+        accept_multiple_files=True,
         accept_multiple_files=True
     )
 
+    # 3) Start
     if not st.button("🚀 Extraheer & Classificeer"):
         return
     if not files:
@@ -48,20 +50,21 @@ def app():
             tmp.write_bytes(up.getvalue())
             txt = read_text_from_file(tmp)
             if not is_invoice(txt):
-                st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
+                st.warning(f"❌ {up.name} lijkt geen factuur.")
                 continue
             entries = extract_invoice_fields(txt, client)
-            for r in entries:
-                rows.append({"Document": up.name, **r})
+            # Voeg elke entry onveranderd toe
+            for e in entries:
+                rows.append({"Document": up.name, **e})
 
     if not rows:
-        st.info("Geen factuurregels gevonden.")
+        st.info("Geen regels gevonden.")
         return
 
-    # ─── Geen dedup vóór classification ────────────────────────────
+    # Zet om in DataFrame, NIET deduppen
     df = pd.DataFrame(rows)
 
-    # ─── Classificatie via LLM ──────────────────────────────────────
+    # ─── Classificeer
     try:
         raw = classify_rows_with_llm(df, cats, client)
         if isinstance(raw, pd.DataFrame):
@@ -74,22 +77,17 @@ def app():
         st.code(raw, language="json")
         return
 
-    # ─── Emissies berekenen ─────────────────────────────────────────
+    # ─── Emissies berekenen (per regel)
     out_df = compute_emissions(out_df, factor_map)
 
-    # ─── Pas clean_keep_best_rows alleen toe als je echt wilt deduppen/ranken.
-    #     Verwijder deze call als je álle regels wilt behouden:
-    # out_df = clean_keep_best_rows(out_df)
-
-    # ─── Resultaten tonen ───────────────────────────────────────────
-    cols = [
-        c for c in [
-            "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
-            "Kwantiteit", "Eenheid", "Bedrag (EUR)",
-            "Categorie nummer", "Categorie",
-            "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
-        ] if c in out_df.columns
+    # ─── Toon ALLE regels exact één-op-één
+    display_cols = [
+        "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
+        "Kwantiteit", "Eenheid", "Bedrag (EUR)",
+        "Categorie nummer", "Categorie",
+        "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
     ]
+    cols = [c for c in display_cols if c in out_df.columns]
 
     st.subheader("Resultaten")
     st.dataframe(out_df[cols], use_container_width=True)
@@ -98,7 +96,7 @@ def app():
     st.download_button(
         "⬇️ Download CSV met CO₂-berekening",
         data=csv_bytes,
-        file_name="factuur_data_co2.csv",
+        file_name="facturen_co2.csv",
         mime="text/csv"
     )
 
