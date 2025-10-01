@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -73,6 +74,11 @@ def extract_line_items(file_path: Path) -> list[dict]:
         messages=[{"role": "user", "content": prompt}]
     )
     content = resp.choices[0].message.content.strip()
+    # Verwijder eventuele Markdown- of code-fences rond de JSON-output
+    if content.startswith("```") and content.endswith("```"):
+        # haal de eerste en laatste regel weg
+        lines = content.splitlines()
+        content = "\n".join(lines[1:-1])
     try:
         data = json.loads(content)
         if isinstance(data, list):
