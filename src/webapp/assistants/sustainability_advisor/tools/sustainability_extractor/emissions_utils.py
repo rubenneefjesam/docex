@@ -1,6 +1,10 @@
+# emissions_utils.py
 import re
 import pandas as pd
 
+# ────────────────────────────────────────────────────────────────
+# Parsing helpers
+# ────────────────────────────────────────────────────────────────
 def to_float_eu(val) -> float | None:
     """
     Converteer '1.234,56', '1234.56', '€ 1.234,56' naar float.
@@ -30,10 +34,15 @@ def _series_or_na(df: pd.DataFrame, col: str, length: int | None = None) -> pd.S
     return pd.Series([pd.NA] * n, index=df.index)
 
 
+# ────────────────────────────────────────────────────────────────
+# Emission computation
+# ────────────────────────────────────────────────────────────────
 def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.DataFrame:
     """
     - Zorgt voor numerieke 'Bedrag (EUR) [num]'
-    - Vult 'Emissiefactor (kg CO₂e/€)' obv 'Categorie nummer'
+    - Vindt de categorie uit meerdere mogelijke kolomnamen en normaliseert de waarde
+      (pakt eerste cijferblok; '07', '7.0', 'cat-7', '7 – Metalen' → '7')
+    - Vult 'Emissiefactor (kg CO₂e/€)' o.b.v. factor_map (string-keys)
     - Berekent 'Totale kg CO₂e' = bedrag_num * factor
     """
     out = df.copy()
@@ -48,27 +57,47 @@ def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Data
     else:
         out["Bedrag (EUR) [num]"] = _series_or_na(out, "Bedrag (EUR) [num]")
 
-    # Categorie serie (kan ontbreken)
-    cat_series = (
-        out["Categorie nummer"].astype(str)
-        if "Categorie nummer" in out.columns
-        else _series_or_na(out, "Categorie nummer")
-    )
+    # ── Normaliseer categorie-kolomnaam (meerdere varianten toestaan)
+    possible_cat_cols = [
+        "Categorie nummer", "Categorie-nummer", "Categorie_nummer",
+        "Categorie id", "Categorie_id", "Category number", "Category_number",
+        "Category id", "Category_id"
+    ]
+    cat_col = next((c for c in possible_cat_cols if c in out.columns), None)
 
-    # Lookup emissiefactor – altijd str-key
-    def lookup_factor(x):
-        if pd.isna(x) or str(x).strip() == "":
+    if cat_col is None:
+        # Geen kolom gevonden → lege serie, dus geen lookup mogelijk
+        cat_series = _series_or_na(out, "Categorie nummer")
+    else:
+        raw_series = out[cat_col].astype(str)
+
+        # Extracteer het eerste cijferblok als categorie-key
+        def normalize_cat_key(x: str) -> str | None:
+            x = (x or "").strip()
+            if not x:
+                return None
+            m = re.search(r"\d+", x)
+            if not m:
+                return None
+            # Normaliseer naar '7' (dus '07'->'7', '7.0'->'7')
+            return str(int(m.group(0)))
+
+        cat_series = raw_series.map(normalize_cat_key)
+
+    # ── Lookup emissiefactor met string-keys
+    def lookup_factor_key(k: str | None):
+        if not k:
             return None
-        return factor_map.get(str(x).strip())
+        return factor_map.get(str(k))
 
-    out["Emissiefactor (kg CO₂e/€)"] = cat_series.map(lookup_factor)
+    out["Emissiefactor (kg CO₂e/€)"] = cat_series.map(lookup_factor_key)
 
-    # Berekening
+    # ── Berekening
     bedrag_num = pd.to_numeric(out["Bedrag (EUR) [num]"], errors="coerce")
     factor_num = pd.to_numeric(out["Emissiefactor (kg CO₂e/€)"], errors="coerce")
     out["Totale kg CO₂e"] = bedrag_num * factor_num
 
-    # Afronden (consistent types)
+    # ── Afronden (consistent types)
     if "Totale kg CO₂e" in out.columns:
         out["Totale kg CO₂e"] = pd.to_numeric(out["Totale kg CO₂e"], errors="coerce").round(4)
     if "Emissiefactor (kg CO₂e/€)" in out.columns:
@@ -76,9 +105,25 @@ def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.Data
             out["Emissiefactor (kg CO₂e/€)"], errors="coerce"
         ).round(6)
 
+    # ── Diagnostiek (handig bij debuggen; kun je later uitzetten)
+    try:
+        total = len(out)
+        matched = out["Emissiefactor (kg CO₂e/€)"].notna().sum()
+        print(f"[emissions] factor matches: {matched}/{total}")
+        if cat_col is not None:
+            uniq_vals = sorted(set(map(str, out[cat_col].dropna().astype(str))))
+            print(f"[emissions] unieke waarden in '{cat_col}': {uniq_vals[:20]}{' ...' if len(uniq_vals) > 20 else ''}")
+        else:
+            print("[emissions] geen categorie-kolom gevonden (probeerde varianten).")
+    except Exception:
+        pass
+
     return out
 
 
+# ────────────────────────────────────────────────────────────────
+# Row cleaning / best-match selectie
+# ────────────────────────────────────────────────────────────────
 def clean_keep_best_rows(df: pd.DataFrame) -> pd.DataFrame:
     """
     Verwijder fallback/lege varianten en kies per logische regel de beste.
@@ -93,9 +138,7 @@ def clean_keep_best_rows(df: pd.DataFrame) -> pd.DataFrame:
 
     out = df.copy()
 
-    co2_series = (
-        pd.to_numeric(_series_or_na(out, "Totale kg CO₂e"), errors="coerce")
-    )
+    co2_series = pd.to_numeric(_series_or_na(out, "Totale kg CO₂e"), errors="coerce")
     cat_series = _series_or_na(out, "Categorie nummer").astype(str).fillna("")
     cat_text  = _series_or_na(out, "Categorie").astype(str).fillna("")
 
