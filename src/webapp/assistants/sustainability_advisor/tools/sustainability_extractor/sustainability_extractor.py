@@ -2,6 +2,7 @@ import os
 import io
 import json
 import re
+import ast
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -27,6 +28,29 @@ def init_groq_client():
 
 client = init_groq_client()
 
+# ─── Helper om JSON uit LLM-antwoorden te parsen ────────────────
+def parse_llm_json(content: str):
+    s = content.strip()
+    # Verwijder ``` of ```json fences
+    s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'\s*```\s*$', '', s)
+    # Houd alleen het deel tussen eerste [/{ en laatste ]/}
+    start_idx = None
+    for ch in ['[', '{']:
+        i = s.find(ch)
+        if i != -1:
+            start_idx = i if start_idx is None else min(start_idx, i)
+    end_idx = max(s.rfind(']'), s.rfind('}'))
+    if start_idx is not None and end_idx != -1 and end_idx > start_idx:
+        s = s[start_idx:end_idx+1]
+    # Verwijder trailing komma's
+    s = re.sub(r',(?=\s*[\]}])', '', s)
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        # Fallback op Python literal
+        return ast.literal_eval(s)
+
 # ─── Bestandstekst Inlezen ────────────────────────────────────────
 def read_text_from_file(file_path: Path) -> str:
     suffix = file_path.suffix.lower()
@@ -47,12 +71,6 @@ def read_text_from_file(file_path: Path) -> str:
 
 # ─── Eenvoudige factuur-detectie ─────────────────────────────────
 def is_invoice(text: str) -> bool:
-    keywords = [
-        r"factuurnummer", r"factuur\s*nr", r"btw", r"totaal\s*bedrag",
-        r"leverancier", r"datum", r"omschrijving"
-    ]
-    hits = sum(bool(re.search(kw, text, re.IGNORECASE)) for kw in keywords)
-    # Minimal één factuurnummer én één bedrag
     return bool(re.search(r"factuurnummer|factuur\s*nr", text, re.IGNORECASE)) and \
            bool(re.search(r"€\s*\d", text))
 
@@ -60,7 +78,6 @@ def is_invoice(text: str) -> bool:
 def extract_invoice_fields(text: str) -> list[dict]:
     if client is None:
         return []
-    # Vaste kolomnamen met instructies
     field_prompts = {
         "Factuurnummer": "Haal het factuurnummer uit (inclusief letters en streepjes).",
         "Leverancier": "Noem de naam van de leverancier zoals vermeld op de factuur.",
@@ -72,25 +89,29 @@ def extract_invoice_fields(text: str) -> list[dict]:
     instructions = "\n".join(f"- {f}: {p}" for f, p in field_prompts.items())
     prompt = (
         "Je bent een assistent die factuurinformatie uit een document haalt.\n"
-        "Geef als output een JSON-array van objecten, waarbij elk object de volgende velden bevat:\n"
-        f"  {', '.join(fields)}\n"
-        f"{instructions}\n\n"
+        "Reageer ALLEEN met pure JSON (zonder code fences, zonder uitleg), gebruik dubbele aanhalingstekens en geen trailing comma’s.\n"
+        "Geef als output een JSON-array van objecten met de velden: " + ", ".join(fields) + "\n"
+        + instructions + "\n\n"
         "Documenttekst:\n" + text + "\n"
-        "Geef alleen de JSON-array terug, zonder extra toelichting."
     )
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
-    content = resp.choices[0].message.content.strip()
+    content = resp.choices[0].message.content
     try:
-        data = json.loads(content)
-        if isinstance(data, list):
-            return data
-    except json.JSONDecodeError:
+        data = parse_llm_json(content)
+    except Exception:
         st.error("Kan JSON niet parsen, ontvang:\n" + content)
-    return []
+        return []
+    # Ondersteun zowel dict als list
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        st.error("Onverwacht formaat, verwacht JSON-array.")
+        return []
+    return data
 
 # ─── Streamlit-applicatie ─────────────────────────────────────────
 def app():
@@ -117,7 +138,7 @@ def app():
                     continue
                 entries = extract_invoice_fields(text)
                 for entry in entries:
-                # Converteer lijsten naar strings
+                    # Converteer lijsten naar platte tekst
                     for key, val in entry.items():
                         if isinstance(val, list):
                             entry[key] = ", ".join(str(v) for v in val)
