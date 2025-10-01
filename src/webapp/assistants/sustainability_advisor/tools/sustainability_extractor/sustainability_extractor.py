@@ -113,15 +113,20 @@ def app():
                         continue
                     entries = extract_invoice_fields(txt, client)
                     for e in entries:
-                        list_keys = [k for k,v in e.items() if isinstance(v, list)]
-                        if list_keys:
-                            length = len(e[list_keys[0]])
-                            for i in range(length):
+                        # Als een veld een lijst is, bepalen we de MAX lengte over alle lijstvelden
+                        list_lengths = [len(v) for v in e.values() if isinstance(v, list)]
+                        if list_lengths:
+                            max_len = max(list_lengths)
+                            for i in range(max_len):
                                 row = {"Document": up.name}
-                                for k,val in e.items():
-                                    row[k] = val[i] if isinstance(val,list) else val
+                                for k, val in e.items():
+                                    if isinstance(val, list):
+                                        row[k] = val[i] if i < len(val) else None
+                                    else:
+                                        row[k] = val
                                 rows.append(row)
                         else:
+                            # al per-regel-objecten? Dan gewoon toevoegen
                             row = {"Document": up.name}
                             row.update(e)
                             rows.append(row)
