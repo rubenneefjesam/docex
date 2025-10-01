@@ -1,3 +1,5 @@
+# emissions_utils.py
+
 import re
 import pandas as pd
 
@@ -38,76 +40,49 @@ def _series_or_na(df: pd.DataFrame, col: str, length: int | None = None) -> pd.S
 # ────────────────────────────────────────────────────────────────
 def compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.DataFrame:
     """
-    - Zorgt voor numerieke 'Bedrag (EUR) [num]'
+    - Converteert 'Bedrag (EUR)' naar 'Bedrag (EUR) [num]'
     - Vindt de categorie uit meerdere mogelijke kolomnamen en normaliseert de waarde
-      (pakt eerste cijferblok; '07', '7.0', 'cat-7', '7 – Metalen' → '7')
+      (pakt cijfers met optioneel decimalen: '07', '1.2', '1,2', 'cat-7' → '7' of '1.2')
     - Vult 'Emissiefactor (kg CO₂e/€)' o.b.v. factor_map (string-keys)
     - Berekent 'Totale kg CO₂e' = bedrag_num * factor
     """
     out = df.copy()
 
-    # Alias bij alternatieve kolomnaam:
-    if "Bedrag (EUR)" not in out.columns and "Kosten" in out.columns:
-        out["Bedrag (EUR)"] = out["Kosten"]
-
-    # Maak bedrag numeriek
+    # 1) Zorg dat er een numerieke kolom Bedrag (EUR) [num] is
     if "Bedrag (EUR)" in out.columns:
         out["Bedrag (EUR) [num]"] = out["Bedrag (EUR)"].apply(to_float_eu)
     else:
         out["Bedrag (EUR) [num]"] = _series_or_na(out, "Bedrag (EUR) [num]")
 
-    # ── Normaliseer categorie-kolomnaam (meerdere varianten toestaan)
+    # 2) Zoek categorie-kolom uit mogelijke varianten
     possible_cat_cols = [
         "Categorie nummer", "Categorie-nummer", "Categorie_nummer",
-        "Categorie id", "Categorie_id", "Category number", "Category_number",
-        "Category id", "Category_id"
+        "Categorie id", "Categorie_id", "Category number", "Category_number"
     ]
     cat_col = next((c for c in possible_cat_cols if c in out.columns), None)
 
-    if cat_col is None:
-        cat_series = _series_or_na(out, "Categorie nummer")
-    else:
-        raw_series = out[cat_col].astype(str)
-
-        def normalize_cat_key(x: str) -> str | None:
+    # 3) Normaliseer categorie-key met decimalen
+    if cat_col:
+        raw = out[cat_col].astype(str)
+        def normalize(x: str) -> str | None:
             x = (x or "").strip()
-            if not x:
+            if not x or pd.isna(x):
                 return None
-            m = re.search(r"\d+", x)
+            m = re.search(r"\d+(?:[.,]\d+)?", x)
             if not m:
                 return None
-            return str(int(m.group(0)))
+            return m.group(0).replace(",", ".")
+        cat_keys = raw.map(normalize)
+    else:
+        cat_keys = _series_or_na(out, "Categorie nummer").astype(str).replace("nan", pd.NA)
 
-        cat_series = raw_series.map(normalize_cat_key)
+    # 4) Lookup emissiefactor met string-keys
+    out["Emissiefactor (kg CO₂e/€)"] = cat_keys.map(lambda k: factor_map.get(k) if k else None)
 
-    # ── Lookup emissiefactor met string-keys
-    def lookup_factor_key(k: str | None):
-        if not k:
-            return None
-        return factor_map.get(str(k))
-
-    out["Emissiefactor (kg CO₂e/€)"] = cat_series.map(lookup_factor_key)
-
-    # ── Berekening
-    bedrag_num = pd.to_numeric(out["Bedrag (EUR) [num]"], errors="coerce")
-    factor_num = pd.to_numeric(out["Emissiefactor (kg CO₂e/€)"], errors="coerce")
-    out["Totale kg CO₂e"] = bedrag_num * factor_num
-
-    # ── Afronden (consistent types)
-    if "Totale kg CO₂e" in out.columns:
-        out["Totale kg CO₂e"] = pd.to_numeric(out["Totale kg CO₂e"], errors="coerce").round(4)
-    if "Emissiefactor (kg CO₂e/€)" in out.columns:
-        out["Emissiefactor (kg CO₂e/€)"] = pd.to_numeric(
-            out["Emissiefactor (kg CO₂e/€)"], errors="coerce"
-        ).round(6)
-
-    # ── Diagnostiek (kan je later weghalen)
-    try:
-        total = len(out)
-        matched = out["Emissiefactor (kg CO₂e/€)"].notna().sum()
-        print(f"[emissions] factor matches: {matched}/{total}")
-    except Exception:
-        pass
+    # 5) Bereken Totale kg CO₂e
+    bedrag = pd.to_numeric(out["Bedrag (EUR) [num]"], errors="coerce")
+    factor = pd.to_numeric(out["Emissiefactor (kg CO₂e/€)"], errors="coerce")
+    out["Totale kg CO₂e"] = (bedrag * factor).round(4)
 
     return out
 
