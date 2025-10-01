@@ -1,5 +1,4 @@
 import os
-import io
 import json
 import re
 import ast
@@ -31,42 +30,32 @@ client = init_groq_client()
 # ─── Helper om JSON uit LLM-antwoorden te parsen ────────────────
 def parse_llm_json(content: str):
     s = content.strip()
-    # Verwijder code fences ``` of ```json
     s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
     s = re.sub(r'\s*```\s*$', '', s)
-    # Extract het JSON-deel
     start = min((idx for idx in (s.find('['), s.find('{')) if idx != -1), default=None)
     end = max(s.rfind(']'), s.rfind('}'))
     if start is not None and end is not None and end > start:
         s = s[start:end+1]
-    # Verwijder trailing komma's
     s = re.sub(r',(?=\s*[\]}])', '', s)
-    # Probeer JSON laden
     try:
         return json.loads(s)
     except json.JSONDecodeError:
-        # Fallback op Python literal
         return ast.literal_eval(s)
 
 # ─── Bestandstekst Inlezen ────────────────────────────────────────
-def read_text_from_file(file_path: Path) -> str:
-    suffix = file_path.suffix.lower()
-    text = ""
+def read_text_from_file(path: Path) -> str:
+    suffix = path.suffix.lower()
     if suffix == ".pdf":
-        reader = PdfReader(str(file_path))
-        for page in reader.pages:
-            text += page.extract_text() or ""
-    elif suffix == ".docx":
-        doc = docx.Document(str(file_path))
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-    elif suffix == ".txt":
-        text = file_path.read_text(encoding="utf-8", errors="ignore")
-    else:
-        raise ValueError(f"Onbekend bestandstype: {suffix}")
-    return text
+        reader = PdfReader(str(path))
+        return "".join(page.extract_text() or "" for page in reader.pages)
+    if suffix == ".docx":
+        doc = docx.Document(str(path))
+        return "\n".join(para.text for para in doc.paragraphs)
+    if suffix == ".txt":
+        return path.read_text(encoding="utf-8", errors="ignore")
+    raise ValueError(f"Onbekend bestandstype: {suffix}")
 
-# ─── Eenvoudige factuur-detectie ─────────────────────────────────
+# ─── Simpele factuur-detectie ────────────────────────────────────
 def is_invoice(text: str) -> bool:
     return bool(re.search(r"factuurnummer|factuur\s*nr", text, re.IGNORECASE)) and \
            bool(re.search(r"€\s*\d", text))
@@ -83,18 +72,17 @@ def extract_invoice_fields(text: str) -> list[dict]:
         "Eenheid": "Haal de eenheid per productregel op, bijvoorbeeld stuks, kg, m."
     }
     fields = list(prompts.keys())
-    instruction_lines = "\n".join(f"- {f}: {p}" for f, p in prompts.items())
+    instr = "\n".join(f"- {k}: {v}" for k,v in prompts.items())
     prompt = (
         "Je bent een assistent die factuurinformatie uit een document haalt.\n"
         "Reageer ALLEEN met pure JSON (zonder code fences, zonder uitleg), gebruik dubbele aanhalingstekens en geen trailing comma’s.\n"
-        f"Geef als output een JSON-array van objecten met de velden: {', '.join(fields)}\n"
-        f"{instruction_lines}\n\n"
-        f"Documenttekst:\n{text}"
+        f"Geef als output een JSON-array met objecten met de velden: {', '.join(fields)}\n"
+        f"{instr}\n\nDocumenttekst:\n{text}"
     )
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role":"user","content":prompt}]
     )
     content = resp.choices[0].message.content
     try:
@@ -109,60 +97,58 @@ def extract_invoice_fields(text: str) -> list[dict]:
         return []
     return data
 
-# ─── Streamlit-applicatie ─────────────────────────────────────────
+# ─── Streamlit-app ────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="Factuur Extractor", layout="wide")
     st.title("📄 Factuur Extractor (Groq LLM)")
-    st.write("Upload PDF/DOCX/TXT-facturen en krijg een CSV met factuurnummer, leverancier, productbeschrijving, kwantiteit en eenheid.")
+    st.write("Upload PDF/DOCX/TXT-facturen en ontvang een CSV met één rij per productregel.")
 
-    uploads = st.file_uploader(
+    files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
-        type=["pdf", "docx", "txt"],
+        type=["pdf","docx","txt"],
         accept_multiple_files=True
     )
-    extract_btn = st.button("🚀 Extraheer factuurdata")
+    if not files:
+        st.info("Upload één of meer facturen om te starten.")
+        return
+    if not st.button("🚀 Extraheer factuurdata"):
+        return
 
-    if uploads and extract_btn:
-        all_rows = []
-        with st.spinner("Controleren en extraheren…"):
-            for uf in uploads:
-                tmp_path = Path(f"/tmp/{uf.name}")
-                tmp_path.write_bytes(uf.getvalue())
-                text = read_text_from_file(tmp_path)
-                if not is_invoice(text):
-                    st.warning(f"❌ {uf.name} lijkt geen factuur te zijn.")
-                    continue
-                entries = extract_invoice_fields(text)
-                for entry in entries:
-                    # Converteer lijsten naar platte tekst
-                    for key, val in entry.items():
-                        if isinstance(val, list):
-                            entry[key] = ", ".join(str(v) for v in val)
-                    row = {"Document": uf.name}
-                    row.update(entry)
-                    all_rows.append(row)
+    rows = []
+    with st.spinner("Controleren en extraheren…"):
+        for up in files:
+            tmp = Path(f"/tmp/{up.name}")
+            tmp.write_bytes(up.getvalue())
+            txt = read_text_from_file(tmp)
+            if not is_invoice(txt):
+                st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
+                continue
+            entries = extract_invoice_fields(txt)
+            for e in entries:
+                # als één van de velden een lijst is, breek uit naar rijen per index
+                list_keys = [k for k,v in e.items() if isinstance(v, list)]
+                if list_keys:
+                    length = len(e[list_keys[0]])
+                    for i in range(length):
+                        row = {"Document": up.name}
+                        for k,val in e.items():
+                            row[k] = val[i] if isinstance(val,list) else val
+                        rows.append(row)
+                else:
+                    row = {"Document": up.name}
+                    row.update(e)
+                    rows.append(row)
 
-        if all_rows:
-            df = pd.DataFrame(all_rows)
-            # Filter alleen bestaande kolommen
-            default_cols = ["Document", "Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid"]
-            cols = [c for c in default_cols if c in df.columns]
-            if not cols:
-                st.error("Geen verwachte kolommen gevonden. Beschikbare: " + ", ".join(df.columns))
-                return
-            st.subheader("Extractie Resultaten")
-            st.dataframe(df[cols], use_container_width=True)
-            csv = df[cols].to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Download CSV",
-                data=csv,
-                file_name="factuur_data.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("Geen factuurdata gevonden of alle documenten afgewezen.")
-    else:
-        st.info("Upload één of meer documenten en klik op ‘Extraheer factuurdata’ om te starten.")
+    if not rows:
+        st.info("Geen data gevonden.")
+        return
+
+    df = pd.DataFrame(rows)
+    cols = [c for c in ["Document","Factuurnummer","Leverancier","Beschrijving product","Kwantiteit","Eenheid"] if c in df.columns]
+    st.subheader("Extractie Resultaten")
+    st.dataframe(df[cols], use_container_width=True)
+    csv = df[cols].to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Download CSV", data=csv, file_name="factuur_data.csv", mime="text/csv")
 
 if __name__ == '__main__':
     app()
