@@ -6,76 +6,10 @@ from pathlib import Path
 from .csv_utils import load_categories_data
 from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
+from .emissions_utils import compute_emissions, clean_keep_best_rows
 
 client = init_groq_client()
 
-# ────────────────────────────────────────────────────────────────
-# Helpers voor bedragen & emissie
-# ────────────────────────────────────────────────────────────────
-def _to_float_eu_fast(x) -> float | None:
-    """Accepteert '1.234,56' of '1234.56' of '€ 1.234,56' en pakt 1e getal."""
-    import re
-    if x is None:
-        return None
-    s = str(x).strip()
-    m = re.search(r"[-+]?\d[\d.,]*", s)
-    if not m:
-        return None
-    num = m.group(0)
-    if "," in num:
-        num = num.replace(".", "").replace(",", ".")
-    try:
-        return float(num)
-    except Exception:
-        return None
-
-def _compute_emissions(df: pd.DataFrame, factor_map: dict[str, float]) -> pd.DataFrame:
-    # Eventueel alias
-    if "Bedrag (EUR)" not in df.columns and "Kosten" in df.columns:
-        df["Bedrag (EUR)"] = df["Kosten"]
-
-    if "Bedrag (EUR)" in df.columns:
-        df["Bedrag (EUR) [num]"] = df["Bedrag (EUR)"].apply(_to_float_eu_fast)
-    else:
-        df["Bedrag (EUR) [num]"] = None
-
-    def get_factor(catnum: str):
-        if not catnum:
-            return None
-        return factor_map.get(str(catnum))
-
-    df["Emissiefactor (kg CO₂e/€)"] = df.get("Categorie nummer", "").apply(get_factor)
-
-    def mul(a, b):
-        try:
-            if a is None or b is None:
-                return None
-            return float(a) * float(b)
-        except Exception:
-            return None
-
-    df["Totale kg CO₂e"] = df.apply(
-        lambda r: mul(r.get("Bedrag (EUR) [num]"), r.get("Emissiefactor (kg CO₂e/€)")),
-        axis=1
-    )
-
-    # afronden
-    if "Totale kg CO₂e" in df.columns:
-        try:
-            df["Totale kg CO₂e"] = pd.to_numeric(df["Totale kg CO₂e"], errors="coerce").round(4)
-        except Exception:
-            pass
-    if "Emissiefactor (kg CO₂e/€)" in df.columns:
-        try:
-            df["Emissiefactor (kg CO₂e/€)"] = pd.to_numeric(df["Emissiefactor (kg CO₂e/€)"], errors="coerce").round(6)
-        except Exception:
-            pass
-
-    return df
-
-# ────────────────────────────────────────────────────────────────
-# App
-# ────────────────────────────────────────────────────────────────
 def app():
     st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
@@ -87,7 +21,7 @@ def app():
         help="Voer direct na het extraheren ook de classificatie en CO₂-berekening uit."
     )
 
-    # 1) Categorieën + emissiefactoren inladen
+    # 1) Categorieën + emissiefactoren
     if "categories" not in st.session_state or "factor_map" not in st.session_state:
         csv_path = Path(__file__).parent / 'categorieen.csv'
         cats, factor_map, _meta = load_categories_data(csv_path)
@@ -106,7 +40,7 @@ def app():
         accept_multiple_files=True
     )
 
-    # 3) Extractie + (optioneel) classificatie + CO₂
+    # 3) Extractie (+ optioneel classificatie & CO₂)
     if st.button("🚀 Extraheer factuurdata", type="primary"):
         if not files:
             st.warning("Upload eerst ten minste één document.")
@@ -121,21 +55,20 @@ def app():
                         st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
                         continue
 
-                    # LLM → list[dict] (scalars)
+                    # LLM → list[dict] (scalars per regel)
                     entries = extract_invoice_fields(txt, client)
                     for r in entries:
                         row = {"Document": up.name}
                         row.update(r)
                         rows.append(row)
 
-            # Bewaar ruwe regels
             st.session_state["extracted_rows"] = rows
             st.session_state.pop("df", None)
 
             if rows:
                 base_df = pd.DataFrame(rows)
 
-                # De-dup op logische subset
+                # Dedup op logische subset
                 subset = [c for c in [
                     "Document", "Factuurnummer", "Leverancier",
                     "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"
@@ -146,7 +79,8 @@ def app():
                 if auto_classify:
                     st.info("Automatische classificatie en CO₂-berekening wordt uitgevoerd…")
                     out_df = classify_rows_with_llm(base_df.copy(), categories, client)
-                    out_df = _compute_emissions(out_df, factor_map)
+                    out_df = compute_emissions(out_df, factor_map)
+                    out_df = clean_keep_best_rows(out_df)
                     st.session_state["df"] = out_df
                     st.success("Extractie + classificatie + CO₂ voltooid ✅")
                 else:
@@ -179,14 +113,15 @@ def app():
             mime="text/csv"
         )
 
-    # 5) Handmatig (alleen als auto uit staat)
+    # 5) Handmatig (wanneer auto uit staat)
     if not auto_classify:
         if st.button("Classificeer & bereken CO₂"):
             if df.empty:
                 st.warning("Er zijn geen regels om te classificeren.")
                 return
             out_df = classify_rows_with_llm(df.copy(), categories, client)
-            out_df = _compute_emissions(out_df, factor_map)
+            out_df = compute_emissions(out_df, factor_map)
+            out_df = clean_keep_best_rows(out_df)
             st.session_state["df"] = out_df
             st.success("Classificatie + CO₂ voltooid ✅")
             st.rerun()
