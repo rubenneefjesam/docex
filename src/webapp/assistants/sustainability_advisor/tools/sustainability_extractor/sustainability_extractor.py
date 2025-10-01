@@ -8,7 +8,7 @@ from pathlib import Path
 from .csv_utils import load_categories_data
 from .file_utils import read_text_from_file, is_invoice
 from .llm_utils import init_groq_client, extract_invoice_fields, classify_rows_with_llm
-from .emissions_utils import compute_emissions
+from .emissions_utils import compute_emissions, clean_keep_best_rows
 
 st.set_page_config(page_title="Factuur Extractor & Classificeerder", layout="wide")
 
@@ -31,7 +31,6 @@ def app():
     files = st.file_uploader(
         "Kies documenten (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
-        accept_multiple_files=True,
         accept_multiple_files=True
     )
 
@@ -50,21 +49,20 @@ def app():
             tmp.write_bytes(up.getvalue())
             txt = read_text_from_file(tmp)
             if not is_invoice(txt):
-                st.warning(f"❌ {up.name} lijkt geen factuur.")
+                st.warning(f"❌ {up.name} lijkt geen factuur te zijn.")
                 continue
             entries = extract_invoice_fields(txt, client)
-            # Voeg elke entry onveranderd toe
-            for e in entries:
-                rows.append({"Document": up.name, **e})
+            for r in entries:
+                rows.append({"Document": up.name, **r})
 
     if not rows:
-        st.info("Geen regels gevonden.")
+        st.info("Geen factuurregels gevonden.")
         return
 
-    # Zet om in DataFrame, NIET deduppen
+    # ─── Geen dedup vóór classification ────────────────────────────
     df = pd.DataFrame(rows)
 
-    # ─── Classificeer
+    # ─── Classificeer via LLM ──────────────────────────────────────
     try:
         raw = classify_rows_with_llm(df, cats, client)
         if isinstance(raw, pd.DataFrame):
@@ -77,10 +75,10 @@ def app():
         st.code(raw, language="json")
         return
 
-    # ─── Emissies berekenen (per regel)
+    # ─── Emissies berekenen ─────────────────────────────────────────
     out_df = compute_emissions(out_df, factor_map)
 
-    # ─── Toon ALLE regels exact één-op-één
+    # ─── Toon ALLE regels precies één-op-één
     display_cols = [
         "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
         "Kwantiteit", "Eenheid", "Bedrag (EUR)",
