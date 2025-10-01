@@ -24,7 +24,7 @@ def app():
     st.title("📄 Factuur Extractor (Groq LLM) & Classificeerder")
     st.write("Upload PDF, DOCX of TXT om regels te extraheren, classificeren en CO₂ te berekenen.")
 
-    # 1) Categorieën + emissiefactoren laden
+    # 1) Categorieën + emissiefactoren
     cats, factor_map, _ = _load_categories_and_factors()
 
     # 2) Upload
@@ -34,7 +34,6 @@ def app():
         accept_multiple_files=True
     )
 
-    # 3) Start pipeline
     if not st.button("🚀 Extraheer & Classificeer"):
         return
     if not files:
@@ -59,42 +58,38 @@ def app():
         st.info("Geen factuurregels gevonden.")
         return
 
-    # ─── Dedup vóór classification ───────────────────────────────────
+    # ─── Geen dedup vóór classification ────────────────────────────
     df = pd.DataFrame(rows)
-    dedup_keys = [
-        c for c in ["Document","Factuurnummer","Beschrijving product","Kwantiteit","Eenheid"]
-        if c in df.columns
-    ]
-    if dedup_keys:
-        df = df.drop_duplicates(subset=dedup_keys).reset_index(drop=True)
 
     # ─── Classificatie via LLM ──────────────────────────────────────
     try:
         raw = classify_rows_with_llm(df, cats, client)
-        # Als de LLM-client direct een DataFrame teruggeeft, gebruik dat:
         if isinstance(raw, pd.DataFrame):
             out_df = raw
         else:
-            # Anders verwachten we een JSON-string
             parsed = json.loads(raw)
             out_df = pd.DataFrame(parsed)
     except Exception as e:
         st.error(f"❌ Kan classificatie niet parsen: {e}")
-        # toon de ruwe output voor debug
         st.code(raw, language="json")
         return
 
-    # ─── CO₂-berekening & best-row selectie ─────────────────────────
+    # ─── Emissies berekenen ─────────────────────────────────────────
     out_df = compute_emissions(out_df, factor_map)
-    out_df = clean_keep_best_rows(out_df)
+
+    # ─── Pas clean_keep_best_rows alleen toe als je echt wilt deduppen/ranken.
+    #     Verwijder deze call als je álle regels wilt behouden:
+    # out_df = clean_keep_best_rows(out_df)
 
     # ─── Resultaten tonen ───────────────────────────────────────────
-    display_cols = [
-        "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
-        "Kwantiteit", "Eenheid", "Bedrag (EUR)", "Categorie nummer", "Categorie",
-        "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
+    cols = [
+        c for c in [
+            "Document", "Factuurnummer", "Leverancier", "Beschrijving product",
+            "Kwantiteit", "Eenheid", "Bedrag (EUR)",
+            "Categorie nummer", "Categorie",
+            "Emissiefactor (kg CO₂e/€)", "Totale kg CO₂e"
+        ] if c in out_df.columns
     ]
-    cols = [c for c in display_cols if c in out_df.columns]
 
     st.subheader("Resultaten")
     st.dataframe(out_df[cols], use_container_width=True)
