@@ -1,223 +1,241 @@
-# llm_utils.py
+from __future__ import annotations
 import os
-import json
 import re
-import ast
+import math
+from typing import List, Dict, Any, Optional
+
 import pandas as pd
-import streamlit as st
-from groq import Groq
 
 # ────────────────────────────────────────────────────────────────
-# Groq client
+# Init LLM client (optioneel, mag None zijn)
 # ────────────────────────────────────────────────────────────────
-@st.cache_resource
 def init_groq_client():
-    key = (
-        os.getenv("GROQ_API_KEY", "").strip()
-        or st.secrets.get("groq", {}).get("api_key", "").strip()
-    )
-    if not key:
-        st.error("⚠️ Geen Groq-API-key gevonden; extractie/classificatie werken niet.")
+    """
+    Probeer een Groq client te initialiseren als GROQ_API_KEY aanwezig is.
+    Als niet aanwezig → None (we vallen terug op rule-based).
+    """
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("GROQ_APIKEY")
+    if not api_key:
         return None
     try:
-        return Groq(api_key=key)
-    except Exception as e:
-        st.error(f"❌ Groq-client kon niet initialiseren: {e}")
+        from groq import Groq
+        return Groq(api_key=api_key)
+    except Exception:
         return None
 
+
 # ────────────────────────────────────────────────────────────────
-# JSON helpers
+# Stap 1: Extractie van productregels uit tekst
 # ────────────────────────────────────────────────────────────────
-def parse_llm_json(content: str):
-    s = (content or "").strip()
-    s = re.sub(r'^\s*```(?:json)?\s*', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'\s*```\s*$', '', s)
-    start = min((idx for idx in (s.find('['), s.find('{')) if idx != -1), default=None)
-    end = max(s.rfind(']'), s.rfind('}'))
-    if start is not None and end is not None and end > start:
-        s = s[start:end+1]
-    s = re.sub(r',(?=\s*[\]}])', '', s)
+_PRICE_RX = r"[-+]?\d[\d\.,]*"
+_QTY_RX = r"[-+]?\d[\d\.,]*"
+
+def _eu_to_float_fast(s: str) -> Optional[float]:
+    if s is None:
+        return None
+    s = str(s)
+    m = re.search(_PRICE_RX, s)
+    if not m:
+        return None
+    num = m.group(0)
+    if "," in num and "." in num:
+        # "1.234,56" → "1234.56"
+        num = num.replace(".", "").replace(",", ".")
+    elif "," in num and "." not in num:
+        # "123,45" → "123.45"
+        num = num.replace(",", ".")
     try:
-        return json.loads(s)
+        return float(num)
     except Exception:
-        return ast.literal_eval(s)
+        return None
 
-def _normalize_entries_llm(data):
+
+def extract_invoice_rows(text: str, filename: str, client=None) -> List[Dict[str, Any]]:
     """
-    Normaliseer LLM-output naar list[dict] met alleen scalars.
-    - dict met lijsten -> list[dict] als alle lijsten even lang; anders pak eerste element.
-    - list[dict] met lijstwaarden -> reduceer lijstwaarden naar eerste element.
-    - anders -> []
+    Best-effort regex-extractie:
+    Zoekt naar tabella-achtige lijnen met: omschrijving, qty, unit price, line total
+    Voorbeelden die matchen:
+      "Widget A 10 st € 15,00 € 150,00"
+      "Service C 2 uur 50,00 100,00"
     """
-    def is_scalar(x):
-        return not isinstance(x, (list, dict))
+    rows = []
+    if not text:
+        return rows
 
-    if isinstance(data, dict):
-        list_fields = {k: v for k, v in data.items() if isinstance(v, list)}
-        if list_fields:
-            lengths = {len(v) for v in list_fields.values()}
-            if len(lengths) == 1:
-                n = lengths.pop()
-                out = []
-                for i in range(n):
-                    row = {}
-                    for k, v in data.items():
-                        row[k] = (v[i] if isinstance(v, list) else v)
-                    out.append(row)
-                return out
-            else:
-                # ongelijkmatige lijsten → neem eerste element per lijst
-                row = {}
-                for k, v in data.items():
-                    row[k] = (v[0] if isinstance(v, list) and v else None) if isinstance(v, list) else v
-                return [row]
-        else:
-            return [data]
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    # simpele heuristiek: als er valuta/bedragen op regel staan, pakken we die
+    for idx, ln in enumerate(lines, start=1):
+        # Probeer line_total als laatste bedrag op de regel
+        money = re.findall(_PRICE_RX, ln)
+        if len(money) >= 1:
+            # Laatste bedrag is waarschijnlijk line_total
+            line_total = _eu_to_float_fast(money[-1])
+            # unit price → neem voorlaatste als beschikbaar en kleiner dan total
+            unit_price = _eu_to_float_fast(money[-2]) if len(money) >= 2 else None
+            if unit_price is not None and line_total is not None and unit_price > line_total:
+                # Soms staat unit price ná total, corrigeer
+                unit_price = None
 
-    if isinstance(data, list):
-        out = []
-        for item in data:
-            if isinstance(item, dict):
-                row = {}
-                for k, v in item.items():
-                    row[k] = v[0] if isinstance(v, list) and v else (None if isinstance(v, list) else v)
-                out.append(row)
-        return out
+            # quantity → heuristisch: getal direct vóór unit of voor bedragen
+            qty = None
+            unit = None
+            m_qty = re.search(rf"({_QTY_RX})\s*(st|stuk|stuks|pcs|kg|m|uur|u|h)\b", ln.lower())
+            if m_qty:
+                qty = _eu_to_float_fast(m_qty.group(1))
+                unit = m_qty.group(2)
 
-    return []
+            # description → lijn zonder de geldbedragen
+            desc = re.sub(_PRICE_RX, "", ln)
+            desc = re.sub(r"\s{2,}", " ", desc).strip()
+
+            # sanity: we willen minimaal een description en een line_total
+            if desc and (line_total is not None):
+                # als unit_price, qty ontbreken → probeer af te leiden
+                if unit_price is None and qty and qty > 0:
+                    # ruw: unit_price ≈ total / qty
+                    unit_price = round(line_total / qty, 4)
+                elif unit_price and (not qty or qty == 0):
+                    # qty ≈ total / unit_price
+                    approx = line_total / unit_price if unit_price else None
+                    if approx and approx > 0.1:
+                        qty = round(approx, 4)
+
+                rows.append(
+                    {
+                        "file": filename,
+                        "line_no": idx,
+                        "description": desc,
+                        "quantity": qty,
+                        "unit": unit,
+                        "unit_price": unit_price,
+                        "line_total": line_total,
+                    }
+                )
+    # unieker maken op (description, line_total) om obvious header/footers te filteren
+    unique = {}
+    for r in rows:
+        key = (r["description"], r["line_total"])
+        if key not in unique:
+            unique[key] = r
+    return list(unique.values())
+
 
 # ────────────────────────────────────────────────────────────────
-# Extractie via LLM
+# Stap 2: Categoriseren (LLM of rule-based fallback)
 # ────────────────────────────────────────────────────────────────
-def extract_invoice_fields(text: str, client: Groq) -> list[dict]:
-    """
-    Geeft list[dict] terug; elke dict is één REGEL met scalars:
-      'Factuurnummer', 'Leverancier', 'Beschrijving product', 'Kwantiteit', 'Eenheid', 'Bedrag (EUR)'
-    """
-    if client is None:
-        return []
+def _rule_based_category(desc: str, categories_index) -> str:
+    d = (desc or "").lower()
+    # heel simpele keyword-set; breid uit naar wens
+    if any(k in d for k in ["staal", "steel", "inox"]):
+        return "staal"
+    if any(k in d for k in ["aluminium", "aluminum", "alu"]):
+        return "aluminium"
+    if any(k in d for k in ["kunststof", "plastic", "pvc", "poly"]):
+        return "kunststof"
+    if any(k in d for k in ["uur", "u ", "service", "arbeid", "consult", "installatie"]):
+        return "dienst"
 
-    prompt = (
-        "Je bent een assistent die factuurinformatie per REGEL uit een document haalt.\n"
-        "Output-SCHEMA (ZEER BELANGRIJK):\n"
-        "- Geef ALLEEN een JSON-ARRAY terug.\n"
-        "- Elke array-entry is ÉÉN REGEL (object) met uitsluitEND SCALARS (géén arrays in een object).\n"
-        "- Voor elke regel: gebruik exact de velden: "
-        "'Factuurnummer', 'Leverancier', 'Beschrijving product', 'Kwantiteit', 'Eenheid', 'Bedrag (EUR)'.\n"
-        "- 'Kwantiteit' en 'Bedrag (EUR)' moeten numeriek zijn (string met alleen getal, geen €-teken of duizendtallen).\n"
-        "- Als iets onbekend is, laat het veld leeg of gebruik null.\n"
-        "—\n"
-        "Geef GEEN uitleg, GEEN code fences — ALLEEN de JSON-array.\n\n"
-        f"Documenttekst:\n{text}"
+    # fuzzy fallback: pak eerste category met hoogste overlappende token
+    toks = {t for t in re.findall(r"[a-zA-Z]+", d) if len(t) > 2}
+    best_key = "onbekend"
+    best_score = -1
+    for key in categories_index:
+        base = re.sub(r"[^a-z]", "", key)
+        score = len(toks.intersection({base}))  # erg simpel
+        if score > best_score:
+            best_score = score
+            best_key = key
+    return best_key
+
+
+def classify_rows_with_llm_or_rules(df: pd.DataFrame, categories_index, client=None) -> pd.DataFrame:
+    out = df.copy()
+    cats_lower = set(categories_index)  # al lower-case in ensure_categories_index
+    results: List[str] = []
+
+    use_llm = client is not None
+    prompt_tpl = (
+        "Classificeer de volgende omschrijving naar één van deze categorieën "
+        f"(exact label teruggeven): {sorted(list(cats_lower))}\n\n"
+        "Omschrijving: \"{desc}\"\nAntwoord: "
     )
 
-    resp = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        temperature=0,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    content = resp.choices[0].message.content
-
-    try:
-        data = parse_llm_json(content)
-    except Exception:
-        st.error("Kan JSON niet parsen, ontvangen payload:\n" + str(content))
-        return []
-
-    norm = _normalize_entries_llm(data)
-
-    # Schoon & forceer sleutelset
-    clean = []
-    keys = ["Factuurnummer", "Leverancier", "Beschrijving product", "Kwantiteit", "Eenheid", "Bedrag (EUR)"]
-    for r in norm:
-        if not isinstance(r, dict):
-            continue
-        # trim strings
-        r = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
-        for k in keys:
-            r.setdefault(k, None)
-        # Laat alleen regels toe die iets zinnigs bevatten
-        if not any([r.get("Beschrijving product"), r.get("Bedrag (EUR)"), r.get("Kwantiteit")]):
-            continue
-        clean.append(r)
-
-    return clean
-
-# ────────────────────────────────────────────────────────────────
-# Classificatie via LLM
-# ────────────────────────────────────────────────────────────────
-def classify_rows_with_llm(df: pd.DataFrame, categories: list[dict], client: Groq) -> pd.DataFrame:
-    if client is None:
-        st.error("Geen Groq-client actief. Controleer GROQ_API_KEY.")
-        return df
-
-    lines = [
-        "Je bent een assistent die factuurregels classificeert.",
-        "Categorieën (nummer: naam):"
-    ]
-    for cat in categories:
-        lines.append(f"{cat['Categorie nummer']}: {cat['Categorie']}")
-    lines.append(
-        "\nClassificeer de onderstaande regels en geef als output een JSON-array met objecten met "
-        "'Regel' (index) en 'Categorie' (nummer). Gebruik 'Onbekend' als fallback."
-    )
-    for idx, row in df.iterrows():
-        lines.append(
-            f"Regel={idx}, Beschrijving={row.get('Beschrijving product','')}, "
-            f"Aantal={row.get('Kwantiteit','')}, Eenheid={row.get('Eenheid','')}, "
-            f"BedragEUR={row.get('Bedrag (EUR)','')}"
-        )
-    full_prompt = "\n".join(lines)
-
-    with st.status("Classificeren via LLM…", expanded=False) as status:
+    if use_llm:
         try:
-            resp = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                temperature=0,
-                messages=[{"role":"user","content":full_prompt}]
-            )
-            raw = resp.choices[0].message.content
-            if not raw or not raw.strip():
-                st.error("LLM stuurde een lege response terug.")
-                status.update(state="error")
-                return df
+            # Groq chat call; modelnaam eventueel aanpassen aan jouw stack
+            model_name = os.getenv("GROQ_MODEL", "llama3-70b-8192")
+        except Exception:
+            use_llm = False
 
+    for _, row in out.iterrows():
+        desc = row.get("description", "") or ""
+        cat_key = None
+        if use_llm:
             try:
-                result = parse_llm_json(raw)
+                completion = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": "Je bent een nauwkeurige categorisatiemodule."},
+                        {"role": "user", "content": prompt_tpl.format(desc=desc)},
+                    ],
+                    temperature=0.0,
+                    max_tokens=8,
+                )
+                raw = completion.choices[0].message.content.strip().lower()
+                # schoonmaken
+                raw = re.sub(r"[^a-zà-ÿ0-9 \-]", "", raw)
+                if raw in cats_lower:
+                    cat_key = raw
             except Exception:
-                st.error("Kan classificatie JSON niet parsen. Zie ‘Debug’ hieronder.")
-                with st.expander("🔎 Debug: LLM response"):
-                    st.code(raw)
-                status.update(state="error")
-                return df
+                cat_key = None
 
-            if not isinstance(result, list):
-                st.error("LLM output is geen JSON-array. Zie ‘Debug’ hieronder.")
-                with st.expander("🔎 Debug: LLM response"):
-                    st.code(raw)
-                status.update(state="error")
-                return df
+        if not cat_key:
+            cat_key = _rule_based_category(desc, categories_index)
 
-            df['Categorie nummer'] = 'Onbekend'
-            df['Categorie'] = 'Onbekend'
-            cat_map = {c['Categorie nummer']: c['Categorie'] for c in categories}
+        # als nog steeds niets, zet naar 'onbekend' indien beschikbaar
+        if cat_key not in cats_lower:
+            cat_key = "onbekend" if "onbekend" in cats_lower else next(iter(cats_lower))
 
-            for item in result:
-                try:
-                    idx = int(item.get('Regel', -1))
-                except Exception:
-                    continue
-                cat_num = str(item.get('Categorie', 'Onbekend'))
-                if idx in df.index:
-                    df.at[idx, 'Categorie nummer'] = cat_num
-                    df.at[idx, 'Categorie'] = cat_map.get(cat_num, 'Onbekend')
+        results.append(cat_key)
 
-            status.update(label="Classificatie voltooid ✅", state="complete")
-            return df
+    out["category_key"] = results
+    return out
 
-        except Exception as e:
-            st.error(f"Er ging iets mis tijdens classificatie: {e}")
-            with st.expander("🔎 Debug: prompt voorbeeld"):
-                st.code("\n".join(lines[:30]) + "\n...\n(ingekort)")
-            status.update(state="error")
-            return df
+
+# ────────────────────────────────────────────────────────────────
+# Stap 3: Berekening impacts
+# ────────────────────────────────────────────────────────────────
+def compute_impacts(df: pd.DataFrame, category_factors: pd.DataFrame) -> pd.DataFrame:
+    """
+    Verwacht df met kolom 'category_key' en 'line_total'.
+    category_factors: index = lowercased category, kolommen: factor, unit
+    """
+    out = df.copy()
+    out["line_total"] = pd.to_numeric(out["line_total"], errors="coerce").fillna(0.0)
+
+    def factor_for(key: str):
+        key_l = (key or "").lower()
+        if key_l in category_factors.index:
+            r = category_factors.loc[key_l]
+            return float(r["factor"]), str(r["unit"])
+        # default fallback
+        return 0.5, "kgCO2e/€"
+
+    factors = out["category_key"].apply(lambda k: factor_for(k)[0])
+    units = out["category_key"].apply(lambda k: factor_for(k)[1])
+    out["emission_factor"] = factors
+    out["emission_unit"] = units
+    out["emissions"] = out["line_total"] * out["emission_factor"]
+
+    # Handige volgorde van kolommen
+    cols_order = [
+        "file", "line_no", "description",
+        "quantity", "unit", "unit_price", "line_total",
+        "category_key", "emission_factor", "emission_unit", "emissions",
+    ]
+    for c in cols_order:
+        if c not in out.columns:
+            out[c] = None
+    out = out[cols_order]
+
+    return out
