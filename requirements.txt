@@ -25,3 +25,5 @@ types-requests
 # optional / common extras (vervang/voeg toe als jouw project ze nodig heeft)
 python-magic   # file type sniffing (optioneel)
 python-slugify # slug generation (optioneel)
+PyMuPDF>=1.23.1
+PyPDF2
