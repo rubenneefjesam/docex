@@ -1,5 +1,5 @@
 """
-Use Case Analyzer Streamlit app
+Use Case Generator Streamlit app
 
 - Layout: two columns (links: korte invoer + knop; rechts: uitgewerkte use-case + download Word)
 - Model: probeert eerst GROQ (GROQ_API_KEY), daarna OpenAI (OPENAI_API_KEY). Als geen API key beschikbaar gebruikt het een lokale template-fallback.
@@ -8,7 +8,7 @@ Dependencies:
   pip install streamlit python-docx openai groq
 
 Run:
-  streamlit run use_case_analyzer.py
+  streamlit run use_case_generator.py
 
 """
 
