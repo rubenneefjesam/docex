@@ -77,7 +77,7 @@ CODE:
 
 
 # ---------------------------
-# Model call: vraag over code
+# Model call: vraag over code (QA) - antwoord max 10 regels
 # ---------------------------
 def _ask_question_with_code(groq_client, code: str, question: str):
     sys = (
@@ -109,17 +109,29 @@ ANTWOORD:
             ],
             max_tokens=800,
         )
-        return resp.choices[0].message.content or ""
+        raw = resp.choices[0].message.content or ""
     except Exception as e:
-        return f"Fout bij model-aanroep: {e}"
+        raw = f"Fout bij model-aanroep: {e}"
+
+    # Limiteer op 10 regels (gebruikerswens)
+    lines = [ln.rstrip() for ln in raw.strip().splitlines()]
+    if len(lines) > 10:
+        truncated = lines[:10]
+        truncated.append("… (afgekapt)")
+        return "\n".join(truncated)
+    return "\n".join(lines)
 
 
 # ---------------------------
-# Pygments helper: produceer highlighted HTML (string)
+# Pygments helper: produceer highlighted HTML + CSS (classes variant)
 # ---------------------------
-def _get_highlighted_html(code: str, language: str | None = None, theme: str = "monokai", linenos: bool = False):
+def _get_highlighted_html_and_css(code: str, language: str | None = None, theme: str = "monokai", linenos: bool = False):
+    """
+    Return (html_str, css_str) or (None, None) als pygments niet beschikbaar.
+    We gebruiken noclasses=False zodat we de gegenereerde CSS kunnen injecteren en specifieke token-kleuren (bijv. comments) kunnen overrulen.
+    """
     if not PYGMENTS_AVAILABLE:
-        return None
+        return None, None
 
     lang_map = {
         "c#": "csharp",
@@ -144,9 +156,29 @@ def _get_highlighted_html(code: str, language: str | None = None, theme: str = "
         except Exception:
             lexer = TextLexer()
 
-    formatter = HtmlFormatter(noclasses=True, style=theme, linenos=linenos)
+    # Gebruik classes zodat we CSS kunnen injecteren en comments duidelijker maken
+    formatter = HtmlFormatter(noclasses=False, style=theme, linenos=linenos)
     highlighted = highlight(code, lexer, formatter)
-    return highlighted
+    css = formatter.get_style_defs(".highlight")
+
+    # versterk comment-kleur en achtergrond contrast via extra overrides
+    override_css = """
+    /* extra overrides to ensure comment color is readable */
+    .highlight .c, .highlight .cm, .highlight .c1, .highlight .c2, .highlight .c3 {
+        color: #9CDC7C !important;  /* lichte groene tint voor comments */
+        opacity: 1 !important;
+    }
+    /* wrapper background to match monokai-like dark canvas */
+    .code-canvas {
+        background: #272822 !important;
+        color: #f8f8f2 !important;
+        border-radius: 6px;
+        padding: 8px;
+    }
+    .highlight { white-space: pre !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; font-size:13px; line-height:1.45; }
+    """
+    css_full = css + "\n" + override_css
+    return highlighted, css_full
 
 
 # ---------------------------
@@ -214,20 +246,27 @@ def app():
         if st.session_state.code_out:
             code_text = st.session_state.code_out
 
-            highlighted = _get_highlighted_html(code_text, language=(None if language == "(auto)" else language), theme=theme, linenos=linenos)
+            highlighted, css = _get_highlighted_html_and_css(code_text, language=(None if language == "(auto)" else language), theme=theme, linenos=linenos)
 
             unique_id = str(uuid.uuid4()).replace("-", "_")
             inner_id = f"code_inner_{unique_id}"
             copy_btn_id = f"copy_btn_{unique_id}"
+            wrapper_cls = f"code_canvas_{unique_id}"
 
-            if highlighted:
-                # render Pygments HTML + copy button (JS) inside this container
-                safe_highlight = highlighted  # contains <div class="..."> with HTML
+            if highlighted and css:
+                # embed CSS + highlighted HTML + copy button; copy innerText to get plaintext
                 html_snippet = f"""
-                <div style="border-radius:6px; padding:8px; max-height:520px; overflow:auto; background: transparent;">
+                <style>
+                {css}
+                /* additional wrapper class scoping */
+                .{wrapper_cls} {{ background:#272822; color:#f8f8f2; border-radius:6px; padding:8px; }}
+                .{wrapper_cls} .highlight {{ overflow:auto; }}
+                </style>
+
+                <div class="{wrapper_cls}" style="max-height:520px; overflow:auto;">
                   <div style="display:flex; align-items:flex-start; gap:10px;">
                     <div style="flex:1;">
-                      <div id="{inner_id}">{safe_highlight}</div>
+                      <div id="{inner_id}" class="highlight">{highlighted}</div>
                     </div>
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       <button id="{copy_btn_id}" style="padding:8px 12px; border-radius:6px; background:#10B981; color:white; border:none; cursor:pointer;">
@@ -236,6 +275,7 @@ def app():
                     </div>
                   </div>
                 </div>
+
                 <script>
                 const btn = document.getElementById("{copy_btn_id}");
                 const codeNode = document.getElementById("{inner_id}");
@@ -253,16 +293,19 @@ def app():
                 </script>
                 """
                 import streamlit.components.v1 as components
-                # height tuned to number of lines (approx)
                 height = 220 + min(800, code_text.count("\n") * 18)
                 components.html(html_snippet, height=height, scrolling=True)
             else:
                 # fallback plain pre + copy button
                 escaped = html.escape(code_text)
                 html_snippet = f"""
-                <div style="border-radius:6px; padding:8px; max-height:520px; overflow:auto; background: transparent;">
+                <style>
+                .{wrapper_cls} pre {{ white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; font-size:13px; line-height:1.45; color:#f8f8f2; }}
+                .{wrapper_cls} {{ background:#272822; color:#f8f8f2; border-radius:6px; padding:8px; }}
+                </style>
+                <div class="{wrapper_cls}" style="max-height:520px; overflow:auto;">
                   <div style="display:flex; align-items:flex-start; gap:10px;">
-                    <pre id="{inner_id}" style="margin:0; font-family: monospace; white-space: pre-wrap;">{escaped}</pre>
+                    <pre id="{inner_id}" style="margin:0; background:transparent; color:inherit;">{escaped}</pre>
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       <button id="{copy_btn_id}" style="padding:8px 12px; border-radius:6px; background:#10B981; color:white; border:none; cursor:pointer;">
                         Kopieer code
