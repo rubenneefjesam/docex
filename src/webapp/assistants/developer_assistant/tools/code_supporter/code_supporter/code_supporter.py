@@ -17,7 +17,6 @@ except Exception:
 def _get_groq_client():
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
-        # probeer streamlit secrets
         try:
             api_key = st.secrets.get("groq", {}).get("api_key", "").strip()
         except Exception:
@@ -40,10 +39,6 @@ def _get_groq_client():
 # Model call
 # ---------------------------
 def _add_comments_with_llm(groq_client, code: str, language_hint: str | None):
-    """
-    Vraagt de LLM om *dezelfde code terug te geven* maar met beknopte, nuttige inline comments.
-    Output moet *puur code* zijn (geen markdown fences, geen uitleg).
-    """
     sys = (
         "Je bent een senior code reviewer. Voeg beknopte, nuttige comments toe "
         "in de bestaande code, zonder structuur te wijzigen. "
@@ -72,30 +67,35 @@ CODE:
         st.error(f"Fout bij model-aanroep: {e}")
         return ""
 
-    # Soms sturen modellen toch ```…``` terug; pak de grootste code-sectie
+    # Pak grootste fenced code-blok indien aanwezig, en strip fences
     fenced = re.findall(r"```(?:[\w+-]*)\n(.*?)```", content, flags=re.DOTALL)
     if fenced:
         content = max(fenced, key=len)
-
     content = content.replace("```", "").strip()
     return content
 
 
 # ---------------------------
-# Pygments helper: toon als HTML met thema
+# Pygments helper: toon als HTML in gegeven container (kolom)
 # ---------------------------
-def _show_highlighted(code: str, language: str | None = None, theme: str = "monokai", linenos: bool = False):
+def _show_highlighted(code: str, language: str | None = None, theme: str = "monokai",
+                      linenos: bool = False, container=None):
     """
-    Render code as highlighted HTML using Pygments.
-    - language: 'python','javascript',... of None -> probeer te raden
-    - theme: Pygments style name (monokai, friendly, native, etc.)
+    Render code as highlighted HTML using Pygments, but render INTO provided container
+    (bijv. result_placeholder) zodat positionering in columns correct is.
     """
     if not PYGMENTS_AVAILABLE:
-        # fallback
-        try:
-            st.code(code, language=language or None)
-        except Exception:
-            st.text(code)
+        # fallback: gebruik container of globale st.code
+        if container:
+            try:
+                container.code(code, language=language or None)
+            except Exception:
+                container.text(code)
+        else:
+            try:
+                st.code(code, language=language or None)
+            except Exception:
+                st.text(code)
         return
 
     # map user-facing names to pygments lexers where needed
@@ -122,10 +122,11 @@ def _show_highlighted(code: str, language: str | None = None, theme: str = "mono
         except Exception:
             lexer = TextLexer()
 
+    # zorg voor inline styles (geen extra css-bestand) en optionele regelnummering
     formatter = HtmlFormatter(noclasses=True, style=theme, linenos=linenos)
     highlighted = highlight(code, lexer, formatter)
 
-    # wrapper styling to mimic a VSCode-like panel and allow scrolling
+    # wrapper styling: dwing whitespace, monospace en scroll + nette achtergrond
     wrapper = f"""
     <div style="
         border-radius:8px;
@@ -133,11 +134,18 @@ def _show_highlighted(code: str, language: str | None = None, theme: str = "mono
         margin:6px 0;
         max-height:600px;
         overflow:auto;
+        background: transparent;
     ">
-      {highlighted}
+      <div style="font-family: monospace; white-space: pre; overflow:auto;">
+        {highlighted}
+      </div>
     </div>
     """
-    st.markdown(wrapper, unsafe_allow_html=True)
+
+    if container:
+        container.markdown(wrapper, unsafe_allow_html=True)
+    else:
+        st.markdown(wrapper, unsafe_allow_html=True)
 
 
 # ---------------------------
@@ -166,7 +174,7 @@ def app():
         disabled = not code_in.strip()
         gen = st.button("✨ Genereer comments", type="primary", disabled=disabled)
 
-        # extra: thema keuze voor weergave
+        # thema en regelnummers
         theme = st.selectbox(
             "Weergave thema",
             ["monokai", "github", "solarized_dark", "native", "friendly"],
@@ -177,7 +185,7 @@ def app():
 
     with col_right:
         st.write("**Resultaat**")
-        result_placeholder = st.empty()
+        result_placeholder = st.empty()  # container waar wij later in renderen
 
     # Actie state
     if 'code_out' not in st.session_state:
@@ -190,21 +198,20 @@ def app():
             out = _add_comments_with_llm(client, code_in, lang_hint)
         st.session_state.code_out = out or "⚠️ Geen output ontvangen."
 
-    # Toon resultaat (ook na rerun)
+    # Toon resultaat IN de rechterkolom container
     if st.session_state.code_out:
-        # toon met Pygments HTML (mooi, themable) of fallback
         lang_for_display = None if language == "(auto)" else language
         try:
-            # gebruik onze helper die fallbackt naar st.code als pygments niet beschikbaar is
-            _show_highlighted(st.session_state.code_out, language=lang_for_display, theme=theme, linenos=linenos)
+            _show_highlighted(st.session_state.code_out, language=lang_for_display,
+                              theme=theme, linenos=linenos, container=result_placeholder)
         except Exception:
-            # laatste redmiddel
+            # fallback: plaats tekst in container
             try:
                 result_placeholder.code(st.session_state.code_out, language=(language.lower() if language != "(auto)" else None))
             except Exception:
                 result_placeholder.text(st.session_state.code_out)
 
-        # Download-knop (blijft plain text)
+        # Download-knop (plain text)
         ext_map = {
             "python": "py", "javascript": "js", "typescript": "ts",
             "java": "java", "c#": "cs", "c++": "cpp", "go": "go",
