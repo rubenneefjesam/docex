@@ -84,6 +84,7 @@ def _ask_question_with_code(groq_client, code: str, question: str):
         "Je bent een behulpzame en technische code-reviewer. "
         "Krijg CODE en een VRAAG en antwoord concreet en praktisch. "
         "Verwijs waar nuttig naar regelnummers of korte voorbeelden."
+        "Geef beknopt antwoord, maar krachtig"
     )
 
     code_ctx = code
