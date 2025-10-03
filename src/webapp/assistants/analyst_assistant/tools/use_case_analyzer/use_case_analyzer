@@ -1,5 +1,5 @@
 """
-Use Case Generator Streamlit app
+Use Case Analyzer Streamlit app
 
 - Layout: two columns (links: korte invoer + knop; rechts: uitgewerkte use-case + download Word)
 - Model: probeert eerst GROQ (GROQ_API_KEY), daarna OpenAI (OPENAI_API_KEY). Als geen API key beschikbaar gebruikt het een lokale template-fallback.
@@ -8,7 +8,7 @@ Dependencies:
   pip install streamlit python-docx openai groq
 
 Run:
-  streamlit run use_case_generator.py
+  streamlit run use_case_analyzer.py
 
 """
 
@@ -209,7 +209,7 @@ def create_docx_from_text(title: str, content: str) -> bytes:
                 doc.add_paragraph(line)
 
     bio = doc.core_properties
-    bio.author = "Use Case Generator"
+    bio.author = "Use Case Analyzer"
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -220,8 +220,8 @@ def create_docx_from_text(title: str, content: str) -> bytes:
 # Streamlit UI
 # -----------------------------
 
-st.set_page_config(page_title="Use Case Generator", layout="wide")
-st.title("📝 Use-case generator voor IT Business Analysts")
+st.set_page_config(page_title="Use Case Analyzer", layout="wide")
+st.title("📝 Use-case Analyzer voor IT Business Analysts")
 st.write("Typ 1–4 regels en klik op 'Schrijf use-case uit' — rechts verschijnt de uitgewerkte use-case en een downloadknop (Word).")
 
 col1, col2 = st.columns([1, 1])
