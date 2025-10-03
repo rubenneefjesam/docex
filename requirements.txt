@@ -18,6 +18,7 @@ isort
 mypy
 streamlit
 groq
+pygments
 
 # type hints voor externe libs (optioneel)
 types-requests

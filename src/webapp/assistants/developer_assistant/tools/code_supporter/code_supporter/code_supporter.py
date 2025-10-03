@@ -2,6 +2,15 @@ import os
 import re
 import streamlit as st
 
+# Pygments (optioneel) voor mooie syntax highlighting in HTML
+try:
+    from pygments import highlight
+    from pygments.lexers import get_lexer_by_name, guess_lexer, TextLexer
+    from pygments.formatters import HtmlFormatter
+    PYGMENTS_AVAILABLE = True
+except Exception:
+    PYGMENTS_AVAILABLE = False
+
 # ---------------------------
 # Groq client helper
 # ---------------------------
@@ -14,7 +23,9 @@ def _get_groq_client():
         except Exception:
             api_key = ""
     if not api_key:
-        st.sidebar.error("❌ Groq API key niet gevonden. Zet GROQ_API_KEY of voeg [groq].api_key toe aan .streamlit/secrets.toml")
+        st.sidebar.error(
+            "❌ Groq API key niet gevonden. Zet GROQ_API_KEY of voeg [groq].api_key toe aan .streamlit/secrets.toml"
+        )
         st.stop()
 
     try:
@@ -24,6 +35,7 @@ def _get_groq_client():
         st.sidebar.error(f"❌ Fout bij Groq client: {e}")
         st.stop()
 
+
 # ---------------------------
 # Model call
 # ---------------------------
@@ -32,14 +44,12 @@ def _add_comments_with_llm(groq_client, code: str, language_hint: str | None):
     Vraagt de LLM om *dezelfde code terug te geven* maar met beknopte, nuttige inline comments.
     Output moet *puur code* zijn (geen markdown fences, geen uitleg).
     """
-    # Heel korte, strakke instructie
     sys = (
         "Je bent een senior code reviewer. Voeg beknopte, nuttige comments toe "
         "in de bestaande code, zonder structuur te wijzigen. "
         "Geef uitsluitend de volledige, becommentarieerde code terug, zonder uitleg, "
         "zonder markdown of ``` fences."
     )
-    # Eventuele hint (niet verplicht)
     hint = f" Programmeertaal: {language_hint}." if language_hint else ""
 
     prompt = f"""Voeg inline commentaar toe aan onderstaande code. Houd comments kort, technisch en relevant.{hint}
@@ -62,31 +72,91 @@ CODE:
         st.error(f"Fout bij model-aanroep: {e}")
         return ""
 
-    # Soms sturen modellen toch ```…``` terug; strip die weg:
-    # - verwijder alle ```...``` fences, pak de grootste code-sectie
+    # Soms sturen modellen toch ```…``` terug; pak de grootste code-sectie
     fenced = re.findall(r"```(?:[\w+-]*)\n(.*?)```", content, flags=re.DOTALL)
     if fenced:
-        # neem de langste sectie
         content = max(fenced, key=len)
 
-    # extra sanity: als er nog stray fences zijn
     content = content.replace("```", "").strip()
     return content
+
+
+# ---------------------------
+# Pygments helper: toon als HTML met thema
+# ---------------------------
+def _show_highlighted(code: str, language: str | None = None, theme: str = "monokai", linenos: bool = False):
+    """
+    Render code as highlighted HTML using Pygments.
+    - language: 'python','javascript',... of None -> probeer te raden
+    - theme: Pygments style name (monokai, friendly, native, etc.)
+    """
+    if not PYGMENTS_AVAILABLE:
+        # fallback
+        try:
+            st.code(code, language=language or None)
+        except Exception:
+            st.text(code)
+        return
+
+    # map user-facing names to pygments lexers where needed
+    lang_map = {
+        "c#": "csharp",
+        "c++": "cpp",
+        "js": "javascript",
+        "ts": "typescript",
+        "bash": "bash",
+        "sql": "sql",
+    }
+    lexer = None
+    if language and language != "(auto)":
+        key = language.lower()
+        key = lang_map.get(key, key)
+        try:
+            lexer = get_lexer_by_name(key)
+        except Exception:
+            lexer = None
+
+    if lexer is None:
+        try:
+            lexer = guess_lexer(code)
+        except Exception:
+            lexer = TextLexer()
+
+    formatter = HtmlFormatter(noclasses=True, style=theme, linenos=linenos)
+    highlighted = highlight(code, lexer, formatter)
+
+    # wrapper styling to mimic a VSCode-like panel and allow scrolling
+    wrapper = f"""
+    <div style="
+        border-radius:8px;
+        padding:12px;
+        margin:6px 0;
+        max-height:600px;
+        overflow:auto;
+    ">
+      {highlighted}
+    </div>
+    """
+    st.markdown(wrapper, unsafe_allow_html=True)
+
 
 # ---------------------------
 # UI
 # ---------------------------
 def app():
-    st.markdown("<h2 style='margin-bottom:0.5rem'>🧑‍💻 Code Supporter</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin-bottom:0.25rem'>🧑‍💻 Code Supporter</h2>", unsafe_allow_html=True)
     st.caption("Plak je code links, klik ‘Genereer comments’, en zie rechts het resultaat.")
 
-    # Optioneel: page config hier niet doen als je elders ook set_page_config gebruikt
     col_left, col_right = st.columns(2)
     with col_left:
         language = st.selectbox(
             "Programmeertaal (optioneel, helpt het model):",
-            ["(auto)", "Python", "JavaScript", "TypeScript", "Java", "C#", "C++", "Go", "Rust", "PHP", "Kotlin", "Swift", "Bash", "SQL"],
-            index=0
+            [
+                "(auto)", "Python", "JavaScript", "TypeScript", "Java",
+                "C#", "C++", "Go", "Rust", "PHP", "Kotlin", "Swift", "Bash", "SQL"
+            ],
+            index=0,
+            help="Kies (auto) om automatisch te laten detecteren."
         )
         code_in = st.text_area(
             "Plak je code hier",
@@ -96,11 +166,20 @@ def app():
         disabled = not code_in.strip()
         gen = st.button("✨ Genereer comments", type="primary", disabled=disabled)
 
+        # extra: thema keuze voor weergave
+        theme = st.selectbox(
+            "Weergave thema",
+            ["monokai", "github", "solarized_dark", "native", "friendly"],
+            index=0,
+            help="Thema voor syntax highlighting (monokai lijkt op veel IDE-thema's)."
+        )
+        linenos = st.checkbox("Regelnummers tonen", value=False)
+
     with col_right:
         st.write("**Resultaat**")
         result_placeholder = st.empty()
 
-    # Actie
+    # Actie state
     if 'code_out' not in st.session_state:
         st.session_state.code_out = ""
 
@@ -113,14 +192,19 @@ def app():
 
     # Toon resultaat (ook na rerun)
     if st.session_state.code_out:
-        # Toon als code-block (taal voor syntax highlight indien gekozen)
-        lang = None if language == "(auto)" else language.lower()
+        # toon met Pygments HTML (mooi, themable) of fallback
+        lang_for_display = None if language == "(auto)" else language
         try:
-            result_placeholder.code(st.session_state.code_out, language=lang)
+            # gebruik onze helper die fallbackt naar st.code als pygments niet beschikbaar is
+            _show_highlighted(st.session_state.code_out, language=lang_for_display, theme=theme, linenos=linenos)
         except Exception:
-            result_placeholder.text(st.session_state.code_out)
+            # laatste redmiddel
+            try:
+                result_placeholder.code(st.session_state.code_out, language=(language.lower() if language != "(auto)" else None))
+            except Exception:
+                result_placeholder.text(st.session_state.code_out)
 
-        # Download-knopje
+        # Download-knop (blijft plain text)
         ext_map = {
             "python": "py", "javascript": "js", "typescript": "ts",
             "java": "java", "c#": "cs", "c++": "cpp", "go": "go",
