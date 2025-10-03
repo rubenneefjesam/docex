@@ -308,3 +308,22 @@ if st.session_state.get("latest_usecase") and not generate_btn:
 # Footer / instructions
 st.markdown("---")
 st.caption("Notitie: Plaats je GROQ_API_KEY of OPENAI_API_KEY in je environment variables om een model te gebruiken. Zonder key wordt een lokale fallback-template gebruikt.")
+
+# --- Compatibiliteitslaag voor importers die een symbol 'app' verwachten ---
+def _compat_app_entrypoint():
+    """
+    Compat-entrypoint voor importers/registry die 'app' verwachten.
+    Voor een Streamlit-script kunnen we hier geen server opstarten bij import,
+    dus we geven een lichte descriptor / callable terug zonder side-effects.
+    """
+    # Je kunt hier ook metadata of een callable teruggeven als de registry
+    # die later wil aanroepen. Pas aan naar behoefte.
+    return {
+        "type": "streamlit",
+        "module": __name__,
+        "run_cmd": "streamlit run " + __file__,
+    }
+
+# Exporteer 'app' zodat 'from ... import app' werkt.
+# We exporteren de callable zelf (dus importeren geeft een callable terug).
+app = _compat_app_entrypoint
