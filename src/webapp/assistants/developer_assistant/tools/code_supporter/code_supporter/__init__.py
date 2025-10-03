@@ -1,2 +1,4 @@
-from .doc_generator import run as app
-__all__ = ["app"]
+from .code_supporter import app
+
+# Maak een alias zodat registry óók ‘run’ kan importeren
+run = app

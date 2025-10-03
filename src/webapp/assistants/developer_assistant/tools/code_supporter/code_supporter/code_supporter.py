@@ -134,4 +134,3 @@ def app():
             file_name=f"code_with_comments.{ext}",
             mime="text/plain"
         )
-PY
