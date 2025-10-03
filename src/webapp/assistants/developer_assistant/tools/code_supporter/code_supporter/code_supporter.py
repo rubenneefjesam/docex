@@ -1,6 +1,8 @@
 import os
 import re
 import streamlit as st
+import html
+import uuid
 
 # Pygments (optioneel) voor mooie syntax highlighting in HTML
 try:
@@ -36,14 +38,13 @@ def _get_groq_client():
 
 
 # ---------------------------
-# Model call
+# Model call: voeg comments toe
 # ---------------------------
 def _add_comments_with_llm(groq_client, code: str, language_hint: str | None):
     sys = (
-        "Je bent een senior code reviewer. Voeg beknopte, nuttige comments toe "
-        "in de bestaande code, zonder structuur te wijzigen. "
-        "Geef uitsluitend de volledige, becommentarieerde code terug, zonder uitleg, "
-        "zonder markdown of ``` fences."
+        "Je bent een senior code reviewer. Voeg beknopte, nuttige inline comments toe "
+        "in de bestaande code. Verander de code-structuur niet. Geef alleen de complete, "
+        "becommentarieerde code terug, zonder uitleg en zonder markdown fences."
     )
     hint = f" Programmeertaal: {language_hint}." if language_hint else ""
 
@@ -67,7 +68,7 @@ CODE:
         st.error(f"Fout bij model-aanroep: {e}")
         return ""
 
-    # Pak grootste fenced code-blok indien aanwezig, en strip fences
+    # Pak grootste fenced code-blok indien aanwezig en strip fences
     fenced = re.findall(r"```(?:[\w+-]*)\n(.*?)```", content, flags=re.DOTALL)
     if fenced:
         content = max(fenced, key=len)
@@ -76,29 +77,50 @@ CODE:
 
 
 # ---------------------------
-# Pygments helper: toon als HTML in gegeven container (kolom)
+# Model call: vraag over code
 # ---------------------------
-def _show_highlighted(code: str, language: str | None = None, theme: str = "monokai",
-                      linenos: bool = False, container=None):
-    """
-    Render code as highlighted HTML using Pygments, but render INTO provided container
-    (bijv. result_placeholder) zodat positionering in columns correct is.
-    """
-    if not PYGMENTS_AVAILABLE:
-        # fallback: gebruik container of globale st.code
-        if container:
-            try:
-                container.code(code, language=language or None)
-            except Exception:
-                container.text(code)
-        else:
-            try:
-                st.code(code, language=language or None)
-            except Exception:
-                st.text(code)
-        return
+def _ask_question_with_code(groq_client, code: str, question: str):
+    sys = (
+        "Je bent een behulpzame en technische code-reviewer. "
+        "Krijg CODE en een VRAAG en antwoord concreet en praktisch. "
+        "Verwijs waar nuttig naar regelnummers of korte voorbeelden."
+    )
 
-    # map user-facing names to pygments lexers where needed
+    code_ctx = code
+    if len(code_ctx) > 20000:
+        code_ctx = code_ctx[:20000] + "\n\n# ... (truncated)\n"
+
+    prompt = f"""CODE:
+{code_ctx}
+
+VRAAG:
+{question}
+
+ANTWOORD:
+"""
+
+    try:
+        resp = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": sys},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=800,
+        )
+        return resp.choices[0].message.content or ""
+    except Exception as e:
+        return f"Fout bij model-aanroep: {e}"
+
+
+# ---------------------------
+# Pygments helper: produceer highlighted HTML (string)
+# ---------------------------
+def _get_highlighted_html(code: str, language: str | None = None, theme: str = "monokai", linenos: bool = False):
+    if not PYGMENTS_AVAILABLE:
+        return None
+
     lang_map = {
         "c#": "csharp",
         "c++": "cpp",
@@ -122,40 +144,22 @@ def _show_highlighted(code: str, language: str | None = None, theme: str = "mono
         except Exception:
             lexer = TextLexer()
 
-    # zorg voor inline styles (geen extra css-bestand) en optionele regelnummering
     formatter = HtmlFormatter(noclasses=True, style=theme, linenos=linenos)
     highlighted = highlight(code, lexer, formatter)
-
-    # wrapper styling: dwing whitespace, monospace en scroll + nette achtergrond
-    wrapper = f"""
-    <div style="
-        border-radius:8px;
-        padding:12px;
-        margin:6px 0;
-        max-height:600px;
-        overflow:auto;
-        background: transparent;
-    ">
-      <div style="font-family: monospace; white-space: pre; overflow:auto;">
-        {highlighted}
-      </div>
-    </div>
-    """
-
-    if container:
-        container.markdown(wrapper, unsafe_allow_html=True)
-    else:
-        st.markdown(wrapper, unsafe_allow_html=True)
+    return highlighted
 
 
 # ---------------------------
-# UI
+# UI - hoofd
 # ---------------------------
 def app():
     st.markdown("<h2 style='margin-bottom:0.25rem'>🧑‍💻 Code Supporter</h2>", unsafe_allow_html=True)
-    st.caption("Plak je code links, klik ‘Genereer comments’, en zie rechts het resultaat.")
+    st.caption("Links: plak je broncode en genereer comments. Rechts: becommentarieerde code + QA.")
 
-    col_left, col_right = st.columns(2)
+    # 2-koloms layout: left = input, right = output + QA
+    col_left, col_right = st.columns([1, 1])
+
+    # LEFT: input controls
     with col_left:
         language = st.selectbox(
             "Programmeertaal (optioneel, helpt het model):",
@@ -168,60 +172,142 @@ def app():
         )
         code_in = st.text_area(
             "Plak je code hier",
-            height=420,
+            height=520,
             placeholder="Plak hier je broncode…"
         )
-        disabled = not code_in.strip()
-        gen = st.button("✨ Genereer comments", type="primary", disabled=disabled)
+        gen = st.button("✨ Genereer comments", type="primary", disabled=not code_in.strip())
 
-        # thema en regelnummers
         theme = st.selectbox(
             "Weergave thema",
             ["monokai", "github", "solarized_dark", "native", "friendly"],
             index=0,
-            help="Thema voor syntax highlighting (monokai lijkt op veel IDE-thema's)."
         )
         linenos = st.checkbox("Regelnummers tonen", value=False)
 
+    # RIGHT: container voor code display en QA
     with col_right:
         st.write("**Resultaat**")
-        result_placeholder = st.empty()  # container waar wij later in renderen
+        code_display_container = st.container()  # code komt hierboven
+        qa_container = st.container()  # QA komt onder de code
 
-    # Actie state
+    # session state voor persistentie
     if 'code_out' not in st.session_state:
         st.session_state.code_out = ""
+    if 'qa_answer' not in st.session_state:
+        st.session_state.qa_answer = ""
+    if 'last_question' not in st.session_state:
+        st.session_state.last_question = ""
 
+    # Genereer comments (LLM)
     if gen and code_in.strip():
         client = _get_groq_client()
         lang_hint = None if language == "(auto)" else language
         with st.spinner("Comments genereren…"):
             out = _add_comments_with_llm(client, code_in, lang_hint)
         st.session_state.code_out = out or "⚠️ Geen output ontvangen."
+        # reset QA state bij nieuwe generatie
+        st.session_state.qa_answer = ""
+        st.session_state.last_question = ""
 
-    # Toon resultaat IN de rechterkolom container
-    if st.session_state.code_out:
-        lang_for_display = None if language == "(auto)" else language
-        try:
-            _show_highlighted(st.session_state.code_out, language=lang_for_display,
-                              theme=theme, linenos=linenos, container=result_placeholder)
-        except Exception:
-            # fallback: plaats tekst in container
-            try:
-                result_placeholder.code(st.session_state.code_out, language=(language.lower() if language != "(auto)" else None))
-            except Exception:
-                result_placeholder.text(st.session_state.code_out)
+    # Render rechterkolom: eerst code (gehighlight), daarna QA UI
+    with code_display_container:
+        if st.session_state.code_out:
+            code_text = st.session_state.code_out
 
-        # Download-knop (plain text)
-        ext_map = {
-            "python": "py", "javascript": "js", "typescript": "ts",
-            "java": "java", "c#": "cs", "c++": "cpp", "go": "go",
-            "rust": "rs", "php": "php", "kotlin": "kt", "swift": "swift",
-            "bash": "sh", "sql": "sql"
-        }
-        ext = ext_map.get((language or "").lower(), "txt")
-        st.download_button(
-            "⬇️ Download met comments",
-            data=st.session_state.code_out.encode("utf-8"),
-            file_name=f"code_with_comments.{ext}",
-            mime="text/plain"
-        )
+            highlighted = _get_highlighted_html(code_text, language=(None if language == "(auto)" else language), theme=theme, linenos=linenos)
+
+            unique_id = str(uuid.uuid4()).replace("-", "_")
+            inner_id = f"code_inner_{unique_id}"
+            copy_btn_id = f"copy_btn_{unique_id}"
+
+            if highlighted:
+                # render Pygments HTML + copy button (JS) inside this container
+                safe_highlight = highlighted  # contains <div class="..."> with HTML
+                html_snippet = f"""
+                <div style="border-radius:6px; padding:8px; max-height:520px; overflow:auto; background: transparent;">
+                  <div style="display:flex; align-items:flex-start; gap:10px;">
+                    <div style="flex:1;">
+                      <div id="{inner_id}">{safe_highlight}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <button id="{copy_btn_id}" style="padding:8px 12px; border-radius:6px; background:#10B981; color:white; border:none; cursor:pointer;">
+                        Kopieer code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <script>
+                const btn = document.getElementById("{copy_btn_id}");
+                const codeNode = document.getElementById("{inner_id}");
+                btn.addEventListener("click", async () => {{
+                    try {{
+                        const text = codeNode.innerText;
+                        await navigator.clipboard.writeText(text);
+                        const old = btn.innerText;
+                        btn.innerText = "Gekopieerd!";
+                        setTimeout(()=>{{ btn.innerText = old }}, 1200);
+                    }} catch (e) {{
+                        alert("Kopiëren mislukt: " + e);
+                    }}
+                }});
+                </script>
+                """
+                import streamlit.components.v1 as components
+                # height tuned to number of lines (approx)
+                height = 220 + min(800, code_text.count("\n") * 18)
+                components.html(html_snippet, height=height, scrolling=True)
+            else:
+                # fallback plain pre + copy button
+                escaped = html.escape(code_text)
+                html_snippet = f"""
+                <div style="border-radius:6px; padding:8px; max-height:520px; overflow:auto; background: transparent;">
+                  <div style="display:flex; align-items:flex-start; gap:10px;">
+                    <pre id="{inner_id}" style="margin:0; font-family: monospace; white-space: pre-wrap;">{escaped}</pre>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <button id="{copy_btn_id}" style="padding:8px 12px; border-radius:6px; background:#10B981; color:white; border:none; cursor:pointer;">
+                        Kopieer code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <script>
+                const btn = document.getElementById("{copy_btn_id}");
+                const codeNode = document.getElementById("{inner_id}");
+                btn.addEventListener("click", async () => {{
+                    try {{
+                        const text = codeNode.innerText;
+                        await navigator.clipboard.writeText(text);
+                        const old = btn.innerText;
+                        btn.innerText = "Gekopieerd!";
+                        setTimeout(()=>{{ btn.innerText = old }}, 1200);
+                    }} catch (e) {{
+                        alert("Kopiëren mislukt: " + e);
+                    }}
+                }});
+                </script>
+                """
+                import streamlit.components.v1 as components
+                height = 220 + min(800, code_text.count("\n") * 18)
+                components.html(html_snippet, height=height, scrolling=True)
+        else:
+            st.info("Genereer eerst comments om hier de becommentarieerde code te zien.")
+
+    # QA UI below the code (still in right column)
+    with qa_container:
+        st.markdown("---")
+        st.markdown("### ❓ Stel een vraag over deze code")
+        question = st.text_area("Type je vraag hier", height=100, placeholder="Bijv. 'Wat doet regel 20?' of 'Is deze functie thread-safe?'")
+        ask = st.button("Vraag stellen", type="secondary", disabled=not st.session_state.code_out or not question.strip())
+
+        if ask and question.strip():
+            client = _get_groq_client()
+            with st.spinner("Model antwoord aan het genereren…"):
+                ans = _ask_question_with_code(client, st.session_state.code_out, question.strip())
+            st.session_state.qa_answer = ans or "⚠️ Geen antwoord ontvangen."
+            st.session_state.last_question = question.strip()
+
+        if st.session_state.qa_answer:
+            # Toon vraag+antwoord (laat zien welke vraag beantwoord is)
+            st.markdown(f"**Vraag:** {st.session_state.last_question}")
+            st.markdown("**Antwoord van de reviewer:**")
+            st.write(st.session_state.qa_answer)
