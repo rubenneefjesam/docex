@@ -46,10 +46,15 @@ if page == "Home":
 
 elif page == "Info":
     render_info()
-    
+
 elif page == "agents":
     render_agents()
-
+    +elif page == "Agents":
++    # render de Agents pagina
++    try:
++        render_agents()
++    except Exception as e:
++        st.error(f\"Fout bij laden van Agents-pagina: {e}\")
 elif page == "Contact":
     render_contact()
 
