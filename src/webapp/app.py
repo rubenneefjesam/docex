@@ -16,9 +16,8 @@ from webapp.registry import ASSISTANTS
 from webapp.components.sidebar import render_sidebar
 from webapp.home.home import render as render_home
 from webapp.home.info import render as render_info
-from webapp.home.agents import render as render_agent
+from webapp.home.agents import render as render_agents
 from webapp.home.contact import render as render_contact
-
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
@@ -47,23 +46,22 @@ if page == "Home":
 elif page == "Info":
     render_info()
 
-elif page == "agents":
-    render_agents()
-    +elif page == "Agents":
-+    # render de Agents pagina
-+    try:
-+        render_agents()
-+    except Exception as e:
-+        st.error(f\"Fout bij laden van Agents-pagina: {e}\")
 elif page == "Contact":
     render_contact()
+
+elif page == "Agents":
+    # render de Agents pagina
+    try:
+        render_agents()
+    except Exception as e:
+        st.error(f"Fout bij laden van Agents-pagina: {e}")
 
 elif page == "Assistenten":
     # render_sidebar() garandeert dat assistant_key geldig is
     if tool_key:
         tool_info = ASSISTANTS[assistant_key]["tools"][tool_key]
         try:
-            entry = tool_info["resolver"]()  # haalt 'app' (of 'run') uit het package
+            entry = tool_info["resolver"]()
         except Exception as e:
             st.error(
                 f"Kon entrypoint niet resolven voor {assistant_key}.{tool_key}:\n{e}"
@@ -71,13 +69,14 @@ elif page == "Assistenten":
             st.code("".join(traceback.format_exc()))
         else:
             try:
-                entry()  # voer de Streamlit-tool uit
+                entry()
             except Exception:
                 st.error(f"Fout bij uitvoeren van {assistant_key}.{tool_key}:")
                 st.code("".join(traceback.format_exc()))
     else:
         # Alleen assistant gekozen → toon de info van die assistant
         render_assistant_info(assistant_key)
+
 
 # --- Optioneel: debug-paneel alleen bij DEBUG_ENV=1 ---
 if os.environ.get("DEBUG_ENV") == "1":
