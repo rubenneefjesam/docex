@@ -47,7 +47,7 @@ def render_sidebar(
 
     # ---------------- Main menu ----------------
     st.sidebar.header("Hoofdmenu")
-    main_options = ["Home", "Assistenten", "Agents" "Info", "Contact"]
+    main_options = ["Home", "Assistenten", "Agents", "Info", "Contact"]
 
     # init main menu vanuit URL (query params) of fallback
     if "main_menu" not in st.session_state:
