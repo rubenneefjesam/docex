@@ -16,7 +16,9 @@ from webapp.registry import ASSISTANTS
 from webapp.components.sidebar import render_sidebar
 from webapp.home.home import render as render_home
 from webapp.home.info import render as render_info
+from webapp.home.agents import render as render_agent
 from webapp.home.contact import render as render_contact
+
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 
@@ -44,6 +46,9 @@ if page == "Home":
 
 elif page == "Info":
     render_info()
+    
+elif page == "agents":
+    render_agents()
 
 elif page == "Contact":
     render_contact()
