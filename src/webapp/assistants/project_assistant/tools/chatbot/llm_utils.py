@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import Optional
 
 # optional SDKs
@@ -14,22 +15,18 @@ except Exception:
 
 
 def get_groq_client() -> Optional[Groq]:
-    """Return a Groq client if GROQ_API_KEY is present and the SDK is installed."""
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key or Groq is None:
         return None
     try:
         return Groq(api_key=key)
-    except Exception:
+    except Exception as e:
+        print(f"[llm_utils] Groq client init failed: {e}", file=sys.stderr)
         return None
 
 
 def call_llm_system_prompt(prompt: str, system: str, groq_client: Optional[Groq] = None) -> str:
-    """
-    Call Groq chat if available, otherwise OpenAI ChatCompletion.
-    Returns assistant text or a descriptive error string (empty string on fatal failure).
-    """
-    # Try Groq chat first (if client present)
+    # Try Groq chat first
     if groq_client and Groq is not None:
         try:
             resp = groq_client.chat.completions.create(
@@ -39,8 +36,9 @@ def call_llm_system_prompt(prompt: str, system: str, groq_client: Optional[Groq]
             )
             return resp.choices[0].message.content or ""
         except Exception as e:
-            # return a descriptive error so UI can show it
-            return f"[Groq error] {e}"
+            err = f"[Groq error] {e}"
+            print(err, file=sys.stderr)
+            return err
 
     # Fallback to OpenAI chat
     if openai is not None and os.environ.get("OPENAI_API_KEY"):
@@ -54,6 +52,13 @@ def call_llm_system_prompt(prompt: str, system: str, groq_client: Optional[Groq]
             )
             return resp["choices"][0]["message"]["content"]
         except Exception as e:
-            return f"[OpenAI error] {e}"
+            err = f"[OpenAI error] {e}"
+            print(err, file=sys.stderr)
+            return err
 
-    return ""
+    return "[No LLM configured: set GROQ_API_KEY or OPENAI_API_KEY]"
+
+
+# Backwards-compatible aliases (soms andere modules verwachten underscore-namen)
+_get_groq_client = get_groq_client
+_call_llm_system_prompt = call_llm_system_prompt

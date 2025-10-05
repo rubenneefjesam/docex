@@ -1,7 +1,16 @@
-import os
-from typing import List
+# embed_utils.py
+"""
+Robuuste embedder wrapper:
+- probeert lokale sentence-transformers eerst
+- fallback naar Groq embeddings (indien geconfigureerd)
+- fallback naar OpenAI embeddings (indien OPENAI_API_KEY aanwezig)
 
-# optional imports
+Retourneert altijd Python-lijsten van floats.
+"""
+import os
+from typing import List, Optional
+
+# optionele libs
 try:
     import numpy as np
 except Exception:
@@ -17,7 +26,6 @@ try:
 except Exception:
     openai = None
 
-# Groq SDK optional (some tenants may offer embeddings via Groq; support gracefully)
 try:
     from groq import Groq
 except Exception:
@@ -25,27 +33,27 @@ except Exception:
 
 
 class Embedder:
-    def __init__(self, model_name: str = None):
+    def __init__(self, model_name: Optional[str] = None):
         self.model_name = model_name or os.environ.get("EMBED_MODEL", "all-MiniLM-L6-v2")
         self.model = None
         self.use_openai = False
         self.use_groq = False
+        self.groq = None
 
-        # try local sentence-transformers first
+        # probeer lokale sentence-transformers
         if SentenceTransformer is not None:
             try:
                 self.model = SentenceTransformer(self.model_name)
             except Exception:
                 self.model = None
 
-        # OpenAI fallback
+        # OpenAI fallback (activeer alleen als API key aanwezig)
         if self.model is None and openai is not None and os.environ.get("OPENAI_API_KEY"):
             openai.api_key = os.environ.get("OPENAI_API_KEY")
             self.use_openai = True
 
-        # Groq fallback (only if explicitly configured)
+        # Groq fallback (optioneel)
         if self.model is None and not self.use_openai and Groq is not None and os.environ.get("GROQ_API_KEY"):
-            # Note: Groq embedding availability is tenant-dependent. We attempt to use it, but do not assume success.
             try:
                 self.groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
                 self.use_groq = True
@@ -53,27 +61,35 @@ class Embedder:
                 self.use_groq = False
 
     def embed(self, texts: List[str]) -> List[List[float]]:
-        """Return list of embedding vectors (plain Python lists)."""
+        """
+        Geef embeddings terug als List[List[float]].
+        Werkt met lokale model -> Groq -> OpenAI (in die volgorde).
+        Werpt RuntimeError als geen embedder beschikbaar is of als externe call faalt.
+        """
         if not texts:
             return []
 
-        # local model
+        # lokale model
         if self.model is not None:
             arr = self.model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
-            # ensure numpy present
-            if np is None:
-                return [list(map(float, x)) for x in arr.tolist()]
-            return [list(map(float, x)) for x in np.array(arr)]
-
-        # Groq attempt (if configured)
-        if self.use_groq:
+            # arr kan numpy array of lijst zijn — converteer naar pure Python lists
             try:
-                # Groq embedding API is provider-specific; attempt the common OpenAI-compatible route
-                # If your Groq SDK exposes a different endpoint, adapt here.
-                resp = self.groq.embeddings.create(model=os.environ.get("GROQ_EMBED_MODEL", "embedding-1"), input=texts)
-                return [d["embedding"] for d in resp["data"]]
+                return [list(map(float, x)) for x in arr.tolist()]
             except Exception:
-                # fallthrough to other fallback
+                # fallback: iterable to list
+                return [list(map(float, x)) for x in list(arr)]
+
+        # Groq embeddings (optioneel)
+        if self.use_groq and self.groq is not None:
+            try:
+                resp = self.groq.embeddings.create(model=os.environ.get("GROQ_EMBED_MODEL", "embedding-1"), input=texts)
+                # resp kan dict-like zijn: probeer 'data' pad
+                if isinstance(resp, dict) and "data" in resp:
+                    return [d.get("embedding") for d in resp["data"]]
+                # anders fallback best effort
+                return [d["embedding"] if isinstance(d, dict) else d for d in resp]
+            except Exception:
+                # disable groq fallback na mislukking
                 self.use_groq = False
 
         # OpenAI fallback
@@ -85,4 +101,4 @@ class Embedder:
             except Exception as e:
                 raise RuntimeError(f"OpenAI embedding call failed: {e}")
 
-        raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY (of configureer Groq).")
+        raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY (of configureer GROQ).")
