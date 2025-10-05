@@ -107,3 +107,53 @@ def index_documents(data_dir: Path, proj_to_clients: Dict[str, List[str]], embed
 
     print(f"[INFO] documents indexed. chunks: {total_chunks}, skipped files: {skipped}")
     return total_chunks
+
+
+# --- compatibility wrapper required by runner.py -----------------
+def index_clients_projects_from_csv(clients_csv, projects_csv, embedder):
+    """Read clients_csv and projects_csv and return proj_to_clients mapping.
+
+    clients_csv / projects_csv are Path-like or strings pointing to CSV files.
+    This function is intentionally lightweight (no pandas) and returns:
+        { 'P1001': ['C001','C002'], ... }
+    """
+    import csv
+    from pathlib import Path
+    def _open_csv(path):
+        p = Path(path)
+        if not p.exists():
+            return []
+        with p.open(encoding='utf-8', errors='ignore') as fh:
+            reader = csv.DictReader(fh)
+            return list(reader)
+
+    def _get_value(row, candidates):
+        for c in candidates:
+            if c in row and (row[c] or "").strip():
+                return (row[c] or "").strip()
+        # try lowercased keys
+        for k, v in row.items():
+            if k and k.lower() in [cc.lower() for cc in candidates] and (v or "").strip():
+                return (v or "").strip()
+        return ""
+
+    clients = _open_csv(clients_csv)
+    projects = _open_csv(projects_csv)
+
+    proj_to_clients = {}
+    # gather mapping from clients file (looks for KlantID/ProjectID)
+    for r in clients:
+        cid = _get_value(r, ['KlantID','ClientID','klantid','clientid'])
+        pid = _get_value(r, ['ProjectID','projectid','Project','project'])
+        if cid and pid:
+            proj_to_clients.setdefault(pid, []).append(cid)
+
+    # ensure every project in projects file exists as key (even if empty)
+    for r in projects:
+        pid = _get_value(r, ['ProjectID','projectid','Project','project'])
+        if pid and pid not in proj_to_clients:
+            proj_to_clients[pid] = proj_to_clients.get(pid, [])
+
+    print(f"[csv_indexer wrapper] loaded clients={len(clients)} projects={len(projects)} mapped_projects={len(proj_to_clients)}")
+    return proj_to_clients
+# --- end wrapper ---
