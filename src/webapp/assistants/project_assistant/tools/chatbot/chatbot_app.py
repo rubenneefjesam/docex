@@ -1,24 +1,31 @@
 from pathlib import Path
 
-# attempt to import the UI module (ui.py lives in same folder)
+# Attempt to import the UI module (ui.py lives in same folder)
 try:
+    # Prefer a function named 'run' from ui if present.
     from ui import run as run_ui
-except Exception as e:
+    _IMPORT_ERROR = None
+except Exception as _e:
     run_ui = None
-    _IMPORT_ERROR = e
+    _IMPORT_ERROR = _e
 
-def app():
-    """Compatibility entrypoint used by the registry."""
+def run(*args, **kwargs):
+    """Primary entrypoint expected by some registries. Delegates to ui.run()."""
     if run_ui is None:
-        raise RuntimeError(f"UI module could not be imported: {_IMPORT_ERROR}")
-    return run_ui()
+        raise RuntimeError(f"UI module could not be imported. Underlying error: {_IMPORT_ERROR}")
+    return run_ui(*args, **kwargs)
 
-def main():
-    return app()
+def app(*args, **kwargs):
+    """Compatibility entrypoint used by the registry; delegates to run()."""
+    return run(*args, **kwargs)
 
-# Provide a render alias for registries that expect render()
+def main(*args, **kwargs):
+    """Simple alias for running as a script."""
+    return run(*args, **kwargs)
+
 def render(*args, **kwargs):
-    return app()
+    """Compatibility alias: some registries expect a 'render' symbol."""
+    return run(*args, **kwargs)
 
 if __name__ == "__main__":
     main()
