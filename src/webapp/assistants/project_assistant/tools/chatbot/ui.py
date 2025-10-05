@@ -12,7 +12,7 @@ from typing import List
 # Local imports (these refer to files in the same folder)
 from io_utils import read_uploaded_text, parse_ids_from_filename, chunk_text
 from embed_utils import Embedder
-from webapp.assistants.project_assistant.tools.chatbot.indexer.index_utils import load_index, save_index, download_bytes_json, retrieve as idx_retrieve
+from webapp.assistants.project_assistant.tools.chatbot.index_utils import load_index, save_index, download_bytes_json, retrieve as idx_retrieve
 from llm_utils import get_groq_client, call_llm_system_prompt
 
 BASE = Path(__file__).parent.resolve()

@@ -8,7 +8,7 @@ from typing import List, Dict, Tuple, Optional
 from .io_utils_extended import find_files_in_dir, read_and_meta, parse_ids_from_filename
 from .chunker import chunk_text_simple, chunk_by_sentences
 from .embedder_modular import Embedder
-from .index_utils import load_index, save_index
+from ..index_utils import load_index, save_index
 
 # common libs
 import pandas as pd

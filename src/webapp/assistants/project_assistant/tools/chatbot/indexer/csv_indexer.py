@@ -7,7 +7,7 @@ import numpy as _np  # only for stacking later
 from ..utils import CHUNK_SIZE, CHUNK_OVERLAP, row_to_text
 from .chunker import chunk_text_simple
 from .embedder_modular import Embedder
-from .index_utils import load_index, save_index
+from ..index_utils import load_index, save_index
 
 def index_clients_projects_from_csv(clients_csv: Path, projects_csv: Path, embedder: Embedder) -> Dict[str, List[str]]:
     df_clients = pd.read_csv(clients_csv, dtype=str).fillna("")

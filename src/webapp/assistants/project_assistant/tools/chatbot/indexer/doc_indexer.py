@@ -6,7 +6,7 @@ import numpy as _np
 
 from .io_utils_extended import find_files_in_dir, read_and_meta
 from .chunker import chunk_by_sentences, chunk_text_simple
-from .index_utils import load_index, save_index
+from ..index_utils import load_index, save_index
 from .embedder_modular import Embedder
 from ..utils import CHUNK_SIZE, CHUNK_OVERLAP
 
