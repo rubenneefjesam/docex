@@ -496,3 +496,21 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Compatibiliteitsalias: sommige registries verwachten 'render'
+def render(*args, **kwargs):
+    """Compat: redirect naar run/app zodat imports slagen."""
+    # Als je run() hebt:
+    try:
+        return run(*args, **kwargs)
+    except NameError:
+        pass
+
+    # Als je app() hebt:
+    try:
+        return app(*args, **kwargs)
+    except NameError:
+        pass
+
+    # Als er niets is, raise duidelijke fout
+    raise RuntimeError("Geen run() of app() gevonden om render() naartoe te delegeren.")
