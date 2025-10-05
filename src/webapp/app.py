@@ -13,7 +13,7 @@ if str(SRC_PATH) not in sys.path:
 # --------------------------------------------------------------------------
 
 from webapp.core.registry import ASSISTANTS
-from webapp.components.sidebar import render_sidebar
+from webapp.core.sidebar import render_sidebar
 from webapp.frontend.home import render as render_home
 from webapp.frontend.info import render as render_info
 from webapp.frontend.agents import render as render_agents

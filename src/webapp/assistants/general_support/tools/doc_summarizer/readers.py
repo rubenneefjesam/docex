@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Tuple
 
-from webapp.core.utils.docx_utils import read_docx  # bestaat bij jou
+from webapp.core.docx_utils import read_docx  # bestaat bij jou
 try:
     from pypdf import PdfReader
 except Exception:
