@@ -1,0 +1,4 @@
+Projectnaam,ProjectID,projectnummer_ontwikkelaar,aantal_woningen,straat,postcode,van_tot_huisnummers,stad,aannemer,Startdatum,Einddatum_gepland,Status,Contracttype,Vergunningsnummer,Projectmanager,Oppervlakte_kavel_m2
+ParkHaven West,P1001,DEV-2024-001,24,Lindelaan,1234AB,1-24,Utrecht,BouwFirma BV,2025-03-19,2026-03-14,In uitvoering,Design & Build,VG-UT-2024-0456,Sander de Vries <sander.vries@bouwfirma.nl>,3250.0
+Zeezicht Appartementen,P1002,DEV-2024-102,48,Kuststraat,5678CD,10-106,Den Haag,StrandBouw NV,2025-07-07,2026-08-01,Werkvoorbereiding,Turnkey,VG-DH-2024-0789,Miriam Jansen <miriam.jansen@strandbouw.nl>,5400.0
+Bospark Woningen,P1003,DEV-2025-015,12,Beukenlaan,2468EF,2-24,Eindhoven,GroenBouw Co.,2025-11-04,2026-11-29,Concept,UAV-GC,VG-EH-2025-0012,Peter van Dijk <p.vandijk@groenbouw.co>,2100.0

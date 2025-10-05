@@ -1,0 +1,11 @@
+KlantID,ProjectID,Klantnaam,straatnaam,huisnummer,postcode,stad,oppervlakte_woning_m2,gebruikersoppervlakte_m2,aantal_kamers,aantal_slaapkamers,dakkapel_ja_nee,uitbouw_ja_nee,zonnepanelen_ja_nee,waterpomp_ja_nee,overige_opties,Contactpersoon,Voorkeurscontactmethode,Aankoop_contractdatum,Garantiepakket_gekozen
+C001,P1001,Van Dijk,Dorpsstraat,12A,1234AB,Utrecht,140.0,120.0,5,3,Nee,Nee,Ja,Nee,Geen,Anne van Dijk <anne.vandijk@example.com>,email,2024-08-31,Basis
+C002,P1001,Jansen,Hoofdweg,45,2345BC,Amsterdam,95.0,85.0,4,2,Nee,Ja,Nee,Nee,Uitbouw achtertuin,Mark Jansen <mark.jansen@example.com>,telefoon,2025-01-18,Plus
+C003,P1001,Smit,Kerkplein,3,3456CD,Rotterdam,160.0,150.0,6,4,Ja,Nee,Ja,Ja,Extra isolatie,Laura Smit <laura.smit@example.com>,email,2025-09-05,Premium
+C004,P1001,De Boer,Stationsweg,88,4567DE,Den Haag,110.0,100.0,5,3,Nee,Nee,Nee,Nee,Drempelvrij,Pieter de Boer <pieter.deboer@example.com>,WhatsApp,2025-06-07,Basis
+C005,P1002,Visser,Zandstraat,21,5678EF,Leiden,80.0,75.0,3,2,Nee,Nee,Ja,Nee,Extra stopcontacten,Eva Visser <eva.visser@example.com>,email,2025-09-25,Plus
+C006,P1002,Bakker,Veldweg,5,6789FG,Eindhoven,130.0,120.0,5,3,Nee,Ja,Nee,Ja,Parkeerplaats,Jeroen Bakker <jeroen.bakker@example.com>,telefoon,2025-03-19,Basis
+C007,P1002,Koster,Laanzicht,101,7890GH,Haarlem,145.0,135.0,6,4,Ja,Nee,Ja,Nee,Zwemvijver,Sanne Koster <sanne.koster@example.com>,email,2024-05-23,Premium
+C008,P1003,Meijer,Rivierstraat,7,8901IJ,Utrecht,98.0,90.0,4,2,Nee,Nee,Nee,Nee,Slimme thermostaat,Tom Meijer <tom.meijer@example.com>,email,2025-07-22,Plus
+C009,P1003,Dekker,Oeverweg,56,9012JK,Groningen,75.0,70.0,3,2,Nee,Nee,Nee,Nee,Opslagruimte,Iris Dekker <iris.dekker@example.com>,post,2024-08-11,Basis
+C010,P1003,Kuipers,Heuvelstraat,2B,0123KL,Maastricht,155.0,140.0,6,4,Ja,Ja,Ja,Ja,Dakkapel + uitbouw,Kees Kuipers <kees.kuipers@example.com>,email,2025-09-30,Premium
