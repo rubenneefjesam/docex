@@ -1,7 +1,13 @@
 # src/.../chatbot/indexer/runner.py
 from pathlib import Path
 from .embedder_modular import Embedder
-from .csv_indexer import index_clients_projects_from_csv
+import importlib
+csv_indexer = importlib.import_module('webapp.assistants.project_assistant.tools.chatbot.indexer.csv_indexer')
+# find a suitable index function in csv_indexer
+_index_fn = getattr(csv_indexer, 'index_clients_projects_from_csv', None) or getattr(csv_indexer, 'index_clients_from_csv', None) or getattr(csv_indexer, 'index_clients_projects', None) or getattr(csv_indexer, 'index_csvs', None) or getattr(csv_indexer, 'index_clients', None)
+if _index_fn is None:
+    raise ImportError('csv_indexer: could not find index_clients_projects_from_csv or fallback names')
+index_clients_projects_from_csv = _index_fn
 from .doc_indexer import index_documents
 from ..utils import DATA_DIR
 

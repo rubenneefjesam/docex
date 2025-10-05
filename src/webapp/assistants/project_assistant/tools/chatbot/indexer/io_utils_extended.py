@@ -5,7 +5,7 @@ import re
 
 # reuse pdf/docx readers
 from .pdf_io import read_text_from_file
-from .io_utils import parse_ids_from_filename  # if you keep io_utils in root; else duplicate logic
+from ..io_utils import parse_ids_from_filename  # if you keep io_utils in root; else duplicate logic
 
 def find_files_in_dir(base: Path, exts=None) -> List[Path]:
     """Recursively find files under base with given extensions."""
