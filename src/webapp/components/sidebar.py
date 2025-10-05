@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import streamlit as st
 
-from webapp.registry import ASSISTANTS
+from webapp.registry import ASSISTANTS, AGENTS
 
 PLACEHOLDER = "— Kies tool —"
 
@@ -18,13 +18,11 @@ def _load_logo() -> None:
             break
 
 
-def _ensure_valid_assistant(key: str, fallback: str) -> str:
-    keys = list(ASSISTANTS.keys())
-    return key if key in keys else (fallback if fallback in keys else keys[0])
+def _ensure_valid_key(key: str, valid_keys: List[str], fallback: str) -> str:
+    return key if key in valid_keys else (fallback if fallback in valid_keys else valid_keys[0])
 
 
-def _ensure_valid_tool(asst_key: str, tool_key: Optional[str]) -> str:
-    tools = ASSISTANTS.get(asst_key, {}).get("tools", {})
+def _ensure_valid_tool(tools: dict, tool_key: Optional[str]) -> str:
     return tool_key if tool_key in tools else ""
 
 
@@ -33,16 +31,15 @@ def render_sidebar(
     default_tool: Optional[str] = None,
 ) -> Tuple[str, str, str]:
     """
-    Renders the sidebar and returns (page, assistant_key, tool_key).
+    Renders the sidebar and returns (page, key, tool_key).
 
-    Guarantees:
-      - assistant_key is always a valid key in ASSISTANTS
-      - tool_key is '' or a valid tool for that assistant
+    If page == 'Assistenten', key is assistant_key and uses ASSISTANTS.
+    If page == 'Agents', key is agent_key and uses AGENTS.
+    Otherwise tool_key always '' and key unused.
     """
-    # ---- Logo ----
     _load_logo()
 
-    # ---- Appearance toggle ----
+    # Appearance toggle
     st.sidebar.title("Instellingen")
     appearance = st.sidebar.radio(
         "Uiterlijk",
@@ -62,7 +59,7 @@ def render_sidebar(
         )
     st.sidebar.markdown("---")
 
-    # ---- Main menu ----
+    # Main menu
     st.sidebar.header("Hoofdmenu")
     main_options = ["Home", "Assistenten", "Agents", "Info", "Contact"]
     if "main_menu" not in st.session_state:
@@ -71,96 +68,92 @@ def render_sidebar(
         initial = page_q[0] if page_q and isinstance(page_q, list) else "Home"
         st.session_state.main_menu = initial if initial in main_options else "Home"
 
-    main_menu = st.sidebar.radio(
+    page = st.sidebar.radio(
         "Hoofdmenu",
         options=main_options,
         index=main_options.index(st.session_state.main_menu),
         key="main_menu_radio",
         on_change=lambda: st.session_state.update({"main_menu": st.session_state.main_menu_radio}),
     )
-    st.session_state.main_menu = main_menu
+    st.session_state.main_menu = page
     st.sidebar.markdown("---")
 
-    if main_menu != "Assistenten":
-        asst_key = _ensure_valid_assistant(
-            st.session_state.get("assistant_key", default_assistant), default_assistant
-        )
-        tool_key = _ensure_valid_tool(
-            asst_key, st.session_state.get("tool_key", default_tool or "")
-        )
-        st.session_state.assistant_key, st.session_state.tool_key = asst_key, tool_key
-        st.query_params["page"] = main_menu
-        return main_menu, asst_key, tool_key
-
-    # ---- Assistenten mode ----
-    st.sidebar.header("Assistent voor:")
-    assistant_keys: List[str] = list(ASSISTANTS.keys())
-    assistant_labels: List[str] = [ASSISTANTS[k]["label"] for k in assistant_keys]
-
-    if "assistant_key" not in st.session_state or "tool_key" not in st.session_state:
-        qp = st.query_params
-        a_q = qp.get("assistant", [])
-        initial_asst = a_q[0] if a_q and isinstance(a_q, list) else default_assistant
-        st.session_state.assistant_key = _ensure_valid_assistant(initial_asst, default_assistant)
-
-        t_q = qp.get("tool", [])
-        initial_tool = t_q[0] if t_q and isinstance(t_q, list) else (default_tool or "")
-        st.session_state.tool_key = _ensure_valid_tool(st.session_state.assistant_key, initial_tool)
-
-        st.session_state.assistant_radio = ASSISTANTS[st.session_state.assistant_key]["label"]
-        st.session_state.tool_radio = PLACEHOLDER
-
-    def _on_assistant_changed():
-        sel = st.session_state.assistant_radio
-        idx = assistant_labels.index(sel) if sel in assistant_labels else 0
-        st.session_state.assistant_key = assistant_keys[idx]
+    # Helper for modes outside Assistenten/Agents
+    if page not in ("Assistenten", "Agents"):
+        # clear keys
         st.session_state.tool_key = ""
-        st.session_state.tool_radio = PLACEHOLDER
-        st.query_params.update({"page": "Assistenten", "assistant": st.session_state.assistant_key, "tool": ""})
+        st.query_params["page"] = page
+        return page, "", ""
+
+    # Determine registry and session names
+    is_agents = page == "Agents"
+    registry = AGENTS if is_agents else ASSISTANTS
+    state_key = "agent_key" if is_agents else "assistant_key"
+    state_tool = "agent_tool" if is_agents else "tool_key"
+    radio_key = "agent_radio" if is_agents else "assistant_radio"
+    tool_radio_key = "agent_tool_radio" if is_agents else "tool_radio"
+    header_label = "Agent voor:" if is_agents else "Assistent voor:"
+
+    # Initialize state
+    keys = list(registry.keys())
+    labels = [registry[k]["label"] for k in keys]
+    if state_key not in st.session_state or state_tool not in st.session_state:
+        st.session_state[state_key] = _ensure_valid_key(default_assistant if not is_agents else keys[0], keys, keys[0])
+        st.session_state[state_tool] = _ensure_valid_tool(registry[st.session_state[state_key]]["tools"], default_tool or "")
+        st.session_state[radio_key] = registry[st.session_state[state_key]]["label"]
+        st.session_state[tool_radio_key] = PLACEHOLDER
+
+    # Selector header
+    st.sidebar.header(header_label)
+
+    def on_key_changed():
+        sel = st.session_state[radio_key]
+        idx = labels.index(sel) if sel in labels else 0
+        st.session_state[state_key] = keys[idx]
+        st.session_state[state_tool] = ""
+        st.session_state[tool_radio_key] = PLACEHOLDER
+        st.query_params.update({"page": page, "assistant" if not is_agents else "agent": keys[idx], "tool": ""})
 
     st.sidebar.radio(
-        "Assistent voor",
-        options=assistant_labels,
-        index=assistant_keys.index(st.session_state.assistant_key),
-        key="assistant_radio",
-        on_change=_on_assistant_changed,
+        header_label,
+        options=labels,
+        index=keys.index(st.session_state[state_key]),
+        key=radio_key,
+        on_change=on_key_changed,
     )
 
-    tools_meta = ASSISTANTS[st.session_state.assistant_key].get("tools", {})
+    # Tool selector
+    tools_meta = registry[st.session_state[state_key]]["tools"]
     tool_keys = list(tools_meta.keys())
     tool_labels = [tools_meta[k]["label"] for k in tool_keys]
     if tool_keys:
         placeholder = [PLACEHOLDER] + tool_labels
-        if st.session_state.tool_key in tool_keys:
-            curr_label = tools_meta[st.session_state.tool_key]["label"]
-            default_idx = placeholder.index(curr_label)
+        if st.session_state[state_tool] in tool_keys:
+            curr = tools_meta[st.session_state[state_tool]]["label"]
+            default_idx = placeholder.index(curr)
         else:
             default_idx = 0
-            st.session_state.tool_radio = PLACEHOLDER
+            st.session_state[tool_radio_key] = PLACEHOLDER
 
-        def _on_tool_changed():
-            sel = st.session_state.tool_radio
-            key = "" if sel == PLACEHOLDER else tool_keys[placeholder.index(sel) - 1]
-            st.session_state.tool_key = key
-            st.query_params.update({"page": "Assistenten", "assistant": st.session_state.assistant_key, "tool": key or ""})
+        def on_tool_changed():
+            sel = st.session_state[tool_radio_key]
+            if sel == PLACEHOLDER:
+                st.session_state[state_tool] = ""
+            else:
+                st.session_state[state_tool] = tool_keys[placeholder.index(sel) - 1]
+            st.query_params.update({"page": page, "assistant" if not is_agents else "agent": st.session_state[state_key], "tool": st.session_state[state_tool] or ""})
 
         st.sidebar.radio(
             "Kies tool",
             options=placeholder,
             index=default_idx,
-            key="tool_radio",
-            on_change=_on_tool_changed,
+            key=tool_radio_key,
+            on_change=on_tool_changed,
         )
     else:
-        st.sidebar.info("Nog geen tools geconfigureerd voor deze assistant.")
-        st.session_state.tool_key = ""
-        st.session_state.tool_radio = PLACEHOLDER
+        st.sidebar.info(f"Nog geen tools geconfigureerd voor deze {'Agent' if is_agents else 'assistant'}.")
 
     st.sidebar.markdown("---")
-    st.query_params.update({
-        "page": "Assistenten",
-        "assistant": st.session_state.assistant_key,
-        "tool": st.session_state.tool_key or ""
-    })
+    st.query_params.update({"page": page, "assistant" if not is_agents else "agent": st.session_state[state_key], "tool": st.session_state[state_tool] or ""})
 
-    return "Assistenten", st.session_state.assistant_key, st.session_state.tool_key
+    return page, st.session_state[state_key], st.session_state[state_tool]
