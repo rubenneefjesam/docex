@@ -1,4 +1,4 @@
-# src/webapp/registry.py
+# src/webapp/core/registry.py
 from pathlib import Path
 from typing import Dict, Any
 import importlib
@@ -49,10 +49,14 @@ def resolve_tool_module(namespace: str, parent_key: str, tool_key: str) -> Any:
 def discover_assistants() -> Dict[str, Dict[str, Any]]:
     """
     Bouw de registry voor assistants:
-    mappenstructuur: webapp/assistants/{assistant}/tools/{tool}
+    mappenstructuur: src/webapp/assistants/{assistant}/tools/{tool}
     """
-    base = Path(__file__).parent / "assistants"
+    # repo-root/src/webapp
+    base = Path(__file__).resolve().parents[1] / "assistants"
     assistants: Dict[str, Dict[str, Any]] = {}
+
+    if not base.exists():
+        return assistants
 
     for asst_dir in base.iterdir():
         if not asst_dir.is_dir() or asst_dir.name.startswith("__"):
@@ -82,10 +86,13 @@ def discover_assistants() -> Dict[str, Dict[str, Any]]:
 def discover_agents() -> Dict[str, Dict[str, Any]]:
     """
     Bouw de registry voor agents:
-    mappenstructuur: webapp/agents/{agent}/tools/{tool}
+    mappenstructuur: src/webapp/agents/{agent}/tools/{tool}
     """
-    base = Path(__file__).parent / "agents"
+    base = Path(__file__).resolve().parents[1] / "agents"
     agents: Dict[str, Dict[str, Any]] = {}
+
+    if not base.exists():
+        return agents
 
     for agent_dir in base.iterdir():
         if not agent_dir.is_dir() or agent_dir.name.startswith("__"):
