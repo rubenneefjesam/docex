@@ -1,6 +1,6 @@
 import importlib
 import pytest
-from webapp.registry import ASSISTANTS
+from webapp.core.registry import ASSISTANTS
 
 BASE = "webapp.assistants"
 

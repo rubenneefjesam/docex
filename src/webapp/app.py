@@ -12,12 +12,12 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 # --------------------------------------------------------------------------
 
-from webapp.registry import ASSISTANTS
+from webapp.core.registry import ASSISTANTS
 from webapp.components.sidebar import render_sidebar
-from webapp.home.home import render as render_home
-from webapp.home.info import render as render_info
-from webapp.home.agents import render as render_agents
-from webapp.home.contact import render as render_contact
+from webapp.frontend.home import render as render_home
+from webapp.frontend.info import render as render_info
+from webapp.frontend.agents import render as render_agents
+from webapp.frontend.contact import render as render_contact
 
 st.set_page_config(page_title="Docgen Suite", layout="wide")
 

@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from webapp import registry
+from webapp.core import registry
 
 def module_to_path(module_name: str) -> Path:
     parts = module_name.split(".")

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 import streamlit as st
 
-from webapp.registry import ASSISTANTS, AGENTS
+from webapp.core.registry import ASSISTANTS, AGENTS
 
 PLACEHOLDER = "— Kies tool —"
 
