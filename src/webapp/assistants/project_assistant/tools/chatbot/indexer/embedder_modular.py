@@ -1,5 +1,6 @@
+# embedder_modular.py
 import os
-from typing import List
+from typing import List, Optional
 
 try:
     import numpy as np
@@ -23,11 +24,12 @@ except Exception:
 
 
 class Embedder:
-    def __init__(self, model_name: str = None):
+    def __init__(self, model_name: Optional[str] = None):
         self.model_name = model_name or os.environ.get("EMBED_MODEL", "all-MiniLM-L6-v2")
         self.model = None
         self.use_openai = False
         self.use_groq = False
+        self.groq = None
 
         if SentenceTransformer is not None:
             try:
@@ -49,17 +51,28 @@ class Embedder:
     def embed(self, texts: List[str]) -> List[List[float]]:
         if not texts:
             return []
+        # local model
         if self.model is not None:
             arr = self.model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
-            return [list(map(float, x)) for x in np.array(arr)]
-        if self.use_groq:
+            try:
+                return [list(map(float, x)) for x in arr.tolist()]
+            except Exception:
+                return [list(map(float, x)) for x in list(arr)]
+        # groq
+        if self.use_groq and self.groq is not None:
             try:
                 resp = self.groq.embeddings.create(model=os.environ.get("GROQ_EMBED_MODEL", "embedding-1"), input=texts)
-                return [d["embedding"] for d in resp["data"]]
+                if isinstance(resp, dict) and "data" in resp:
+                    return [d.get("embedding") for d in resp["data"]]
+                return [d["embedding"] if isinstance(d, dict) else d for d in resp]
             except Exception:
                 self.use_groq = False
+        # openai
         if self.use_openai:
             model = os.environ.get("OPENAI_EMBED_MODEL", "text-embedding-3-small")
-            resp = openai.Embedding.create(model=model, input=texts)
-            return [d["embedding"] for d in resp["data"]]
-        raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY of GROQ_API_KEY.")
+            try:
+                resp = openai.Embedding.create(model=model, input=texts)
+                return [d["embedding"] for d in resp["data"]]
+            except Exception as e:
+                raise RuntimeError(f"OpenAI embedding call failed: {e}")
+        raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY (of configureer GROQ).")
