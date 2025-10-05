@@ -1,35 +1,44 @@
-# Python cache & env
+# ─── Python Virtual Environments ───────────────────────────────────────────────
+# Virtuele omgevingen, voorkomen dat ‘venv/’ of ‘.env/’ in repo komen
 .venv/
 venv/
 env/
+
+# ─── Python Bytecode & Build Artifacts ────────────────────────────────────────
+# .pyc, .pyo, egg-info en __pycache__-mappen
 __pycache__/
 *.py[cod]
-*.pyc
 *.pyo
 *.pyd
+*.egg-info/
 
-# Env & secrets
+# ─── Configuration & Secrets ───────────────────────────────────────────────────
+# Omgevings- en streamlit-secrets
 .env
 .env.*
-.streamlit/secrets.toml
 secrets.toml
+.streamlit/secrets.toml
 
-# Editor / IDE
+# ─── IDE / Editor ─────────────────────────────────────────────────────────────
+# VSCode, JetBrains, etc.
 .vscode/
+.idea/
 
-# Local / temp / backups
-*.baktmp*
-*.docx
-streamlit.log
+# ─── Test-output & Caches ─────────────────────────────────────────────────────
+# Pytest cache, smoke tests, logs
+.pytest_cache/
 smoke_output.txt
 *.log
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-# pytest cache
-.pytest_cache/
-# test data (optioneel: soms wil je data wel in git)
+streamlit.log
+
+# ─── Temporary & Backup Files ─────────────────────────────────────────────────
+# Oudere back-ups en tijdelijke bestandsformaten
+*.bak
+*.baktmp*
+*~
+*.swp
+
+# ─── Test Data (optioneel) ─────────────────────────────────────────────────────
+# Houd enkel .gitkeep over in tests/data, zodat map wordt meegenomen
 tests/data/*
 !tests/data/.gitkeep
-*.bak
