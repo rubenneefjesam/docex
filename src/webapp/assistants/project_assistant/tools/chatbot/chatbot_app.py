@@ -1,18 +1,19 @@
 from pathlib import Path
 
-# Attempt to import the UI module (ui.py lives in same folder)
+# Attempt relative import of ui inside this package
 try:
-    # Prefer a function named 'run' from ui if present.
-    from ui import run as run_ui
+    # relative import works when this module is inside the package
+    from .ui import run as run_ui
     _IMPORT_ERROR = None
 except Exception as _e:
+    # keep the error to show it later when someone calls run()
     run_ui = None
     _IMPORT_ERROR = _e
 
 def run(*args, **kwargs):
     """Primary entrypoint expected by some registries. Delegates to ui.run()."""
     if run_ui is None:
-        raise RuntimeError(f"UI module could not be imported. Underlying error: {_IMPORT_ERROR}")
+        raise RuntimeError(f"UI module could not be imported via relative import. Underlying error: {_IMPORT_ERROR}")
     return run_ui(*args, **kwargs)
 
 def app(*args, **kwargs):
@@ -20,11 +21,11 @@ def app(*args, **kwargs):
     return run(*args, **kwargs)
 
 def main(*args, **kwargs):
-    """Simple alias for running as a script."""
+    """Alias for running as a script."""
     return run(*args, **kwargs)
 
 def render(*args, **kwargs):
-    """Compatibility alias: some registries expect a 'render' symbol."""
+    """Compatibility alias: some registries expect 'render'."""
     return run(*args, **kwargs)
 
 if __name__ == "__main__":
