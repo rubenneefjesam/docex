@@ -4,11 +4,12 @@ from typing import Dict, List, Optional
 import re
 import numpy as _np
 
-from .io_utils_extended import find_files_in_dir, read_and_meta
+from .io_utils_extended import find_files_in_dir, read_and_meta, parse_ids_from_path
 from .chunker import chunk_by_sentences, chunk_text_simple
 from ..index_utils import load_index, save_index
 from .embedder_modular import Embedder
 from ..utils import CHUNK_SIZE, CHUNK_OVERLAP
+
 
 def _find_pid_from_ancestors(path: Path) -> Optional[str]:
     for anc in (path.parent, path.parent.parent):
@@ -19,79 +20,124 @@ def _find_pid_from_ancestors(path: Path) -> Optional[str]:
             return m.group(1)
     return None
 
+
 def _find_pid_in_text(text: str) -> Optional[str]:
     m = re.search(r"\b(P\d{1,6})\b", (text or "").upper())
     if m:
         return m.group(1)
     return None
 
+
 def index_documents(data_dir: Path, proj_to_clients: Dict[str, List[str]], embedder: Embedder) -> int:
+    """
+    Index documents found under data_dir.
+
+    proj_to_clients: mapping from project_id -> list of client_ids (from CSVs).
+    Returns total number of chunks added.
+    """
     files = find_files_in_dir(data_dir, exts=[".pdf", ".docx", ".txt"])
     total_chunks = 0
     skipped = 0
 
+    # build reverse mapping client -> [projects] for quick lookup
+    client_to_projects: Dict[str, List[str]] = {}
+    for p_id, clist in (proj_to_clients or {}).items():
+        for c in clist:
+            client_to_projects.setdefault(c, []).append(p_id)
+
     for f in files:
         text, meta = read_and_meta(f)
         if not (text or "").strip():
-            print(f"[WARN] geen tekst in {f}, skipping")
+            print(f"[WARN] geen tekst in {f}, skipping (OCR may be required).")
             skipped += 1
             continue
 
         cid = meta.get("client_id")
         pid = meta.get("project_id")
 
+        # Try parse ids from filename / path if missing
+        if not cid or not pid:
+            parsed_cid, parsed_pid = parse_ids_from_path(f)
+            cid = cid or parsed_cid
+            pid = pid or parsed_pid
+
+        # try ancestor folder
         if not pid:
             pid = _find_pid_from_ancestors(Path(meta.get("filepath", str(f))))
             if pid:
                 print(f"[INFO] pid from folder for {f.name}: {pid}")
 
+        # try to find P#### in text
         if not pid:
             pid = _find_pid_in_text(text)
             if pid:
                 print(f"[INFO] pid in text for {f.name}: {pid}")
 
-        if not pid:
-            pid = "UNKNOWN"
-            print(f"[INFO] no PID for {f.name}, indexing under UNKNOWN")
+        # Determine target project ids for this file:
+        target_pids: List[str] = []
+        if pid and pid != "UNKNOWN":
+            target_pids = [pid]
+        else:
+            # if we have a client and it maps to projects via CSV, use those
+            if cid:
+                mapped = client_to_projects.get(cid)
+                if mapped:
+                    target_pids = mapped.copy()
+                    print(f"[INFO] resolved project(s) {target_pids} for client {cid} via CSV mapping for file {f.name}")
 
-        clients = proj_to_clients.get(pid, [])
-        if not clients and cid:
-            clients = [cid]
-        if not clients:
-            clients = ["UNKNOWN"]
+        # fallback
+        if not target_pids:
+            target_pids = [pid or "UNKNOWN"]
+            if target_pids == ["UNKNOWN"]:
+                print(f"[INFO] no PID for {f.name}, indexing under UNKNOWN")
 
+        # chunk once per document (sentence-based preferred)
         chunks = chunk_by_sentences(text, target_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
         if not chunks:
             chunks = chunk_text_simple(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
 
-        for client in clients:
-            metas = []
-            for i, c in enumerate(chunks):
-                metas.append({
-                    "text": c,
-                    "client_id": client or "UNKNOWN",
-                    "project_id": pid,
-                    "filename": f.name,
-                    "filepath": str(f),
-                    "chunk_index": i,
-                    "source": "doc_file",
-                })
-            try:
-                embs = embedder.embed([m["text"] for m in metas])
-            except Exception as e:
-                print(f"[ERROR] embed failed for {f.name}: {e}")
-                skipped += 1
-                continue
+        # detect correspondence-ish filenames (simple heuristic)
+        fname_low = f.name.lower()
+        is_corr_file = any(k in fname_low for k in ("klantcommunicatie", "correspondentie", "corresp", "mail", "brief", "orderbevestiging", "klantorders"))
 
-            rows, emb_arr = load_index(client or "UNKNOWN", pid)
-            if rows and emb_arr is not None:
-                new_rows = rows + metas
-                new_emb = _np.vstack([emb_arr, _np.array(embs, dtype=_np.float32)])
-                save_index(client or "UNKNOWN", pid, new_rows, new_emb.tolist())
-            else:
-                save_index(client or "UNKNOWN", pid, metas, embs)
+        # For each target project, index the chunks under the appropriate client(s)
+        for target_pid in target_pids:
+            clients_for_project = proj_to_clients.get(target_pid, [])
+            if not clients_for_project and cid:
+                clients_for_project = [cid]
+            if not clients_for_project:
+                clients_for_project = ["UNKNOWN"]
 
-            total_chunks += len(metas)
+            for client in clients_for_project:
+                metas: List[dict] = []
+                for i, c in enumerate(chunks):
+                    metas.append({
+                        "text": c,
+                        "client_id": client or "UNKNOWN",
+                        "project_id": target_pid,
+                        "filename": f.name,
+                        "filepath": str(f),
+                        "chunk_index": i,
+                        "source": "doc_file",
+                        "is_correspondentie": is_corr_file or ("correspondentie" in c.lower())
+                    })
+
+                try:
+                    embs = embedder.embed([m["text"] for m in metas])
+                except Exception as e:
+                    print(f"[ERROR] embed failed for {f.name}: {e}")
+                    skipped += 1
+                    continue
+
+                rows, emb_arr = load_index(client or "UNKNOWN", target_pid)
+                if rows and emb_arr is not None:
+                    new_rows = rows + metas
+                    new_emb = _np.vstack([emb_arr, _np.array(embs, dtype=_np.float32)])
+                    save_index(client or "UNKNOWN", target_pid, new_rows, new_emb.tolist())
+                else:
+                    save_index(client or "UNKNOWN", target_pid, metas, embs)
+
+                total_chunks += len(metas)
 
     print(f"[INFO] documents indexed. chunks: {total_chunks}, skipped files: {skipped}")
     return total_chunks
