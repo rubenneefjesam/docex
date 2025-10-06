@@ -16,11 +16,11 @@ import json
 
 # voeg project root toe zodat imports werken als je vanuit repository root runt
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT))   # voeg repo-root toe zodat "import chatbot" werkt
 
 # import de modules (passen bij jouw package-structuur)
 try:
-    from indexer.index_csvs_modular import index_clients_projects_from_csv, index_documents, DATA_DIR as IDX_DATA_DIR
+    from chatbot.indexer.index_csvs_modular import index_clients_projects_from_csv, index_documents, DATA_DIR as IDX_DATA_DIR
 except Exception as e:
     print("Fout bij import indexer modules:", e)
     raise
