@@ -11,4 +11,3 @@ def write_csv(path, headers, rows):
         fh.write(\",\".join(headers) + \"\\n\")
         for r in rows:
             fh.write(\",\".join(r) + \"\\n\")
-
