@@ -4,41 +4,54 @@ from typing import List, Tuple, Optional, Dict, Any
 import re
 import hashlib
 import time
+import os
+import logging
 
+# Try to reuse centralized helpers when present
 try:
-    from pypdf import PdfReader
+    from .id_utils import parse_ids_from_filename_or_path, find_pid_from_ancestors, find_pid_in_text
+except Exception:
+    # fallback small local implementations if helper not available
+    def parse_ids_from_filename_or_path(path_like: Path) -> Tuple[Optional[str], Optional[str]]:
+        s = str(path_like).upper()
+        c = re.search(r"(C\d{1,6})", s)
+        p = re.search(r"(P\d{1,6})", s)
+        return (c.group(1) if c else None, p.group(1) if p else None)
+
+    def find_pid_from_ancestors(path_like: Path) -> Optional[str]:
+        p = Path(path_like)
+        for anc in (p.parent, p.parent.parent):
+            if not anc:
+                continue
+            m = re.search(r"(P\d{1,6})", anc.name.upper())
+            if m:
+                return m.group(1)
+        return None
+
+    def find_pid_in_text(text: str) -> Optional[str]:
+        if not text:
+            return None
+        m = re.search(r"\b(P\d{1,6})\b", text.upper())
+        if m:
+            return m.group(1)
+        return None
+
+# Optional PDF reader
+try:
+    from pypdf import PdfReader  # type: ignore
 except Exception:
     PdfReader = None
 
+# logging
+logger = logging.getLogger("io_utils_extended")
+if not logger.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("[%(levelname)s] %(asctime)s io_utils %(message)s", "%H:%M:%S"))
+    logger.addHandler(h)
+logger.setLevel(os.environ.get("IO_UTILS_LOG_LEVEL", "INFO"))
 
-# ────────────────────────────────────────────────────────────────
-# Helpers voor ID-parsing en normalisatie
-# ────────────────────────────────────────────────────────────────
-def _norm_id(val: Optional[str], kind: str) -> Optional[str]:
-    if not val:
-        return None
-    v = str(val).strip().upper().replace(" ", "")
-    if not v:
-        return None
-    if kind == "client":
-        return v if v.startswith("C") else ("C" + v if v.isdigit() else v)
-    if kind == "project":
-        return v if v.startswith("P") else ("P" + v if v.isdigit() else v)
-    return v
-
-
-def _parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
-    if not name:
-        return None, None
-    s = name.upper()
-    # Probeer C…P… patronen
-    m = re.search(r"(C\d{1,6}).*?(P\d{1,6})", s)
-    if m:
-        return m.group(1), m.group(2)
-    # Losse matches
-    c = re.search(r"(C\d{1,6})", s)
-    p = re.search(r"(P\d{1,6})", s)
-    return (c.group(1) if c else None), (p.group(1) if p else None)
+# env control: whether to compute full checksum (can be slow for many files)
+CALC_CHECKSUM = os.getenv("INDEX_CALC_CHECKSUM", "1") == "1"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -54,43 +67,64 @@ def find_files_in_dir(base: Path, exts: List[str] = None) -> List[Path]:
 
 
 # ────────────────────────────────────────────────────────────────
-# IDs uit padstructuur halen
+# Lightweight file fingerprint (mtime+size) and optional checksum
 # ────────────────────────────────────────────────────────────────
-def parse_ids_from_path(path: Path) -> Tuple[Optional[str], Optional[str]]:
-    cid, pid = _parse_ids_from_filename(path.name)
-    if cid and pid:
-        return cid, pid
-    for anc in (path.parent, path.parent.parent, getattr(path.parent.parent, "parent", None)):
-        if not anc:
-            continue
-        a_cid, a_pid = _parse_ids_from_filename(anc.name)
-        if a_cid and a_pid:
-            return a_cid, a_pid
-        m_p = re.search(r"(P\d{1,6})", anc.name.upper())
-        m_c = re.search(r"(C\d{1,6})", anc.name.upper())
-        if (m_c and not cid) or (m_p and not pid):
-            return (m_c.group(1) if m_c else cid), (m_p.group(1) if m_p else pid)
-    return cid, pid
+def _file_fingerprint(path: Path) -> str:
+    """
+    Lightweight fingerprint: sha1(path + mtime + size). Cheap and version-aware.
+    """
+    try:
+        st = path.stat()
+        key = f"{str(path)}|{st.st_mtime_ns}|{st.st_size}"
+    except Exception:
+        key = str(path)
+    return hashlib.sha1(key.encode("utf-8", errors="ignore")).hexdigest()
 
 
-# ────────────────────────────────────────────────────────────────
-# Checksum + meta uitlezen
-# ────────────────────────────────────────────────────────────────
 def _file_checksum(path: Path, algo: str = "sha1") -> str:
+    """
+    Full file checksum (can be slow). Controlled by CALC_CHECKSUM env var.
+    """
+    if not CALC_CHECKSUM:
+        return ""
     h = hashlib.new(algo)
     try:
         with path.open("rb") as fh:
             for chunk in iter(lambda: fh.read(8192), b""):
                 h.update(chunk)
-    except Exception:
+        return h.hexdigest()
+    except Exception as e:
+        logger.debug(f"Checksum failed for {path}: {e}")
         return ""
-    return h.hexdigest()
 
 
-def read_and_meta(path: Path) -> Optional[Tuple[str, Dict[str, Any]]]:
+# ────────────────────────────────────────────────────────────────
+# IDs uit padstructuur halen
+# ────────────────────────────────────────────────────────────────
+def parse_ids_from_path(path: Path) -> Tuple[Optional[str], Optional[str]]:
     """
-    Leest tekst en meta. Compatibel met zowel oude als nieuwe pdf_io.
-    Geeft None terug als iets fataal foutgaat.
+    Wrapper around helper parse. Returns (client_id, project_id).
+    """
+    try:
+        return parse_ids_from_filename_or_path(path)
+    except Exception as e:
+        logger.debug(f"parse_ids_from_filename_or_path fallback for {path}: {e}")
+        # Fallback simple parse
+        s = path.name.upper()
+        c = re.search(r"(C\d{1,6})", s)
+        p = re.search(r"(P\d{1,6})", s)
+        return (c.group(1) if c else None, p.group(1) if p else None)
+
+
+# ────────────────────────────────────────────────────────────────
+# Read text + meta (stable API: always returns (text:str, meta:dict))
+# ────────────────────────────────────────────────────────────────
+def read_and_meta(path: Path) -> Tuple[str, Dict[str, Any]]:
+    """
+    Read text and metadata for a path.
+    Always returns a tuple (text, meta). Text may be empty string if extraction failed.
+    Meta contains keys: filepath, filename, filesize, modified_time, client_id, project_id,
+    checksum, extract_method, page_count, file_fingerprint, read_error (optional).
     """
     meta: Dict[str, Any] = {
         "filepath": str(path),
@@ -102,6 +136,8 @@ def read_and_meta(path: Path) -> Optional[Tuple[str, Dict[str, Any]]]:
         "checksum": None,
         "extract_method": None,
         "page_count": None,
+        "file_fingerprint": None,
+        "read_error": None,
     }
 
     try:
@@ -111,47 +147,89 @@ def read_and_meta(path: Path) -> Optional[Tuple[str, Dict[str, Any]]]:
     except Exception:
         pass
 
-    cid, pid = _parse_ids_from_filename(path.name)
-    if not cid or not pid:
-        c2, p2 = parse_ids_from_path(path)
-        cid = cid or c2
-        pid = pid or p2
-    if cid:
-        meta["client_id"] = _norm_id(cid, "client")
-    if pid:
-        meta["project_id"] = _norm_id(pid, "project")
+    # Parse IDs from filename/path early
+    try:
+        parsed_cid, parsed_pid = parse_ids_from_path(path)
+        if parsed_cid:
+            meta["client_id"] = parsed_cid
+        if parsed_pid:
+            meta["project_id"] = parsed_pid
+    except Exception as e:
+        logger.debug(f"parse_ids_from_path failed for {path}: {e}")
 
-    # Page count (optioneel)
+    # Page count for PDFs (best-effort)
     if path.suffix.lower() == ".pdf" and PdfReader is not None:
         try:
             r = PdfReader(str(path))
             if getattr(r, "is_encrypted", False):
                 try:
-                    r.decrypt("")
+                    r.decrypt("")  # try empty password
                 except Exception:
                     pass
             meta["page_count"] = len(r.pages)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"PdfReader page_count failed for {path.name}: {e}")
             meta["page_count"] = None
 
-    # Tekst ophalen via pdf_io (backward compatibel)
+    # Try to import project pdf_io extraction function (backward compatible)
+    text = ""
+    extract_method = None
     try:
-        from .pdf_io import read_text_from_file
+        from .pdf_io import read_text_from_file  # local project-specific pdf reader
     except Exception as e:
-        print(f"[ERROR] pdf_io import failed for {path.name}: {e}")
-        return None
+        logger.warning(f"[WARN] pdf_io import failed for {path.name}: {e} -- returning empty text and meta. Install/restore pdf_io to enable OCR/text extraction.")
+        meta["read_error"] = f"pdf_io_import_failed: {e}"
+        # still set fingerprint/checksum and return empty text
+        meta["file_fingerprint"] = _file_fingerprint(path)
+        meta["checksum"] = _file_checksum(path)
+        meta["extract_method"] = None
+        return "", meta
 
-    text, method = "", ""
+    # Try to read text; support both new and legacy signatures
     try:
-        text, method = read_text_from_file(path, return_method=True)  # nieuwe variant
-    except TypeError:
-        # oude variant
-        text = read_text_from_file(path)
-        method = ""
+        try:
+            text, extract_method = read_text_from_file(path, return_method=True)  # new API
+        except TypeError:
+            # older variant: returns only text
+            text = read_text_from_file(path)
+            extract_method = None
     except Exception as e:
-        print(f"[ERROR] read_text_from_file failed for {path.name}: {e}")
-        text, method = "", ""
+        logger.warning(f"[WARN] read_text_from_file failed for {path.name}: {e}")
+        meta["read_error"] = f"read_text_failed: {e}"
+        text = ""
+        extract_method = None
 
-    meta["extract_method"] = method or None
+    meta["extract_method"] = extract_method or None
+    meta["file_fingerprint"] = _file_fingerprint(path)
     meta["checksum"] = _file_checksum(path)
+
+    # If parsed IDs still missing, try ancestor folder heuristics and text heuristics
+    if not meta.get("project_id"):
+        try:
+            anc_pid = find_pid_from_ancestors(path)
+            if anc_pid:
+                meta["project_id"] = anc_pid
+        except Exception:
+            pass
+
+    if not meta.get("project_id") and text:
+        try:
+            pid_text = find_pid_in_text(text)
+            if pid_text:
+                meta["project_id"] = pid_text
+        except Exception:
+            pass
+
+    # ensure client/project are normalized strings (upper)
+    if meta.get("client_id"):
+        try:
+            meta["client_id"] = str(meta["client_id"]).strip().upper()
+        except Exception:
+            pass
+    if meta.get("project_id"):
+        try:
+            meta["project_id"] = str(meta["project_id"]).strip().upper()
+        except Exception:
+            pass
+
     return (text or "", meta)
