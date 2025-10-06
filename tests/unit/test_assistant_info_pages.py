@@ -6,7 +6,7 @@ BASE = "webapp.assistants"
 
 @pytest.mark.parametrize("assistant", list(ASSISTANTS.keys()))
 def test_assistant_info_import(assistant):
-    \"\"\"Check of voor iedere assistant de info-module aanwezig en importeerbaar is.\"\"\"
+    """Check of voor iedere assistant de info-module aanwezig en importeerbaar is."""
     module_name = f"{BASE}.{assistant}.info"
     try:
         importlib.import_module(module_name)
