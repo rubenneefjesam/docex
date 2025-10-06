@@ -66,7 +66,7 @@ if not hasattr(index_mod, "index_clients_projects_from_csv") or not hasattr(inde
 
 # Dummy embedder minimale implementatie
 class DummyEmbedder:
-    def __init__(self, dim=8):
+    def __init__(self, dim=384):
         self.dim = dim
     def embed(self, texts):
         return [[0.0]*self.dim for _ in texts]
