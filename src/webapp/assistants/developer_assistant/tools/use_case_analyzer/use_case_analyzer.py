@@ -226,4 +226,134 @@ def generate_for_template(short_input: str, template_name: str, templates_dir: s
     placeholders = extract_placeholders(tpl)
 
     # 1) Probeer Groq volledige template te laten invullen
-    if use_groq and _get_groq_client() is not No
+    if use_groq and _get_groq_client() is not None:
+        filled = generate_filled_template_with_groq(short_input, tpl, template_name, placeholders)
+        if filled:
+            return filled
+        # anders: fallback naar lokale route (en debug info is in session_state)
+
+    # 2) Lokale route: probeer eerst Groq JSON aanpak (oude gedrag) indien Groq beschikbaar maar vul niet de hele template
+    data: Dict[str, str] = {}
+    if use_groq and _get_groq_client() is not None:
+        try:
+            prompt = textwrap.dedent(f"""
+                Geef **alleen** geldig JSON met velden: {', '.join(placeholders)}
+                Template: {template_name}
+                Omschrijving: {short_input}
+            """)
+            raw = call_groq(prompt)
+            parsed = None
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                blob = _extract_first_json_object(raw)
+                if blob:
+                    try:
+                        parsed = json.loads(blob)
+                    except Exception:
+                        parsed = None
+            if isinstance(parsed, dict):
+                data = {k: str(parsed.get(k, '')) for k in placeholders}
+            else:
+                st.session_state['last_groq_raw'] = raw
+        except Exception as e:
+            st.session_state['last_groq_error'] = str(e)
+            st.session_state['last_groq_raw'] = st.session_state.get('last_groq_raw', '')
+            data = {}
+
+    # 3) Vul ontbrekende placeholders lokaal
+    missing = [ph for ph in placeholders if not data.get(ph)]
+    if missing:
+        data.update(local_generate_mapping(short_input, tuple(missing)))
+
+    # 4) Render met lokale mapping
+    content = render_template(tpl, data)
+    return content
+
+
+# ---------------------------
+# Streamlit UI: main page layout
+# ---------------------------
+
+def app():
+    st.set_page_config(page_title='Use-case Analyzer', layout='wide')
+    st.title('📋 Use-case Analyzer')
+    st.markdown(
+        '## Werkwijze  \n'
+        '1. Selecteer een template  \n'
+        '2. Vul een korte omschrijving in  \n'
+        '3. Klik op **Genereer use-case**  \n'
+        '4. Bekijk het resultaat aan de rechterkant'
+    )
+
+    here = os.path.dirname(__file__)
+    templates_dir = os.path.join(here, 'templates')
+    templates = load_templates(templates_dir)
+    if not templates:
+        st.error("Geen templates in 'templates/'. Plaats .txt/.md templates in de templates-map.")
+        return
+
+    # layout: 2 kolommen - links input + knop, rechts output (alleen weergave)
+    left_col, right_col = st.columns([1, 1.1])
+
+    with left_col:
+        st.header("Input")
+        choice = st.selectbox('Kies template', list(templates.keys()))
+        desc = st.text_area('Korte omschrijving', height=180, placeholder="Omschrijf kort wat je wil: bv. 'Schrijf epic voor tender-indiening feature'")
+
+        gen = st.button('Genereer use-case')
+
+    with right_col:
+        st.header("Output")
+        output_placeholder = st.empty()
+        debug_exp = st.expander("Debug / Groq info", expanded=False)
+        with debug_exp:
+            st.write("Als Groq iets teruggeeft of errors optreden, worden hier details getoond.")
+            if 'last_groq_error' in st.session_state:
+                st.error(st.session_state.get('last_groq_error'))
+            if 'last_groq_raw' in st.session_state:
+                st.caption("Raw Groq response:")
+                st.code(st.session_state.get('last_groq_raw', ''), language='json')
+
+    if gen:
+        # reset vorige debug info
+        st.session_state.pop('last_groq_error', None)
+        st.session_state.pop('last_groq_raw', None)
+
+        progress = st.progress(0)
+        status = st.empty()
+
+        try:
+            status.info("Stap 1/4 — voorbereiden...")
+            progress.progress(10)
+
+            # bepaal of Groq zal worden gebruikt (automatisch als beschikbaar)
+            use_groq = _get_groq_client() is not None
+
+            if use_groq:
+                status.info("Stap 2/4 — aanroepen van LLM (groq)...")
+            else:
+                status.info("Stap 2/4 — Groq niet beschikbaar, lokale generatie wordt gebruikt...")
+            progress.progress(35)
+
+            # Stap 3: generatie (LLM of lokaal)
+            with st.spinner(text="Genereren — even geduld aub..."):
+                status.info("Stap 3/4 — genereren...")
+                content = generate_for_template(desc, choice, templates_dir, use_groq=use_groq)
+            progress.progress(70)
+
+            # Stap 4: tonen (in rechterkolom)
+            status.info("Stap 4/4 — tonen resultaat...")
+            output_placeholder.code(content, language='markdown')
+            progress.progress(100)
+
+            # geen extra 'gereed' banner en geen copy/download knop zoals gevraagd
+
+        except Exception as e:
+            progress.progress(0)
+            status.error(f'Fout tijdens generatie: {e}')
+            # toon raw response / error indien aanwezig in debug expander (blijft beschikbaar)
+
+# Run app when file executed directly (useful for `streamlit run`)
+if __name__ == "__main__":
+    app()
