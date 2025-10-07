@@ -1,6 +1,7 @@
 # use_case_analyzer.py
 import os
 import streamlit as st
+import importlib.util
 
 # UI only; does NOT contain templates or prompt config.
 # It dynamically imports one of: story, feature, epic, acceptatie_criteria
@@ -63,9 +64,16 @@ def app():
             st.error("Onbekende keuze.")
             return
 
-        # dynamic import
+        # dynamic import: load module file from same directory as this script
         try:
-            generator_mod = __import__(module_name)
+            module_file = os.path.join(os.path.dirname(__file__), f"{module_name}.py")
+            if not os.path.exists(module_file):
+                raise ImportError(f"Module file not found: {module_file}")
+
+            spec = importlib.util.spec_from_file_location(module_name, module_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            generator_mod = module
         except Exception as e:
             st.session_state["last_error"] = f"Kan module '{module_name}' importeren: {e}"
             st.error(st.session_state["last_error"])
