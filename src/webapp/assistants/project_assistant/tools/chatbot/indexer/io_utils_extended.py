@@ -4,14 +4,15 @@ Eenvoudige IO helpers used by the indexer.
 - find_files_in_dir(data_dir, exts=None, recursive=True)
 - read_and_meta(path) -> (text:str, meta:dict)
 
-Deze implementatie gebruikt alleen stdlib, ondersteunt .txt/.md/.csv
-en levert bruikbare metadata voor downstream logic (filename, size, cid/pid hints).
+Deze versie is vereenvoudigd: we gebruiken alleen de ingebouwde tekstreaders
+(plain text files) en PyPDF2 voor PDF-extractie. Geen pdftotext/pdfminer fallback.
 """
 from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Dict, Any
-import fnmatch
 import os
+import logging
+import unicodedata
 
 # lokale id-helpers (in jouw repo)
 try:
@@ -25,16 +26,15 @@ except Exception:
     def find_pid_in_text(t):
         return None
 
+logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO)
+
 
 def find_files_in_dir(data_dir: str | Path,
                       exts: Optional[Iterable[str]] = None,
                       recursive: bool = True,
                       include_hidden: bool = False) -> List[Path]:
-    """
-    Return list of Path objects under data_dir matching extensions.
-    exts: iterable like ['.txt', '.pdf'] or None => all files.
-    recursive: use rglob if True, else glob in root only.
-    """
     p = Path(data_dir)
     if not p.exists():
         return []
@@ -60,7 +60,6 @@ def find_files_in_dir(data_dir: str | Path,
                 continue
             if norm_exts is None or f.suffix.lower() in norm_exts:
                 results.append(f)
-    # stable order
     results.sort()
     return results
 
@@ -69,21 +68,80 @@ def _read_text_file(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        # fallback: try latin-1
         try:
             return path.read_text(encoding="latin-1")
         except Exception:
             return ""
 
 
+def _normalize_text(s: str) -> str:
+    if not s:
+        return ""
+    s = unicodedata.normalize("NFKC", s)
+    parts = s.split()
+    return " ".join(parts).strip()
+
+
+def _extract_with_pypdf2(path: Path) -> str:
+    try:
+        from PyPDF2 import PdfReader
+    except Exception as e:
+        logger.debug("PyPDF2 not available: %s", e)
+        return ""
+    try:
+        r = PdfReader(str(path))
+        out_parts: List[str] = []
+        for i, page in enumerate(r.pages):
+            try:
+                t = page.extract_text() or ""
+                out_parts.append(t)
+            except Exception as e:
+                logger.debug("PyPDF2 page %d error: %s", i, e)
+        return "\n".join(out_parts)
+    except Exception as e:
+        logger.debug("PyPDF2 top-level error for %s: %s", path, e)
+        return ""
+
+
+def extract_text_multi(path: str | Path,
+                       min_chars: int = 20) -> Tuple[str, Dict[str, Any]]:
+    """
+    Simplified extractor: try textfile first, then PyPDF2 for PDFs.
+    Returns (normalized_text, meta) where meta contains extractor_used,
+    extractor_counts and a short sample.
+    """
+    p = Path(path)
+    extractor_counts: Dict[str, int] = {}
+    raw_texts: Dict[str, str] = {}
+
+    # Plain text files
+    if p.suffix.lower() in {".txt", ".md", ".csv"}:
+        raw = _read_text_file(p)
+        extractor_counts["textfile"] = len(raw or "")
+        raw_texts["textfile"] = raw or ""
+        norm = _normalize_text(raw or "")
+        meta = {
+            "extractor_used": "textfile" if len(norm) >= min_chars else None,
+            "extractor_counts": extractor_counts,
+            "sample": (raw or "")[:200],
+        }
+        return (norm, meta)
+
+    # PDFs: only PyPDF2
+    raw = _extract_with_pypdf2(p)
+    extractor_counts["pypdf2"] = len(raw or "")
+    raw_texts["pypdf2"] = raw or ""
+    if raw and len(_normalize_text(raw)) >= min_chars:
+        norm = _normalize_text(raw)
+        meta = {"extractor_used": "pypdf2", "extractor_counts": extractor_counts, "sample": raw[:200]}
+        return (norm, meta)
+
+    # nothing found
+    meta = {"extractor_used": None, "extractor_counts": extractor_counts, "sample": ""}
+    return ("", meta)
+
+
 def read_and_meta(path: str | Path) -> Tuple[str, Dict[str, Any]]:
-    """
-    Read a file and return (text, meta).
-    - For .txt/.md/.csv returns text.
-    - For other unknown types returns empty text but still returns meta.
-    Meta contains:
-      - filename, suffix, size, cid, pid, pid_from_ancestors
-    """
     p = Path(path)
     meta: Dict[str, Any] = {
         "filename": p.name,
@@ -103,10 +161,19 @@ def read_and_meta(path: str | Path) -> Tuple[str, Dict[str, Any]]:
     try:
         if p.suffix.lower() in {".txt", ".md", ".csv"}:
             text = _read_text_file(p)
+            meta.update({
+                "extractor_used": "textfile",
+                "extractor_counts": {"textfile": len(text or "")},
+                "sample": (text or "")[:200],
+            })
+        elif p.suffix.lower() == ".pdf":
+            txt, emeta = extract_text_multi(p)
+            text = txt or ""
+            meta.update(emeta)
         else:
-            # Unknown binary types: try fallback to extract small text snippet (filename only)
             text = ""
-    except Exception:
+    except Exception as e:
+        logger.debug("read_and_meta error for %s: %s", p, e)
         text = ""
 
     # attempt to parse ids (best-effort)
@@ -116,11 +183,9 @@ def read_and_meta(path: str | Path) -> Tuple[str, Dict[str, Any]]:
         meta["pid"] = pid
         if not pid:
             meta["pid_from_ancestors"] = find_pid_from_ancestors(p)
-        # also check inside text for Pxxx patterns
-        if not meta["pid"] and text:
+        if not meta.get("pid") and text:
             meta["pid_in_text"] = find_pid_in_text(text)
     except Exception:
-        # ignore parsing problems
         pass
 
     return text, meta

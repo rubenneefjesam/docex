@@ -19,7 +19,8 @@ import os
 import csv
 import time
 
-from .io_utils_extended import find_files_in_dir, read_and_meta, parse_ids_from_path
+from .io_utils_extended import find_files_in_dir, read_and_meta
+from .parse_ids_from_path import parse_ids_from_path
 from .chunker import chunk_by_sentences, chunk_text_simple
 from ..index_utils import load_index, save_index
 from .embedder_modular import Embedder
