@@ -1,2 +1,0 @@
-{"text": "Client record\nKlantID: C002\nProjectID: P1002\nName: Client Two", "client_id": "C002", "project_id": "P1002", "source": "clients_csv", "chunk_index": 0, "assign_method": "clients_csv", "assign_confidence": 0.99, "file_fingerprint": "clients_csv_row_C002_P1002_1"}
-{"text": "Project record\nProjectID: P1002\nProjectName: Project Two", "project_id": "P1002", "source": "projects_csv", "chunk_index": 0, "assign_method": "projects_csv", "assign_confidence": 0.99, "file_fingerprint": "projects_csv_row_P1002_1", "client_id": "C002"}
