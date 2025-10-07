@@ -1,0 +1,30 @@
+User Story
+
+As a (role/user/developer)
+
+I want to (action/functionality)
+So that (reason/purpose)
+ 
+
+To do ((Think of: development steps, required tests, necessary reviews, meetings, follow-up stories, etc.))
+
+[step 1]
+[step 2]
+[step 3]
+ 
+
+Scope ((The scope within a user story describes what should and should not be delivered. What is the objective?))
+
+[scope description]
+[scope description]
+ 
+
+Dependencies, blockers, and priority ((Identify dependencies that may impact progress. Items you need from stakeholders (within a specific timeframe).))
+
+[describe afhankelijkheid]
+[describe afhankelijkheid]
+ 
+
+Background ((Additional context to provide more clarity/information for execution. Examples include images and/or links.))
+
+...
