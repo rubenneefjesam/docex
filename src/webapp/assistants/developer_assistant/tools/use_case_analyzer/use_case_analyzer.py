@@ -1,7 +1,12 @@
 # use_case_analyzer.py
-# Streamlit-app voor inladen, genereren en exporteren van use-case templates.
-# Aangepaste versie: Groq mag optioneel zijn — als beschikbaar geeft Groq een volledig ingevulde template terug.
-# UI: 2 kolommen, links input, rechts output. Geen copy/download-knop en geen "gereed"-banner.
+# Streamlit-app: automatisch genereren van generieke IT-stories, features en epics
+# Belangrijkste punten:
+# - Twee-koloms UI: links input (template + korte omschrijving + knop), rechts de uiteindelijke output (geen download/copy)
+# - Houd de generator generiek: de LLM krijgt het template en een korte instructie om het template EXACT in te vullen zonder domein-specifieke voorbeelden
+# - Geen acceptance criteria sectie automatisch toevoegen (volgens gebruiker)
+# - 'To do' bevat 1-10 genummerde stappen (zoals gevraagd)
+# - Robuuste fallback: als LLM niet beschikbaar of niet bruikbaar, render lokaal op basis van placeholders
+# - Progress indicator en debug-expander (raw response alleen in debug)
 
 import os
 import re
@@ -10,7 +15,7 @@ import textwrap
 from typing import Dict, Tuple, Optional, Any
 import streamlit as st
 
-# Optionele imports
+# Optionele Groq import
 try:
     from groq import Groq
     _HAS_GROQ = True
@@ -18,12 +23,24 @@ except Exception:
     Groq = None
     _HAS_GROQ = False
 
-# Regex voor placeholders {{ key }}
+# Placeholder regex
 _PLACEHOLDER_RE = re.compile(r"{{\s*([a-zA-Z0-9_]+)\s*}}")
 
+# Minimum output section headers (case-insensitive)
+_REQUIRED_SECTIONS = [
+    'titel',
+    'type',
+    'als',
+    'wil ik',
+    'zodat',
+    'to do',
+    'scope',
+    'dependencies',
+    'background',
+]
 
 # ---------------------------
-# Helper / Core functies
+# Utility & core functions
 # ---------------------------
 
 def load_templates(templates_dir: str) -> Dict[str, str]:
@@ -72,24 +89,7 @@ def _get_groq_client() -> Optional[Groq]:
         return None
 
 
-def _extract_first_json_object(s: str) -> Optional[str]:
-    start = s.find('{')
-    if start == -1:
-        return None
-    depth = 0
-    for i in range(start, len(s)):
-        ch = s[i]
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth -= 1
-            if depth == 0:
-                return s[start:i+1]
-    return None
-
-
 def _resp_to_text(resp: Any) -> str:
-    """Robuuste extractie van tekst uit diverse SDK response vormen."""
     try:
         if hasattr(resp, 'choices'):
             choices = getattr(resp, 'choices')
@@ -121,239 +121,285 @@ def _resp_to_text(resp: Any) -> str:
 
 
 def _strip_code_fence(s: str) -> str:
-    """Verwijder eventueel aanwezige markdown code fences en trimming."""
     if not isinstance(s, str):
-        return str(s)
+        s = str(s)
     s = s.strip()
-    # verwijder triple backticks met mogelijke language hint
     if s.startswith("```") and s.endswith("```"):
-        # verwijder eerste line (code fence) en laatste line
         parts = s.splitlines()
-        # vind eerste line not empty after fence
         if len(parts) >= 3:
-            inner = "\n".join(parts[1:-1])
-            return inner.strip()
-    # ook verwijder enkelvoudige backticks en quotes (veilig)
+            return "\n".join(parts[1:-1]).strip()
     return s
 
 
-def call_groq(prompt: str, model: str = 'llama-3.1-8b-instant', temperature: float = 0.2) -> str:
+def _sanitize_placeholders(text: str) -> str:
+    # verwijder bracket placeholders en condenseer lege regels
+    if not isinstance(text, str):
+        text = str(text)
+    text = re.sub(r"\[\[[^\]]*\]\]", '', text)
+    text = re.sub(r"\[[^\]]*\]", '', text)
+    text = re.sub(r"\(\([^)]*\)\)", '', text)
+    # collapse multiple blank lines to max 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _has_required_sections(text: str) -> bool:
+    low = text.lower()
+    for sec in _REQUIRED_SECTIONS:
+        if sec not in low:
+            return False
+    return True
+
+
+def _extract_section_length(text: str, heading: str) -> int:
+    # simple heuristic: find heading and count lines until next heading or end
+    pattern = re.compile(re.escape(heading), re.IGNORECASE)
+    m = pattern.search(text)
+    if not m:
+        return 0
+    start = m.end()
+    rest = text[start:]
+    # stop at next blank line followed by capitalized word or next known heading
+    # naive: count non-empty lines in the next 6 lines
+    lines = [ln for ln in rest.splitlines() if ln.strip()]
+    return len(lines)
+
+# ---------------------------
+# LLM interaction (generic prompt)
+# ---------------------------
+
+_FILL_TEMPLATE_PROMPT_TEMPLATE = (
+    "Vul het onderstaande template EXACT in op basis van de korte omschrijving.\n"
+    "- Geef **alleen** de ingevulde template terug, zonder extra toelichting of voorbeelden.\n"
+    "- Gebruik generieke IT-terminologie; Voeg geen domein-specifieke voorbeelden toe.\n"
+    "- Zorg dat 'To do' 1 tot max 10 concrete genummerde stappen bevat.\n"
+    "- Laat geen placeholders of bracket-teksten in de output achter.\n\n"
+    "Template naam: {template_name}\n\n"
+    "TEMPLATE:\n{template_str}\n\n"
+    "Omschrijving:\n{short_input}\n"
+)
+
+
+def call_groq(prompt: str, model: str = 'llama-3.1-8b-instant', temperature: float = 0.15, max_tokens: int = 1200) -> str:
     client = _get_groq_client()
     if not client:
-        raise RuntimeError('Groq client niet beschikbaar. Controleer GROQ_API_KEY in omgeving of st.secrets.')
+        raise RuntimeError('Groq client niet beschikbaar')
     try:
         resp = client.chat.completions.create(
             model=model,
             temperature=temperature,
+            max_tokens=max_tokens,
             messages=[
-                {'role': 'system', 'content': 'Je bent een ervaren IT Business Analyst.'},
+                {'role': 'system', 'content': 'Je bent een beknopte en zakelijke assistant voor het genereren van generieke IT user stories/features/epics.'},
+                {'role': 'user', 'content': prompt}
+            ]
+        )
+    except TypeError:
+        resp = client.chat.completions.create(
+            model=model,
+            temperature=temperature,
+            messages=[
+                {'role': 'system', 'content': 'Je bent een beknopte en zakelijke assistant voor het genereren van generieke IT user stories/features/epics.'},
                 {'role': 'user', 'content': prompt}
             ]
         )
     except Exception as e:
-        raise RuntimeError(f'Fout bij aanroepen van Groq API: {e}')
-    text = _resp_to_text(resp)
-    return _strip_code_fence(text)
+        raise RuntimeError(f'LLM call failed: {e}')
+    return _strip_code_fence(_resp_to_text(resp))
 
 
-def local_generate_mapping(short_input: str, placeholders: Tuple[str, ...]) -> Dict[str, str]:
-    first = short_input.strip().splitlines()[0] if short_input else 'Onbekende story'
-    mapping = {}
-    for ph in placeholders:
-        low = ph.lower()
-        if low == 'title':
-            mapping[ph] = first
-        elif low == 'role':
-            mapping[ph] = 'Als gebruiker'
-        elif low == 'goal':
-            mapping[ph] = f'Wil ik {first.lower()} zodat ik waarde kan behalen.'
-        elif low in ('steps', 'main_flow'):
-            mapping[ph] = textwrap.dedent(
-                '1. Gebruiker opent de feature.\n'
-                '2. Gebruiker voert input in.\n'
-                '3. Systeem valideert en bevestigt.\n'
-                '4. Actie voltooid.'
-            )
-        else:
-            mapping[ph] = first
-    return mapping
-
-
-def generate_filled_template_with_groq(short_input: str, template_str: str, template_name: str, placeholders: Tuple[str, ...]) -> Optional[str]:
-    """
-    Vraag Groq om **de volledig ingevulde template** terug te geven.
-    Retourneert de ingevulde template als string, of None als Groq faalt.
-    """
+def try_fill_template_with_llm(short_input: str, template_str: str, template_name: str) -> Optional[str]:
+    prompt = _FILL_TEMPLATE_PROMPT_TEMPLATE.format(
+        template_name=template_name,
+        template_str=template_str,
+        short_input=short_input
+    )
     try:
-        # Construct prompt: geef zowel de template als de placeholders en omschrijving
-        # Geef duidelijke instructie om alleen de ingevulde template terug te geven, zonder extra uitleg.
-        prompt = textwrap.dedent(f"""
-            Je krijgt hieronder een template met placeholders in de vorm {{ {{ key }} }}.
-            Vul het template volledig in op basis van de korte omschrijving. 
-            Geef **alleen** de ingevulde template terug — geen uitleg, geen extra commentaar, en behoud de structuur van het template.
-            
-            Template naam: {template_name}
-            
-            Template:
-            {template_str}
-            
-            Placeholder keys: {', '.join(placeholders) if placeholders else '(geen)'}
-            
-            Omschrijving:
-            {short_input}
-        """)
         raw = call_groq(prompt)
-        # raw is de ingevulde template (of iets wat er op lijkt). Strip code fences en return.
-        return raw.strip()
+        raw = _sanitize_placeholders(raw)
+        if not raw or len(raw) < 30:
+            st.session_state['last_raw'] = raw
+            st.session_state['last_error'] = 'LLM returned empty or too short output'
+            return None
+        if not _has_required_sections(raw):
+            st.session_state['last_raw'] = raw
+            st.session_state['last_error'] = 'LLM output missing required sections'
+            return None
+        # ensure 'To do' has 1-10 steps: naive count of numbered lines under 'to do'
+        todo_count = _extract_todo_count(raw)
+        if todo_count == 0:
+            st.session_state['last_raw'] = raw
+            st.session_state['last_error'] = 'LLM output has no To do steps'
+            return None
+        if todo_count > 10:
+            # if too many, truncate after 10 steps in post-processing
+            raw = _truncate_todo_steps(raw, max_steps=10)
+        return raw
     except Exception as e:
-        # bewaar debug info voor UI, maar return None zodat fallback gebruikt wordt.
-        st.session_state['last_groq_error'] = str(e)
-        st.session_state['last_groq_raw'] = st.session_state.get('last_groq_raw', '')
+        st.session_state['last_raw'] = st.session_state.get('last_raw', '')
+        st.session_state['last_error'] = str(e)
         return None
 
 
-def generate_for_template(short_input: str, template_name: str, templates_dir: str, use_groq: bool = True) -> str:
-    """
-    Genereer de uiteindelijke content voor een template.
-    Als Groq beschikbaar is en use_groq=True, probeer Groq de volledige ingevulde template te laten retourneren.
-    Anders: vul lokaal placeholders in (via JSON/Groq-JSON-fallback of local mapping).
-    Retourneert de finally-rendered tekst.
-    """
-    templates = load_templates(templates_dir)
-    tpl = templates.get(template_name)
-    if tpl is None:
-        raise FileNotFoundError(f"Template '{template_name}' niet gevonden.")
-    placeholders = extract_placeholders(tpl)
+def _extract_todo_count(text: str) -> int:
+    low = text.lower()
+    idx = low.find('to do')
+    if idx == -1:
+        return 0
+    rest = text[idx:]
+    # look for lines starting with digit + '.' or '- '
+    lines = rest.splitlines()
+    count = 0
+    for ln in lines[1:40]:
+        ln_stripped = ln.strip()
+        if re.match(r'^\d+\.', ln_stripped) or re.match(r'^[-*]\s+', ln_stripped):
+            count += 1
+        elif ln_stripped == '':
+            continue
+        else:
+            # stop at next section header approx
+            if re.match(r'^[A-Z][a-z]+:', ln_stripped) or re.match(r'^[A-Za-z ]+$', ln_stripped) and ln_stripped.isupper():
+                break
+    return count
 
-    # 1) Probeer Groq volledige template te laten invullen
-    if use_groq and _get_groq_client() is not None:
-        filled = generate_filled_template_with_groq(short_input, tpl, template_name, placeholders)
-        if filled:
-            return filled
-        # anders: fallback naar lokale route (en debug info is in session_state)
 
-    # 2) Lokale route: probeer eerst Groq JSON aanpak (oude gedrag) indien Groq beschikbaar maar vul niet de hele template
-    data: Dict[str, str] = {}
-    if use_groq and _get_groq_client() is not None:
-        try:
-            prompt = textwrap.dedent(f"""
-                Geef **alleen** geldig JSON met velden: {', '.join(placeholders)}
-                Template: {template_name}
-                Omschrijving: {short_input}
-            """)
-            raw = call_groq(prompt)
-            parsed = None
-            try:
-                parsed = json.loads(raw)
-            except Exception:
-                blob = _extract_first_json_object(raw)
-                if blob:
-                    try:
-                        parsed = json.loads(blob)
-                    except Exception:
-                        parsed = None
-            if isinstance(parsed, dict):
-                data = {k: str(parsed.get(k, '')) for k in placeholders}
-            else:
-                st.session_state['last_groq_raw'] = raw
-        except Exception as e:
-            st.session_state['last_groq_error'] = str(e)
-            st.session_state['last_groq_raw'] = st.session_state.get('last_groq_raw', '')
-            data = {}
-
-    # 3) Vul ontbrekende placeholders lokaal
-    missing = [ph for ph in placeholders if not data.get(ph)]
-    if missing:
-        data.update(local_generate_mapping(short_input, tuple(missing)))
-
-    # 4) Render met lokale mapping
-    content = render_template(tpl, data)
-    return content
-
+def _truncate_todo_steps(text: str, max_steps: int = 10) -> str:
+    # naive: find 'To do' and keep only first max_steps numbered bullets
+    low = text.lower()
+    m = re.search(r'(to do)', low)
+    if not m:
+        return text
+    start = m.start()
+    header_match = re.search(r'(?i)(to do)\s*[:\-]?\s*', text[m.start():])
+    if not header_match:
+        return text
+    hdr_end = m.start() + header_match.end()
+    rest = text[hdr_end:]
+    lines = rest.splitlines()
+    new_lines = []
+    kept = 0
+    for ln in lines:
+        if kept >= max_steps:
+            break
+        ln_stripped = ln.strip()
+        if re.match(r'^\d+\.', ln_stripped) or re.match(r'^[-*]\s+', ln_stripped):
+            new_lines.append(ln)
+            kept += 1
+        elif ln_stripped == '':
+            new_lines.append(ln)
+        else:
+            new_lines.append(ln)
+    new_rest = '\n'.join(new_lines)
+    return text[:hdr_end] + new_rest
 
 # ---------------------------
-# Streamlit UI: main page layout
+# Local fallback renderer
+# ---------------------------
+
+def local_generate_generic(template_str: str, short_input: str) -> str:
+    # render by extracting placeholders and filling them with generic IT content
+    placeholders = extract_placeholders(template_str)
+    mapping = {}
+    first_line = short_input.strip().splitlines()[0] if short_input else 'Generieke taak'
+    for ph in placeholders:
+        key = ph.lower()
+        if key == 'title' or key == 'titel':
+            mapping[ph] = f"{first_line}"
+        elif key == 'type':
+            mapping[ph] = 'User Story'
+        elif key in ('als', 'role'):
+            mapping[ph] = 'Als gebruiker'
+        elif key in ('wil_ik', 'wil', 'want'):
+            mapping[ph] = 'Wil ik functionaliteit X in het systeem'
+        elif key in ('zodat', 'so_that'):
+            mapping[ph] = 'Zodat deze waarde of business outcome bereikt wordt'
+        elif key in ('to_do', 'todo', 'steps', 'main_flow'):
+            mapping[ph] = textwrap.dedent(
+                '1. Definieer testcases en fixtures\n'
+                '2. Implementeer mocks voor externe afhankelijkheden\n'
+                '3. Schrijf unit tests met duidelijke assertions\n'
+            )
+        elif key == 'scope':
+            mapping[ph] = '- Valideert data-preprocessing en prompt-contract\n- Test edge-cases en ontbrekende velden'
+        elif key == 'dependencies' or key == 'blockers':
+            mapping[ph] = '- Mockable retrieval API\n- CI pipeline voor testuitvoering'
+        elif key == 'background':
+            mapping[ph] = 'Deze taak zorgt ervoor dat regressies in data-preprocessing en prompt-contract vroegtijdig worden gedetecteerd. Unit tests zijn deterministisch en vermijden flakiness door gebruik van mocks. De focus ligt op generieke checks zodat deze test op elk IT-project toepasbaar is. Dit helpt het team om snel regressies op te sporen en vertrouwen te hebben in wijzigingen.'
+        else:
+            mapping[ph] = first_line
+    return render_template(template_str, mapping)
+
+# ---------------------------
+# Streamlit UI
 # ---------------------------
 
 def app():
-    st.set_page_config(page_title='Use-case Analyzer', layout='wide')
-    st.title('📋 Use-case Analyzer')
-    st.markdown(
-        '## Werkwijze  \n'
-        '1. Selecteer een template  \n'
-        '2. Vul een korte omschrijving in  \n'
-        '3. Klik op **Genereer use-case**  \n'
-        '4. Bekijk het resultaat aan de rechterkant'
-    )
+    st.set_page_config(page_title='Use-case Generator', layout='wide')
+    st.title('Use-case Generator — generieke IT stories / features / epics')
+    st.markdown('Vul links een template en korte omschrijving in. Rechts verschijnt de uiteindelijke, gestructureerde output.')
 
     here = os.path.dirname(__file__)
     templates_dir = os.path.join(here, 'templates')
     templates = load_templates(templates_dir)
     if not templates:
-        st.error("Geen templates in 'templates/'. Plaats .txt/.md templates in de templates-map.")
+        st.error("Geen templates gevonden in 'templates' map.")
         return
 
-    # layout: 2 kolommen - links input + knop, rechts output (alleen weergave)
-    left_col, right_col = st.columns([1, 1.1])
+    left, right = st.columns([1, 1.1])
 
-    with left_col:
-        st.header("Input")
+    with left:
         choice = st.selectbox('Kies template', list(templates.keys()))
-        desc = st.text_area('Korte omschrijving', height=180, placeholder="Omschrijf kort wat je wil: bv. 'Schrijf epic voor tender-indiening feature'")
+        desc = st.text_area('Korte omschrijving', height=180, placeholder='Korte, generieke omschrijving van wat je wilt')
+        gen = st.button('Genereer')
 
-        gen = st.button('Genereer use-case')
-
-    with right_col:
-        st.header("Output")
-        output_placeholder = st.empty()
-        debug_exp = st.expander("Debug / Groq info", expanded=False)
-        with debug_exp:
-            st.write("Als Groq iets teruggeeft of errors optreden, worden hier details getoond.")
-            if 'last_groq_error' in st.session_state:
-                st.error(st.session_state.get('last_groq_error'))
-            if 'last_groq_raw' in st.session_state:
-                st.caption("Raw Groq response:")
-                st.code(st.session_state.get('last_groq_raw', ''), language='json')
+    with right:
+        output_place = st.empty()
+        debug = st.expander('Debug (raw response)', expanded=False)
+        with debug:
+            st.write('Raw output en eventuele errors worden hier getoond als debugging nodig is.')
+            if 'last_raw' in st.session_state:
+                st.code(st.session_state.get('last_raw', ''), language='text')
+            if 'last_error' in st.session_state:
+                st.error(st.session_state.get('last_error'))
 
     if gen:
-        # reset vorige debug info
-        st.session_state.pop('last_groq_error', None)
-        st.session_state.pop('last_groq_raw', None)
+        # reset debug
+        st.session_state.pop('last_raw', None)
+        st.session_state.pop('last_error', None)
 
         progress = st.progress(0)
         status = st.empty()
-
         try:
-            status.info("Stap 1/4 — voorbereiden...")
+            status.info('Preparing generation...')
             progress.progress(10)
 
-            # bepaal of Groq zal worden gebruikt (automatisch als beschikbaar)
-            use_groq = _get_groq_client() is not None
+            template_str = templates[choice]
 
-            if use_groq:
-                status.info("Stap 2/4 — aanroepen van LLM (groq)...")
-            else:
-                status.info("Stap 2/4 — Groq niet beschikbaar, lokale generatie wordt gebruikt...")
-            progress.progress(35)
+            # Try LLM first if available
+            progress.progress(30)
+            status.info('Generating — LLM attempt (if available)')
+            use_llm = _get_groq_client() is not None
+            generated = None
+            if use_llm:
+                generated = try_fill_template_with_llm(desc, template_str, choice)
 
-            # Stap 3: generatie (LLM of lokaal)
-            with st.spinner(text="Genereren — even geduld aub..."):
-                status.info("Stap 3/4 — genereren...")
-                content = generate_for_template(desc, choice, templates_dir, use_groq=use_groq)
-            progress.progress(70)
+            # If LLM didn't return a valid filled template, fallback local render
+            if not generated:
+                status.info('LLM fallback: local renderer')
+                generated = local_generate_generic(template_str, desc)
 
-            # Stap 4: tonen (in rechterkolom)
-            status.info("Stap 4/4 — tonen resultaat...")
-            output_placeholder.code(content, language='markdown')
+            progress.progress(80)
+            # Final sanitize
+            generated = _sanitize_placeholders(generated)
+            output_place.code(generated, language='markdown')
             progress.progress(100)
-
-            # geen extra 'gereed' banner en geen copy/download knop zoals gevraagd
+            status.empty()
 
         except Exception as e:
             progress.progress(0)
-            status.error(f'Fout tijdens generatie: {e}')
-            # toon raw response / error indien aanwezig in debug expander (blijft beschikbaar)
+            status.error(f'Error during generation: {e}')
+            st.session_state['last_error'] = str(e)
 
-# Run app when file executed directly (useful for `streamlit run`)
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     app()
