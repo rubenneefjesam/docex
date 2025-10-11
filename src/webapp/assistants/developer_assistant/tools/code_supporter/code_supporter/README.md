@@ -28,3 +28,5 @@ Voeg hier korte instructies toe hoe je de unit/integration tests runt (als aanwe
 - Status: proof-of-concept / production / deprecated
 - Eventuele caveats of link naar design-docs
 
+
+schrijf een story voor het maken van een unit test voor een llm waarbij gebruik wordt gemaakt van inkoopbonnen om de chatbot te verrijken.
