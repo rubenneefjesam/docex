@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict
 
 # Attempt relative import of ui inside this package
 try:
