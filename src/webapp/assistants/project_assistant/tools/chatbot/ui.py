@@ -180,8 +180,13 @@ def run():
                 st.write(answer)
                 st.markdown("**Gebruikte bronnen (top-k):**")
                 for r in results:
-                    st.write(
-                        f"- {r.get('filename','?')} — chunk {r.get('chunk_index','?')} (score={r.get('_score', 0):.3f})"
+                    source = r.get("source_path", r.get("filename", "Onbekend bestand"))
+                    st.markdown(
+                        f"- **{Path(source).name}**  \n"
+                        f"&nbsp;&nbsp;📄 *{source}*  \n"
+                        f"&nbsp;&nbsp;🔹 chunk {r.get('chunk_index', '?')} "
+                        f"(score {r.get('_score', 0):.3f})",
+                        unsafe_allow_html=True,
                     )
 
                 ctx_b = download_bytes_json(results)
