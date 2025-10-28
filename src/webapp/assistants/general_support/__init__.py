@@ -7,7 +7,7 @@ import streamlit as st
 
 # probeer renderer functies te importeren (als die bestaan)
 try:
-    from .document_generator import render as _render_docgen
+    from .tasklist_generator import render as _render_docgen
 except Exception:
     _render_docgen = None
 
@@ -23,10 +23,10 @@ def render(tool):
         st.info("Selecteer een tool in de sidebar.")
         return
 
-    if tool == "Document generator":
+    if tool == "Tasklist Generator":
         if callable(_render_docgen):
             return _render_docgen(tool)
-        st.error("Document generator niet beschikbaar (check document_generator.py).")
+        st.error("Tasklist generator niet beschikbaar (check document_generator.py).")
     elif tool == "Document comparison":
         if callable(_render_doccmp):
             return _render_doccmp(tool)

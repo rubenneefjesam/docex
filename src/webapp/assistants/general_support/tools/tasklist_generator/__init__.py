@@ -1,2 +1,2 @@
-from .doc_generator import run as app
+from .tasklist_generator import run as app
 __all__ = ["app"]
