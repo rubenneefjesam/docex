@@ -7,9 +7,15 @@ Test de volledige flow:
 - retrieval via dummy-index
 - samenvatting via mocked LLM
 """
+import sys
+from pathlib import Path
+
+# Voeg 'src' toe aan Python path zodat imports werken
+ROOT = Path(__file__).resolve().parents[2] / "src"
+sys.path.insert(0, str(ROOT))
 
 import pytest
-from webapp.assistants.project_assistant.tools.chatbot import query_router
+from webapp.assistants.project_assistant.tools.chatbot import index_utils
 
 
 class DummyEmbedder:
