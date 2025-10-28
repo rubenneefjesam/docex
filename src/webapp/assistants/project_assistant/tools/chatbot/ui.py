@@ -1,5 +1,3 @@
-# ui.py
-
 import sys
 import base64
 from pathlib import Path
@@ -24,9 +22,18 @@ from .llm_utils import get_groq_client, call_llm_system_prompt
 
 BASE = Path(__file__).parent.resolve()
 DATA_DIR = BASE / "data"
+INDEX_DIR = BASE / "index"
+INDEX_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 TOP_K = int(__import__("os").environ.get("TOP_K", 6))
+
+
+def _log_missing_context(client_id: str, project_id: str):
+    """Logt ontbrekende indexcombinaties naar index/missing_ids.log"""
+    log_file = INDEX_DIR / "missing_ids.log"
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(f"{client_id}/{project_id}\n")
 
 
 def run():
@@ -137,6 +144,8 @@ def run():
             f"<span style='color: {'green' if indexed else 'red'}'>{status_text}</span>",
             unsafe_allow_html=True,
         )
+        if not indexed:
+            _log_missing_context(ci, pi)
         if st.button("🔄 Herlaad status"):
             st.rerun()
 
@@ -163,6 +172,7 @@ def run():
             results = idx_retrieve(ci, pi, q_emb, top_k=TOP_K)
             if not results:
                 st.warning("Geen relevante documenten gevonden voor deze client/project.")
+                _log_missing_context(ci, pi)
             else:
                 context = "\n\n---\n\n".join(
                     f"[source={r.get('filename','?')}#chunk={r.get('chunk_index','?')}]\n{r.get('text','')}"
@@ -210,4 +220,7 @@ def run():
                     file_name=f"context_{ci}_{pi}.json",
                     mime="application/json",
                 )
-S
+
+
+if __name__ == "__main__":
+    run()
