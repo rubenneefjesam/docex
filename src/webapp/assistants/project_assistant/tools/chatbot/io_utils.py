@@ -1,114 +1,171 @@
-# io_utils.py
 """
-I/O helpers: .docx en .txt lezen, bestandsnaam -> client/project parsing, chunking.
-Voeg parse_ids_from_path toe om ook parent-folder te scannen.
-"""
-import os
-import tempfile
-import re
-from typing import Optional, List, Tuple
-from pathlib import Path
+I/O utilities voor documentextractie en chunking.
 
-# optional python-docx
+Ondersteunde formaten:
+- .pdf (via PyMuPDF of pdfplumber)
+- .docx
+- .txt
+- .csv (alle tekst samengevoegd)
+Geeft metadata terug voor indexering (client_id, project_id, doc_type, source_path, chunk_id).
+"""
+
+import os
+import re
+import csv
+import tempfile
+from pathlib import Path
+from typing import Optional, List, Tuple, Dict
+
+# optionele libs
+try:
+    import fitz  # PyMuPDF
+except Exception:
+    fitz = None
+
+try:
+    import pdfplumber
+except Exception:
+    pdfplumber = None
+
 try:
     import docx
 except Exception:
     docx = None
 
 
-def safe_read_docx_text(path: str) -> str:
-    """Read plain text from a .docx; return empty string on error."""
+# -------------------------------------------------------
+# Bestand lezen
+# -------------------------------------------------------
+
+def read_text_from_file(path: Path) -> str:
+    """Leest tekstinhoud uit .pdf, .docx, .txt of .csv."""
+    if not path.exists():
+        return ""
+
+    ext = path.suffix.lower()
+
+    try:
+        if ext == ".pdf":
+            return _read_pdf_text(path)
+        elif ext == ".docx" and docx:
+            return _read_docx_text(path)
+        elif ext == ".csv":
+            return _read_csv_text(path)
+        else:
+            return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _read_pdf_text(path: Path) -> str:
+    """Lees PDF via PyMuPDF of pdfplumber."""
+    text = ""
+    if fitz:
+        try:
+            with fitz.open(path) as doc:
+                text = "\n".join(page.get_text() for page in doc)
+        except Exception:
+            pass
+    elif pdfplumber:
+        try:
+            with pdfplumber.open(path) as pdf:
+                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        except Exception:
+            pass
+    return text.strip()
+
+
+def _read_docx_text(path: Path) -> str:
     if not docx:
         return ""
     try:
         d = docx.Document(path)
-        parts = [(p.text or "").strip() for p in d.paragraphs if (p.text or "").strip()]
+        parts = [p.text.strip() for p in d.paragraphs if p.text.strip()]
         return "\n".join(parts)
     except Exception:
         return ""
 
 
-def read_uploaded_text(uploaded) -> str:
-    """Support .docx and .txt Streamlit uploads (uploaded is Streamlit UploadedFile)."""
-    if not uploaded:
-        return ""
-    name = (uploaded.name or "").lower()
-    if name.endswith(".docx") and docx:
-        tmpd = tempfile.mkdtemp()
-        p = os.path.join(tmpd, "input.docx")
-        with open(p, "wb") as f:
-            f.write(uploaded.getbuffer())
-        return safe_read_docx_text(p)
-    # fallback: .txt
+def _read_csv_text(path: Path) -> str:
+    """Lees CSV en voeg alle cellen samen als tekst."""
     try:
-        return uploaded.read().decode("utf-8", errors="ignore")
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.reader(f)
+            rows = [" ".join(r) for r in reader]
+        return "\n".join(rows)
     except Exception:
         return ""
 
 
+# -------------------------------------------------------
+# ID-parsing en chunking
+# -------------------------------------------------------
+
 def parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Parse client_id and project_id from filename (returns (client, project)).
-    Examples handled: C001_P1001, C1-P1001, client001_project1001, explicit C/P patterns.
-    """
+    """Zoekt naar C#### en P#### patronen in bestandsnaam."""
     if not name:
         return None, None
     s = name.upper()
     m = re.search(r"(C\d{1,6}).*?(P\d{1,6})", s)
     if m:
         return m.group(1), m.group(2)
-    m2 = re.search(r"CLIENT[_-]?(\d{1,6}).*?PROJECT[_-]?(\d{1,6})", s)
-    if m2:
-        return f"C{m2.group(1)}", f"P{m2.group(2)}"
     return None, None
 
 
-def parse_ids_from_path(path: Path) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Try parse ids from filename first, then check parent and grandparent folder names.
-    Returns (client_id, project_id) or (None, None).
-    """
-    cid, pid = parse_ids_from_filename(path.name)
-    if cid and pid:
-        return cid, pid
-
-    # check parent and grandparent folder names
-    for anc in (path.parent, path.parent.parent):
-        if not anc:
-            continue
-        # direct parse from ancestor folder name
-        a_cid, a_pid = parse_ids_from_filename(anc.name)
-        if a_cid and a_pid:
-            return a_cid, a_pid
-        # or detect pattern P\d+ in ancestor name
-        m = re.search(r"(P\d{1,6})", anc.name.upper())
-        if m:
-            p_found = m.group(1)
-            # try find C\d+ in same ancestor name
-            m2 = re.search(r"(C\d{1,6})", anc.name.upper())
-            c_found = m2.group(1) if m2 else None
-            return c_found, p_found
-
-    return cid, pid
-
-
 def chunk_text(text: str, size: int = 600, overlap: int = 100) -> List[str]:
-    """Simple sliding-window chunker on characters (keeps words intact at boundaries)."""
+    """Splits tekst in overlappende stukken."""
     if not text:
         return []
     text = text.strip()
-    chunks: List[str] = []
+    chunks = []
     start = 0
     L = len(text)
     while start < L:
-        end = start + size
-        if end >= L:
-            chunks.append(text[start:L].strip())
-            break
+        end = min(L, start + size)
         slice_ = text[start:end]
         last_space = slice_.rfind(" ")
         if last_space > int(size * 0.6):
             end = start + last_space
         chunks.append(text[start:end].strip())
-        start = end - overlap if end - overlap > start else end
+        start = max(end - overlap, end)
     return [c for c in chunks if c]
+
+
+# -------------------------------------------------------
+# Metadata-records voor indexering
+# -------------------------------------------------------
+
+def infer_doc_type(path: Path) -> Optional[str]:
+    """Bepaal documenttype uit naam of map."""
+    name = path.stem.lower()
+    if "technische" in name:
+        return "technische omschrijving"
+    if "orderbevestiging" in name:
+        return "orderbevestiging"
+    if "klantcommunicatie" in name:
+        return "klantcommunicatie"
+    if "klantorder" in name:
+        return "klantorder"
+    return None
+
+
+def chunk_to_records(text: str, path: Path) -> List[Dict]:
+    """Zet chunks om naar indexrecords met metadata."""
+    if not text:
+        return []
+    cid, pid = parse_ids_from_filename(path.name)
+    doc_type = infer_doc_type(path)
+    chunks = chunk_text(text)
+    records = []
+    for i, chunk in enumerate(chunks):
+        records.append(
+            {
+                "text": chunk,
+                "doc_type": doc_type,
+                "client_id": cid,
+                "project_id": pid,
+                "source_path": str(path),
+                "chunk_id": f"{path.stem}_{i}",
+            }
+        )
+    return records
