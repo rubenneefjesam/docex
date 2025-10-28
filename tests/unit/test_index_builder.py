@@ -27,7 +27,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 # Import vanuit de echte pakketstructuur
-from webapp.assistants.project_assistant.tools.chatbot.index_builder import build_index
+from src.webapp.assistants.project_assistant.tools.chatbot.index_builder import build_index
 
 
 # -----------------------------------------------------------------------------
