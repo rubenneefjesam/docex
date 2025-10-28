@@ -8,6 +8,7 @@ if str(_this_dir) not in sys.path:
 
 import streamlit as st
 from typing import List
+from typing import List, Dict, Optional, Any, Tuple
 
 # Local imports (these refer to files in the same folder)
 from webapp.assistants.project_assistant.tools.chatbot.io_utils import read_uploaded_text, parse_ids_from_filename, chunk_text
