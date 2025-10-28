@@ -1,37 +1,44 @@
+# ui.py
+
 import sys
-import os
 import base64
 from pathlib import Path
 import streamlit as st
 from streamlit_pdf_viewer import pdf_viewer
 from typing import List, Dict, Any
 
-# Zorg dat deze map importeerbaar is
+# ---------------------------------------------------------------------
+# 🔧 PADCORRECTIE — zorgt dat lokale imports werken met streamlit run
+# ---------------------------------------------------------------------
 _THIS_DIR = Path(__file__).parent.resolve()
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-# Lokale imports
-from .io_utils import (
+# --- Lokale imports ---
+from io_utils import (
     read_uploaded_text,
     parse_ids_from_filename,
     chunk_text,
     download_bytes_json,
 )
-from .embed_utils import Embedder, load_index, save_index, retrieve as idx_retrieve
-from .llm_utils import get_groq_client, call_llm_system_prompt
+from embed_utils import Embedder, load_index, save_index, retrieve as idx_retrieve
+from llm_utils import get_groq_client, call_llm_system_prompt
 
-# Forceer consistente werkomgeving
-os.chdir(_THIS_DIR)
+# ---------------------------------------------------------------------
+# 📁 PADCONFIGURATIE
+# ---------------------------------------------------------------------
 BASE = _THIS_DIR
 DATA_DIR = BASE / "data"
 INDEX_DIR = BASE / "index"
-INDEX_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+INDEX_DIR.mkdir(parents=True, exist_ok=True)
 
 TOP_K = int(__import__("os").environ.get("TOP_K", 6))
 
 
+# ---------------------------------------------------------------------
+# 🪶 Logging van ontbrekende context
+# ---------------------------------------------------------------------
 def _log_missing_context(client_id: str, project_id: str):
     """Logt ontbrekende indexcombinaties naar index/missing_ids.log"""
     log_file = INDEX_DIR / "missing_ids.log"
@@ -39,6 +46,9 @@ def _log_missing_context(client_id: str, project_id: str):
         f.write(f"{client_id}/{project_id}\n")
 
 
+# ---------------------------------------------------------------------
+# 🚀 Hoofdfunctie
+# ---------------------------------------------------------------------
 def run():
     st.set_page_config(page_title="Client/Project Chat (Local RAG)", layout="wide")
 
@@ -63,7 +73,9 @@ def run():
     )
     st.caption("Upload bestanden en start een gesprek op basis van client_id + project_id. Geen centrale DB nodig.")
 
-    # Sidebar
+    # -----------------------------------------------------------------
+    # 📥 Sidebar upload
+    # -----------------------------------------------------------------
     st.sidebar.header("Ingestie & Config")
     up = st.sidebar.file_uploader(
         "Upload document (.docx of .txt)",
@@ -76,7 +88,9 @@ def run():
     st.sidebar.write(f"Indices gevonden: {len(existing)}")
     st.sidebar.markdown("---")
 
-    # Start sessie
+    # -----------------------------------------------------------------
+    # 🔎 Start sessie
+    # -----------------------------------------------------------------
     st.markdown("<div class='section-header'>🔎 Start sessie</div>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
@@ -92,7 +106,9 @@ def run():
 
     ci, pi = st.session_state.get("client_project", ("LOCAL", "INDEX"))
 
-    # Ingest flow
+    # -----------------------------------------------------------------
+    # 📄 Ingest flow
+    # -----------------------------------------------------------------
     if up and st.button("Ingest bestanden"):
         embedder = Embedder()
         total = 0
@@ -101,6 +117,7 @@ def run():
             if not text.strip():
                 st.warning(f"Kon geen tekst lezen uit {f.name}")
                 continue
+
             cid, pid = parse_ids_from_filename(f.name)
             if not cid or not pid:
                 cid = cid or (ci or "")
@@ -108,6 +125,7 @@ def run():
             if not cid or not pid:
                 st.error(f"Geen client/project gevonden voor {f.name}.")
                 continue
+
             metas = [
                 {
                     "text": c,
@@ -118,8 +136,10 @@ def run():
                 }
                 for i, c in enumerate(chunk_text(text))
             ]
+
             embs = embedder.embed_texts([m["text"] for m in metas])
             rows, emb_arr = load_index(cid, pid)
+
             if rows and emb_arr is not None:
                 import numpy as _np
                 save_index(
@@ -130,11 +150,15 @@ def run():
                 )
             else:
                 save_index(cid, pid, metas, embs)
+
             (DATA_DIR / f.name).write_bytes(f.getbuffer())
             total += len(metas)
+
         st.success(f"Ingestie klaar — toegevoegd ~{total} chunks")
 
+    # -----------------------------------------------------------------
     # ✅ Contextstatus
+    # -----------------------------------------------------------------
     if ci and pi:
         rows, _ = load_index(ci, pi)
         indexed = len(rows) > 0
@@ -151,6 +175,9 @@ def run():
         if st.button("🔄 Herlaad status"):
             st.rerun()
 
+    # -----------------------------------------------------------------
+    # 💬 Chat interface
+    # -----------------------------------------------------------------
     st.markdown("## 💬 Chat")
     if not (ci and pi):
         st.info("Vul boven client_id en project_id in en klik 'Laad context / validate' om te starten.")
@@ -185,6 +212,7 @@ def run():
                 st.markdown("**Antwoord:**")
                 st.write(answer)
 
+                # 📚 Toon gebruikte bronnen
                 st.markdown("**Gebruikte bronnen (top-k):**")
                 shown_sources = set()
                 for r in results:
@@ -210,6 +238,7 @@ def run():
                     else:
                         st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
 
+                # 📥 Context downloaden
                 ctx_b = download_bytes_json(results)
                 st.download_button(
                     "⬇️ Download gebruikte context (JSON)",
