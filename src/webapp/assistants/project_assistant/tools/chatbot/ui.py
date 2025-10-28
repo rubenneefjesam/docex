@@ -1,8 +1,10 @@
 # ui.py
 
 import sys
+import base64
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 from typing import List, Dict, Any
 
 # Zorg dat deze map importeerbaar is
@@ -178,17 +180,31 @@ def run():
                 answer = call_llm_system_prompt(prompt, system, groq_client)
                 st.markdown("**Antwoord:**")
                 st.write(answer)
+
+                # ✅ Toon nu volledige PDF-bron
                 st.markdown("**Gebruikte bronnen (top-k):**")
                 for r in results:
                     source = r.get("source_path", r.get("filename", "Onbekend bestand"))
                     st.markdown(
-                        f"- **{Path(source).name}**  \n"
-                        f"&nbsp;&nbsp;📄 *{source}*  \n"
-                        f"&nbsp;&nbsp;🔹 chunk {r.get('chunk_index', '?')} "
+                        f"### 📄 {Path(source).name}\n"
+                        f"<small>{source}</small>  \n"
+                        f"🔹 chunk {r.get('chunk_index', '?')} "
                         f"(score {r.get('_score', 0):.3f})",
                         unsafe_allow_html=True,
                     )
 
+                    if str(source).lower().endswith(".pdf") and Path(source).exists():
+                        try:
+                            base64_pdf = base64.b64encode(Path(source).read_bytes()).decode("utf-8")
+                            pdf_display = f"""
+                            <iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px"
+                                    type="application/pdf"></iframe>
+                            """
+                            components.html(pdf_display, height=650)
+                        except Exception as e:
+                            st.error(f"Kon PDF niet tonen: {e}")
+
+                # Context downloaden
                 ctx_b = download_bytes_json(results)
                 st.download_button(
                     "⬇️ Download gebruikte context (JSON)",
