@@ -169,3 +169,30 @@ def chunk_to_records(text: str, path: Path) -> List[Dict]:
             }
         )
     return records
+
+# -------------------------------------------------------
+# Compatibiliteit met oudere UI-code
+# -------------------------------------------------------
+
+def read_uploaded_text(uploaded) -> str:
+    """
+    Compatibiliteitsstub voor oude UI-componenten.
+    Onder water roept dit read_text_from_file() aan.
+    """
+    try:
+        # Als het een Streamlit UploadedFile is
+        import tempfile
+        import io
+
+        if hasattr(uploaded, "name"):
+            suffix = Path(uploaded.name).suffix
+            tmpd = tempfile.mkdtemp()
+            tmpf = Path(tmpd) / f"uploaded{suffix}"
+            with open(tmpf, "wb") as f:
+                f.write(uploaded.getbuffer())
+            return read_text_from_file(tmpf)
+        elif isinstance(uploaded, (str, Path)):
+            return read_text_from_file(Path(uploaded))
+    except Exception:
+        pass
+    return ""
