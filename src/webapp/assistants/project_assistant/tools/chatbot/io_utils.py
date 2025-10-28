@@ -1,20 +1,11 @@
-"""
-I/O utilities voor documentextractie en chunking.
-
-Ondersteunde formaten:
-- .pdf (via PyMuPDF of pdfplumber)
-- .docx
-- .txt
-- .csv (alle tekst samengevoegd)
-Geeft metadata terug voor indexering (client_id, project_id, doc_type, source_path, chunk_id).
-"""
+# io_utils.py
 
 import os
 import re
 import csv
 import tempfile
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Any
 
 # optionele libs
 try:
@@ -33,17 +24,11 @@ except Exception:
     docx = None
 
 
-# -------------------------------------------------------
-# Bestand lezen
-# -------------------------------------------------------
-
 def read_text_from_file(path: Path) -> str:
     """Leest tekstinhoud uit .pdf, .docx, .txt of .csv."""
     if not path.exists():
         return ""
-
     ext = path.suffix.lower()
-
     try:
         if ext == ".pdf":
             return _read_pdf_text(path)
@@ -58,7 +43,6 @@ def read_text_from_file(path: Path) -> str:
 
 
 def _read_pdf_text(path: Path) -> str:
-    """Lees PDF via PyMuPDF of pdfplumber."""
     text = ""
     if fitz:
         try:
@@ -87,7 +71,6 @@ def _read_docx_text(path: Path) -> str:
 
 
 def _read_csv_text(path: Path) -> str:
-    """Lees CSV en voeg alle cellen samen als tekst."""
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             reader = csv.reader(f)
@@ -96,10 +79,6 @@ def _read_csv_text(path: Path) -> str:
     except Exception:
         return ""
 
-
-# -------------------------------------------------------
-# ID-parsing en chunking
-# -------------------------------------------------------
 
 def parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
     """Zoekt naar C#### en P#### patronen in bestandsnaam."""
@@ -117,7 +96,7 @@ def chunk_text(text: str, size: int = 600, overlap: int = 100) -> List[str]:
     if not text:
         return []
     text = text.strip()
-    chunks = []
+    chunks: List[str] = []
     start = 0
     L = len(text)
     while start < L:
@@ -131,12 +110,7 @@ def chunk_text(text: str, size: int = 600, overlap: int = 100) -> List[str]:
     return [c for c in chunks if c]
 
 
-# -------------------------------------------------------
-# Metadata-records voor indexering
-# -------------------------------------------------------
-
 def infer_doc_type(path: Path) -> Optional[str]:
-    """Bepaal documenttype uit naam of map."""
     name = path.stem.lower()
     if "technische" in name:
         return "technische omschrijving"
@@ -149,41 +123,29 @@ def infer_doc_type(path: Path) -> Optional[str]:
     return None
 
 
-def chunk_to_records(text: str, path: Path) -> List[Dict]:
+def chunk_to_records(text: str, path: Path) -> List[Dict[str, Any]]:
     """Zet chunks om naar indexrecords met metadata."""
     if not text:
         return []
     cid, pid = parse_ids_from_filename(path.name)
     doc_type = infer_doc_type(path)
     chunks = chunk_text(text)
-    records = []
+    records: List[Dict[str, Any]] = []
     for i, chunk in enumerate(chunks):
-        records.append(
-            {
-                "text": chunk,
-                "doc_type": doc_type,
-                "client_id": cid,
-                "project_id": pid,
-                "source_path": str(path),
-                "chunk_id": f"{path.stem}_{i}",
-            }
-        )
+        records.append({
+            "text": chunk,
+            "doc_type": doc_type,
+            "client_id": cid,
+            "project_id": pid,
+            "source_path": str(path),
+            "chunk_id": f"{path.stem}_{i}",
+        })
     return records
 
-# -------------------------------------------------------
-# Compatibiliteit met oudere UI-code
-# -------------------------------------------------------
 
 def read_uploaded_text(uploaded) -> str:
-    """
-    Compatibiliteitsstub voor oude UI-componenten.
-    Onder water roept dit read_text_from_file() aan.
-    """
+    """Compatibiliteitsstub voor oude UI-componenten."""
     try:
-        # Als het een Streamlit UploadedFile is
-        import tempfile
-        import io
-
         if hasattr(uploaded, "name"):
             suffix = Path(uploaded.name).suffix
             tmpd = tempfile.mkdtemp()
@@ -196,3 +158,9 @@ def read_uploaded_text(uploaded) -> str:
     except Exception:
         pass
     return ""
+
+
+def download_bytes_json(results: List[Dict[str, Any]]) -> bytes:
+    """Serialiseer resultaten naar JSON-bytes voor download."""
+    import json
+    return json.dumps(results).encode("utf-8")
