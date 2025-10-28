@@ -181,28 +181,32 @@ def run():
                 st.markdown("**Antwoord:**")
                 st.write(answer)
 
-                # ✅ Toon nu volledige PDF-bron
+                                # ✅ Toon nu unieke PDF-bronnen (met veilige viewer)
                 st.markdown("**Gebruikte bronnen (top-k):**")
+
+                shown_sources = set()
                 for r in results:
                     source = r.get("source_path", r.get("filename", "Onbekend bestand"))
+                    if not source or source in shown_sources:
+                        continue
+                    shown_sources.add(source)
+
                     st.markdown(
                         f"### 📄 {Path(source).name}\n"
-                        f"<small>{source}</small>  \n"
-                        f"🔹 chunk {r.get('chunk_index', '?')} "
-                        f"(score {r.get('_score', 0):.3f})",
+                        f"<small>{source}</small>",
                         unsafe_allow_html=True,
                     )
 
                     if str(source).lower().endswith(".pdf") and Path(source).exists():
-                        try:
-                            base64_pdf = base64.b64encode(Path(source).read_bytes()).decode("utf-8")
-                            pdf_display = f"""
-                            <iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600px"
-                                    type="application/pdf"></iframe>
-                            """
-                            components.html(pdf_display, height=650)
-                        except Exception as e:
-                            st.error(f"Kon PDF niet tonen: {e}")
+                        # 🔒 Veiliger: gebruik lokale bestands-URL ipv data:base64 (werkt in Chrome)
+                        pdf_path = Path(source).resolve().as_uri()
+                        pdf_display = f"""
+                        <iframe src="{pdf_path}" width="100%" height="700px"
+                                style="border:1px solid #ccc; border-radius:8px;"></iframe>
+                        """
+                        components.html(pdf_display, height=750)
+                    else:
+                        st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
 
                 # Context downloaden
                 ctx_b = download_bytes_json(results)
