@@ -2,7 +2,7 @@
 Index utilities met metadata-ondersteuning:
 - index_<SAFE>.jsonl
 - emb_<SAFE>.npy of .json fallback
-- veilige cosine similarity (leeg input = lege array)
+- automatische padcorrectie bij meerdere indexversies
 """
 
 from pathlib import Path
@@ -42,6 +42,15 @@ def emb_json_path(client_id: str, project_id: str) -> Path:
     return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.json"
 
 
+def _find_latest_index(client_id: str, project_id: str) -> Optional[Path]:
+    """Zoekt de meest recente versie als er meerdere indexfiles bestaan."""
+    pattern = f"index_{safe_name(client_id, project_id)}*.jsonl"
+    candidates = list(INDEX_DIR.glob(pattern))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
 def index_exists(client_id: str, project_id: str) -> bool:
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
@@ -54,10 +63,6 @@ def index_exists(client_id: str, project_id: str) -> bool:
 # -------------------------------------------------------
 
 def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: List[List[float]]):
-    """
-    Sla index en embeddings op.
-    Elke chunk mag extra metadata bevatten: doc_type, source_path, chunk_id.
-    """
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
@@ -74,7 +79,6 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: 
             }
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    # embeddings
     if np is not None:
         np.save(e, np.array(embeddings, dtype=np.float32))
         if j.exists():
@@ -92,6 +96,11 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: 
 
 def load_index(client_id: str, project_id: str) -> Tuple[List[Dict], Optional[object]]:
     p = index_path(client_id, project_id)
+    if not p.exists():
+        alt = _find_latest_index(client_id, project_id)
+        if alt:
+            p = alt
+
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
@@ -116,24 +125,16 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict], Optional[ob
 
 
 def _cosine_sim(a, b):
-    """
-    Robuuste cosine similarity.
-    Retourneert lege array bij lege input.
-    """
     if np is None:
         raise RuntimeError("Numpy ontbreekt.")
     if a is None or b is None:
         return np.array([])
-
     a = np.asarray(a, dtype=np.float32)
     b = np.asarray(b, dtype=np.float32)
-
     if a.size == 0 or b.size == 0:
         return np.array([])
-
     if a.ndim == 1:
         a = a.reshape(1, -1)
-
     eps = 1e-12
     denom = np.linalg.norm(a, axis=1) * np.linalg.norm(b) + eps
     sims = (a @ b) / denom
@@ -154,11 +155,3 @@ def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6
         r["_score"] = float(sims[i])
         results.append(r)
     return results
-
-def build_index(client_id: str, project_id: str) -> int:
-    """Tijdelijke stub zodat de import werkt."""
-    from .index_utils import save_index
-    fake_chunks = [{"text": "Demo", "doc_type": "txt", "source_path": "demo.txt"}]
-    fake_embs = [[0.1, 0.2, 0.3]]
-    save_index(client_id, project_id, fake_chunks, fake_embs)
-    return len(fake_chunks)

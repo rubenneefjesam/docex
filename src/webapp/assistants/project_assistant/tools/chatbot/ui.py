@@ -1,4 +1,5 @@
 import sys
+import os
 import base64
 from pathlib import Path
 import streamlit as st
@@ -6,9 +7,9 @@ from streamlit_pdf_viewer import pdf_viewer
 from typing import List, Dict, Any
 
 # Zorg dat deze map importeerbaar is
-_this_dir = Path(__file__).parent.resolve()
-if str(_this_dir) not in sys.path:
-    sys.path.insert(0, str(_this_dir))
+_THIS_DIR = Path(__file__).parent.resolve()
+if str(_THIS_DIR) not in sys.path:
+    sys.path.insert(0, str(_THIS_DIR))
 
 # Lokale imports
 from .io_utils import (
@@ -20,7 +21,9 @@ from .io_utils import (
 from .embed_utils import Embedder, load_index, save_index, retrieve as idx_retrieve
 from .llm_utils import get_groq_client, call_llm_system_prompt
 
-BASE = Path(__file__).parent.resolve()
+# Forceer consistente werkomgeving
+os.chdir(_THIS_DIR)
+BASE = _THIS_DIR
 DATA_DIR = BASE / "data"
 INDEX_DIR = BASE / "index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,6 +41,7 @@ def _log_missing_context(client_id: str, project_id: str):
 
 def run():
     st.set_page_config(page_title="Client/Project Chat (Local RAG)", layout="wide")
+
     st.markdown(
         """
         <style>
@@ -57,9 +61,7 @@ def run():
         "<div class='big-header'>📁 Client/Project Chat — Local file index</div>",
         unsafe_allow_html=True,
     )
-    st.caption(
-        "Upload bestanden en start een gesprek op basis van client_id + project_id. Geen centrale DB nodig."
-    )
+    st.caption("Upload bestanden en start een gesprek op basis van client_id + project_id. Geen centrale DB nodig.")
 
     # Sidebar
     st.sidebar.header("Ingestie & Config")
@@ -70,7 +72,7 @@ def run():
         accept_multiple_files=True,
     )
     st.sidebar.markdown("---")
-    existing = [p.name for p in (BASE / "index").glob("*.jsonl")]
+    existing = [p.name for p in INDEX_DIR.glob("*.jsonl")]
     st.sidebar.write(f"Indices gevonden: {len(existing)}")
     st.sidebar.markdown("---")
 
@@ -151,9 +153,7 @@ def run():
 
     st.markdown("## 💬 Chat")
     if not (ci and pi):
-        st.info(
-            "Vul boven client_id en project_id in en klik 'Laad context / validate' om te starten."
-        )
+        st.info("Vul boven client_id en project_id in en klik 'Laad context / validate' om te starten.")
         return
 
     groq_client = get_groq_client()
@@ -185,7 +185,6 @@ def run():
                 st.markdown("**Antwoord:**")
                 st.write(answer)
 
-                # ✅ Toon nu unieke PDF-bronnen via streamlit-pdf-viewer
                 st.markdown("**Gebruikte bronnen (top-k):**")
                 shown_sources = set()
                 for r in results:
@@ -200,7 +199,6 @@ def run():
                         unsafe_allow_html=True,
                     )
 
-                    # 📚 PDF tonen (met viewer)
                     if str(source).lower().endswith(".pdf") and Path(source).exists():
                         pdf_viewer(str(Path(source).resolve()))
                         st.download_button(
@@ -212,7 +210,6 @@ def run():
                     else:
                         st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
 
-                # Context downloaden
                 ctx_b = download_bytes_json(results)
                 st.download_button(
                     "⬇️ Download gebruikte context (JSON)",
