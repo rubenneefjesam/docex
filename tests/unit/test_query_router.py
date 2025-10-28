@@ -9,7 +9,7 @@ Test de volledige flow:
 """
 
 import pytest
-from chatbot.query_router import QueryRouter
+from webapp.assistants.project_assistant.tools.chatbot import query_router
 
 
 class DummyEmbedder:

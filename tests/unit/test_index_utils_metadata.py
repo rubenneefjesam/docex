@@ -4,7 +4,7 @@ Test metadata-uitbreiding in index_utils.
 """
 
 import numpy as np
-from chatbot import index_utils
+from webapp.assistants.project_assistant.tools.chatbot import index_utils
 
 
 def test_save_and_load_index_with_metadata(tmp_path):
