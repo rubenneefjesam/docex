@@ -1,33 +1,53 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Tuple
+import importlib
+import sys
 
-# Attempt relative import of ui inside this package
+# Try importing the UI module from both relative and absolute paths
+_UI_MODULE_NAME = "your_package.ui"
+
 try:
-    # relative import works when this module is inside the package
-    from .ui import run as run_ui
-    _IMPORT_ERROR = None
-except Exception as _e:
-    # keep the error to show it later when someone calls run()
+    ui_module = importlib.import_module(_UI_MODULE_NAME)
+    run_ui = getattr(ui_module, "run")
+except (ImportError, AttributeError) as e:
     run_ui = None
-    _IMPORT_ERROR = _e
+    _IMPORT_ERROR = e
+else:
+    _IMPORT_ERROR = None
 
-def run(*args, **kwargs):
-    """Primary entrypoint expected by some registries. Delegates to ui.run()."""
+
+def run(*args: Any, **kwargs: Any) -> Any:
+    """
+    Primary entrypoint. Delegates to ui.run().
+
+    Raises:
+        RuntimeError: If the UI module cannot be imported or doesn't provide a 'run' function.
+    """
     if run_ui is None:
-        raise RuntimeError(f"UI module could not be imported via relative import. Underlying error: {_IMPORT_ERROR}")
+        raise RuntimeError(
+            f"Failed to load UI module '{_UI_MODULE_NAME}'. Reason: {_IMPORT_ERROR}"
+        )
     return run_ui(*args, **kwargs)
 
-def app(*args, **kwargs):
-    """Compatibility entrypoint used by the registry; delegates to run()."""
+
+def app(*args: Any, **kwargs: Any) -> Any:
+    """
+    Compatibility entrypoint for registries. Alias for run().
+    """
     return run(*args, **kwargs)
 
-def main(*args, **kwargs):
-    """Alias for running as a script."""
+
+def main(*args: Any, **kwargs: Any) -> Any:
+    """
+    Alias for script execution. Equivalent to run().
+    """
     return run(*args, **kwargs)
 
-def render(*args, **kwargs):
-    """Compatibility alias: some registries expect 'render'."""
-    return run(*args, **kwargs)
+
+# Some frameworks expect 'render' as the entrypoint name
+render = run
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(*sys.argv[1:])
