@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 import streamlit as st
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Any
 
 # Zorg dat deze map importeerbaar is
 _this_dir = Path(__file__).parent.resolve()
@@ -18,7 +18,6 @@ from .io_utils import (
     download_bytes_json,
 )
 from .embed_utils import Embedder, load_index, save_index, retrieve as idx_retrieve
-from .index_utils import load_index, save_index, retrieve as idx_retrieve
 from .llm_utils import get_groq_client, call_llm_system_prompt
 
 BASE = Path(__file__).parent.resolve()
@@ -80,7 +79,8 @@ def run():
                 project_id.strip().upper() if project_id else "",
             )
 
-    ci, pi = st.session_state.get("client_project", (None, None))
+    # fallback op globale index (LOCAL/INDEX)
+    ci, pi = st.session_state.get("client_project", ("LOCAL", "INDEX"))
 
     # Ingest flow
     if up and st.button("Ingest bestanden"):
@@ -108,11 +108,10 @@ def run():
                 }
                 for i, c in enumerate(chunk_text(text))
             ]
-            embs = embedder.embed([m["text"] for m in metas])
+            embs = embedder.embed_texts([m["text"] for m in metas])
             rows, emb_arr = load_index(cid, pid)
             if rows and emb_arr is not None:
                 import numpy as _np
-
                 save_index(
                     cid,
                     pid,
@@ -155,7 +154,7 @@ def run():
     if st.button("Vraag stellen") and q.strip():
         with st.spinner("Zoeken en genereren…"):
             try:
-                q_emb = embedder.embed([q])[0]
+                q_emb = embedder.embed_texts([q])[0]
             except Exception as e:
                 st.error(
                     "Embedding niet beschikbaar: installeer sentence-transformers of zet OPENAI_API_KEY."
@@ -168,7 +167,7 @@ def run():
                 st.warning("Geen relevante documenten gevonden voor deze client/project.")
             else:
                 context = "\n\n---\n\n".join(
-                    f"[source={r['filename']}#chunk={r['chunk_index']}]\n{r['text']}"
+                    f"[source={r.get('filename','?')}#chunk={r.get('chunk_index','?')}]\n{r.get('text','')}"
                     for r in results
                 )
                 system = (
@@ -182,7 +181,7 @@ def run():
                 st.markdown("**Gebruikte bronnen (top-k):**")
                 for r in results:
                     st.write(
-                        f"- {r['filename']} — chunk {r['chunk_index']} (score={r.get('_score', 0):.3f})"
+                        f"- {r.get('filename','?')} — chunk {r.get('chunk_index','?')} (score={r.get('_score', 0):.3f})"
                     )
 
                 ctx_b = download_bytes_json(results)
