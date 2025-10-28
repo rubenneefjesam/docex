@@ -7,8 +7,10 @@ Taken:
 - Beheren van indexpaden en opslag (JSON/NumPy)
 - Dummy Embedder-klasse (placeholder voor echte embeddingmodel)
 - Functies voor laden, opslaan en ophalen met cosine-similarity
+- Automatische padcorrectie bij verkeerde working directory
 """
 
+import os
 from pathlib import Path
 import json
 import re
@@ -21,11 +23,29 @@ except ImportError:
     np = None  # fallback naar JSON-opslag
 
 # ---------------------------------------------------------------------
-# Basispad voor indexbestanden
+# Dynamisch padbeheer (voorkomt dubbele src/webapp/... problemen)
 # ---------------------------------------------------------------------
-BASE_DIR = Path(__file__).parent
+def _resolve_base_dir() -> Path:
+    """Zoekt automatisch de juiste chatbot-basisdirectory."""
+    this_file = Path(__file__).resolve()
+    base = this_file.parent
+
+    # Corrigeer als er dubbel 'src/webapp' in het pad voorkomt
+    parts = list(base.parts)
+    if parts.count("src") > 1 and parts.count("webapp") > 1:
+        # neem het eerste voorkomen van 'src/webapp'
+        i = parts.index("src")
+        j = parts.index("webapp")
+        fixed = Path("/").joinpath(*parts[: j + 2]) / "assistants/project_assistant/tools/chatbot"
+        if fixed.exists():
+            return fixed
+
+    return base
+
+
+BASE_DIR = _resolve_base_dir()
 INDEX_DIR = BASE_DIR / "index"
-INDEX_DIR.mkdir(exist_ok=True)
+INDEX_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------
@@ -88,22 +108,33 @@ def save_index(
     if np:
         np.save(e, np.array(embeddings, dtype=np.float32))
         if j.exists():
-            j.unlink()
+            j.unlink(missing_ok=True)
     else:
         with j.open("w", encoding="utf-8") as fh:
             json.dump(embeddings, fh, ensure_ascii=False)
         if e.exists():
-            e.unlink()
+            e.unlink(missing_ok=True)
 
 
-def load_index(
-    client_id: str,
-    project_id: str,
-) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
-    """Laad chunks en embeddings uit index."""
+def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
+    """Laad chunks en embeddings uit index. Automatisch padherstel bij mismatch."""
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
+
+    # Fallback als pad niet klopt (Streamlit gestart vanuit ander pad)
+    if not p.exists():
+        alt_path = None
+        # Zoek in parent directories
+        for parent in BASE_DIR.parents:
+            candidate = parent / "index" / p.name
+            if candidate.exists():
+                alt_path = candidate
+                break
+        if alt_path:
+            p = alt_path
+            e = alt_path.with_name(emb_path(client_id, project_id).name)
+            j = alt_path.with_name(emb_json_path(client_id, project_id).name)
 
     rows: List[Dict[str, Any]] = []
     if p.exists():
@@ -184,7 +215,6 @@ class Embedder:
         """Genereer willekeurige dummy-embeddings (deterministisch op hash)."""
         vecs = []
         for t in texts:
-            # Gebruik hash voor deterministische pseudo-vector
             seed = int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % (2**32)
             rng = np.random.default_rng(seed)
             vec = rng.random(self.dim, dtype=np.float32)
