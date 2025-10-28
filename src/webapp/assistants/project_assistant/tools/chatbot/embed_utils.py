@@ -102,3 +102,35 @@ class Embedder:
                 raise RuntimeError(f"OpenAI embedding call failed: {e}")
 
         raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY (of configureer GROQ).")
+
+# -------------------------------------------------------
+# Compatibiliteitshelpers voor UI-downloads
+# -------------------------------------------------------
+
+def download_bytes_json(rows: List[Dict]) -> bytes:
+    """Converteer lijst van dicts naar JSON-bytes voor download in UI."""
+    import json
+    return json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+def download_bytes_csv(rows: List[Dict]) -> bytes:
+    """Converteer lijst van dicts naar CSV-bytes voor download in UI."""
+    import csv
+    import io
+
+    buf = io.StringIO()
+    if not rows:
+        buf.write("text\n")
+        return buf.getvalue().encode("utf-8")
+
+    fieldnames = list(rows[0].keys())
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow(
+            {
+                k: (v if not isinstance(v, (list, dict)) else json.dumps(v, ensure_ascii=False))
+                for k, v in r.items()
+            }
+        )
+    return buf.getvalue().encode("utf-8")
