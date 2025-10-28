@@ -21,12 +21,13 @@ def extract_code_description_pairs_from_pdf(pdf_bytes: bytes) -> list[dict]:
     - Pakt de paragrafen vóór elk codeblok als omschrijving.
 
     Retour:
-    - Lijst van dicts met keys 'code' en 'omschrijving'.
+    - Lijst van dicts met keys 'omschrijving' en 'code'.
     """
     text = ""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         for page in pdf.pages:
-            text += page.extract_text() + "\n"
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
 
     # Vind codeblokken tussen backticks
     pattern = re.compile(r"(?P<desc>.*?)```(?P<code>.*?)```", re.DOTALL)
@@ -56,7 +57,7 @@ def run(show_nav: bool = True):
         try:
             pairs = extract_code_description_pairs_from_pdf(pdf_bytes)
             if not pairs:
-                st.warning("Geen codeblokken gevonden tussen ```...".")
+                st.warning("Geen codeblokken gevonden tussen ```...```.")
             else:
                 df = pd.DataFrame(pairs)
                 st.markdown("### 📋 Gevonden code en omschrijvingen")
@@ -65,4 +66,8 @@ def run(show_nav: bool = True):
             st.error(f"Fout bij verwerken PDF: {e}")
 
 if __name__ == "__main__":
+    run()
+
+# Entrypoint export voor registry
+def app():
     run()
