@@ -1,137 +1,135 @@
-# embed_utils.py
-"""
-Robuuste embedder wrapper:
-- probeert lokale sentence-transformers eerst
-- fallback naar Groq embeddings (indien geconfigureerd)
-- fallback naar OpenAI embeddings (indien OPENAI_API_KEY aanwezig)
+from pathlib import Path
+import json
+import re
+import hashlib
+from typing import Any, Dict, List, Optional, Tuple
 
-Retourneert altijd Python-lijsten van floats.
-"""
-import os
-from typing import Dict, List, Optional, Any, Tuple
-
-
-# optionele libs
 try:
     import numpy as np
-except Exception:
-    np = None
+except ImportError:
+    np = None  # fallback naar JSON-opslag
 
-try:
-    from sentence_transformers import SentenceTransformer
-except Exception:
-    SentenceTransformer = None
-
-try:
-    import openai
-except Exception:
-    openai = None
-
-try:
-    from groq import Groq
-except Exception:
-    Groq = None
+BASE_DIR = Path(__file__).parent
+INDEX_DIR = BASE_DIR / "index"
+INDEX_DIR.mkdir(exist_ok=True)
 
 
-class Embedder:
-    def __init__(self, model_name: Optional[str] = None):
-        self.model_name = model_name or os.environ.get("EMBED_MODEL", "all-MiniLM-L6-v2")
-        self.model = None
-        self.use_openai = False
-        self.use_groq = False
-        self.groq = None
-
-        # probeer lokale sentence-transformers
-        if SentenceTransformer is not None:
-            try:
-                self.model = SentenceTransformer(self.model_name)
-            except Exception:
-                self.model = None
-
-        # OpenAI fallback (activeer alleen als API key aanwezig)
-        if self.model is None and openai is not None and os.environ.get("OPENAI_API_KEY"):
-            openai.api_key = os.environ.get("OPENAI_API_KEY")
-            self.use_openai = True
-
-        # Groq fallback (optioneel)
-        if self.model is None and not self.use_openai and Groq is not None and os.environ.get("GROQ_API_KEY"):
-            try:
-                self.groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-                self.use_groq = True
-            except Exception:
-                self.use_groq = False
-
-    def embed(self, texts: List[str]) -> List[List[float]]:
-        """
-        Geef embeddings terug als List[List[float]].
-        Werkt met lokale model -> Groq -> OpenAI (in die volgorde).
-        Werpt RuntimeError als geen embedder beschikbaar is of als externe call faalt.
-        """
-        if not texts:
-            return []
-
-        # lokale model
-        if self.model is not None:
-            arr = self.model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
-            # arr kan numpy array of lijst zijn — converteer naar pure Python lists
-            try:
-                return [list(map(float, x)) for x in arr.tolist()]
-            except Exception:
-                # fallback: iterable to list
-                return [list(map(float, x)) for x in list(arr)]
-
-        # Groq embeddings (optioneel)
-        if self.use_groq and self.groq is not None:
-            try:
-                resp = self.groq.embeddings.create(model=os.environ.get("GROQ_EMBED_MODEL", "embedding-1"), input=texts)
-                # resp kan dict-like zijn: probeer 'data' pad
-                if isinstance(resp, dict) and "data" in resp:
-                    return [d.get("embedding") for d in resp["data"]]
-                # anders fallback best effort
-                return [d["embedding"] if isinstance(d, dict) else d for d in resp]
-            except Exception:
-                # disable groq fallback na mislukking
-                self.use_groq = False
-
-        # OpenAI fallback
-        if self.use_openai:
-            model = os.environ.get("OPENAI_EMBED_MODEL", "text-embedding-3-small")
-            try:
-                resp = openai.Embedding.create(model=model, input=texts)
-                return [d["embedding"] for d in resp["data"]]
-            except Exception as e:
-                raise RuntimeError(f"OpenAI embedding call failed: {e}")
-
-        raise RuntimeError("Geen embedder beschikbaar. Installeer sentence-transformers of zet OPENAI_API_KEY (of configureer GROQ).")
-
-# -------------------------------------------------------
-# Compatibiliteitshelpers voor UI-downloads
-# -------------------------------------------------------
-
-def download_bytes_json(rows: List[Dict]) -> bytes:
-    """Converteer lijst van dicts naar JSON-bytes voor download in UI."""
-    import json
-    return json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
+def safe_name(client_id: str, project_id: str) -> str:
+    combined = f"{client_id}_{project_id}".upper()
+    return re.sub(r"[^A-Z0-9_]+", "_", combined)
 
 
-def download_bytes_csv(rows: List[Dict]) -> bytes:
-    """Converteer lijst van dicts naar CSV-bytes voor download in UI."""
-    import csv
-    import io
+def index_path(client_id: str, project_id: str) -> Path:
+    return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.jsonl"
 
-    buf = io.StringIO()
-    if not rows:
-        buf.write("text\n")
-        return buf.getvalue().encode("utf-8")
 
-    fieldnames = list(rows[0].keys())
-    writer = csv.DictWriter(buf, fieldnames=fieldnames)
-    writer.writeheader()
-    for r in rows:
-        writer.writerow(
-            {
-                k: (v if not isinstance(v, (list, dict)) else json.dumps(v, ensure_ascii=False))
-                for k, v in r.items()
+def emb_path(client_id: str, project_id: str) -> Path:
+    return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.npy"
+
+
+def emb_json_path(client_id: str, project_id: str) -> Path:
+    return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.json"
+
+
+def index_exists(client_id: str, project_id: str) -> bool:
+    p = index_path(client_id, project_id)
+    return p.exists() and (
+        emb_path(client_id, project_id).exists() or emb_json_path(client_id, project_id).exists()
+    )
+
+
+def save_index(
+    client_id: str,
+    project_id: str,
+    chunks: List[Dict[str, Any]],
+    embeddings: List[List[float]]
+) -> None:
+    p = index_path(client_id, project_id)
+    e = emb_path(client_id, project_id)
+    j = emb_json_path(client_id, project_id)
+
+    # Schrijf chunks als JSONL
+    with p.open('w', encoding='utf-8') as fh:
+        for c in chunks:
+            row = {
+                "client_id": client_id,
+                "project_id": project_id,
+                "text": c.get("text", ""),
+                "doc_type": c.get("doc_type"),
+                "source_path": str(c.get("source_path", "")),
+                "chunk_id": c.get("chunk_id") or hashlib.md5(c.get("text", "").encode()).hexdigest()[:8]
             }
-        )
-    return buf.getvalue().encode("utf-8")
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    # Schrijf embeddings (NumPy of JSON fallback)
+    if np:
+        np.save(e, np.array(embeddings, dtype=np.float32))
+        if j.exists(): j.unlink()
+    else:
+        with j.open('w', encoding='utf-8') as fh:
+            json.dump(embeddings, fh, ensure_ascii=False)
+        if e.exists(): e.unlink()
+
+
+def load_index(
+    client_id: str,
+    project_id: str
+) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
+    p = index_path(client_id, project_id)
+    e = emb_path(client_id, project_id)
+    j = emb_json_path(client_id, project_id)
+
+    rows: List[Dict[str, Any]] = []
+    if p.exists():
+        with p.open('r', encoding='utf-8') as fh:
+            for line in fh:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+    emb_data = None
+    if np and e.exists():
+        emb_data = np.load(e)
+    elif j.exists():
+        with j.open('r', encoding='utf-8') as fh:
+            emb_data = json.load(fh)
+        if np and isinstance(emb_data, list):
+            emb_data = np.array(emb_data, dtype=np.float32)
+
+    return rows, emb_data
+
+
+def cosine_sim(a: Any, b: Any) -> Any:
+    if np is None:
+        raise RuntimeError("Numpy is required for similarity calculations.")
+    arr_a = np.atleast_2d(np.array(a, dtype=np.float32))
+    arr_b = np.atleast_2d(np.array(b, dtype=np.float32))
+    if arr_a.size == 0 or arr_b.size == 0:
+        return np.array([])
+    norm = lambda x: np.linalg.norm(x, axis=1)
+    denom = norm(arr_a)[:, None] * norm(arr_b)[None, :] + 1e-12
+    sims = arr_a @ arr_b.T / denom
+    return sims.flatten()
+
+
+def retrieve(
+    client_id: str,
+    project_id: str,
+    q_emb: List[float],
+    top_k: int = 6
+) -> List[Dict[str, Any]]:
+    rows, embs = load_index(client_id, project_id)
+    if not rows or embs is None or q_emb is None:
+        return []
+    similarities = cosine_sim(embs, q_emb)
+    if similarities.size == 0:
+        return []
+
+    ranked_idx = similarities.argsort()[::-1][:top_k]
+    results: List[Dict[str, Any]] = []
+    for idx in ranked_idx:
+        entry = rows[int(idx)].copy()
+        entry['_score'] = float(similarities[idx])
+        results.append(entry)
+    return results

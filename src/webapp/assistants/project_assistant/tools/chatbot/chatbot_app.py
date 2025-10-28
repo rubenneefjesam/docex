@@ -1,53 +1,89 @@
 from pathlib import Path
-from typing import Any, Optional
-import importlib
-import sys
+from typing import Any
+from fastapi import FastAPI, Form, HTTPException
+from pydantic import BaseModel
 
-# Determine the package for relative import
-_package = __package__ if __package__ else Path(__file__).stem
-_ui_module_name = f"{_package}.ui"
+from .index_utils import build_index
+from .embed_utils import index_exists, retrieve
+from .utils import metadata_exists
+from .ui import run as ui_run
 
-try:
-    ui_module = importlib.import_module(_ui_module_name)
-    run_ui = getattr(ui_module, "run")
-    _IMPORT_ERROR: Optional[Exception] = None
-except Exception as e:
-    run_ui = None
-    _IMPORT_ERROR = e
+app = FastAPI(title="Client/Project Chatbot")
 
 
-def run(*args: Any, **kwargs: Any) -> Any:
+class ValidateResponse(BaseModel):
+    exists: bool
+    indexed: bool
+    found_chunks: int
+
+
+class IndexResponse(BaseModel):
+    success: bool
+    indexed_chunks: int
+
+
+@app.post("/index", response_model=IndexResponse)
+async def index_route(
+    client_id: str = Form(...),
+    project_id: str = Form(...)
+) -> IndexResponse:
     """
-    Primary entrypoint. Delegates to ui.run().
-
-    Raises:
-        RuntimeError: If the UI module cannot be imported or doesn't provide a 'run' function.
+    Indexeer alle documenten voor een given client/project.
     """
-    if run_ui is None:
-        raise RuntimeError(
-            f"Failed to load UI module '{_ui_module_name}'. Reason: {_IMPORT_ERROR}"
-        )
-    return run_ui(*args, **kwargs)
+    if not metadata_exists(client_id, project_id):
+        raise HTTPException(status_code=404, detail="Client/Project niet gevonden")
+
+    try:
+        chunk_count = build_index(client_id, project_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Indexeren mislukt: {e}")
+
+    return IndexResponse(success=True, indexed_chunks=chunk_count)
 
 
-def app(*args: Any, **kwargs: Any) -> Any:
+@app.post("/validate", response_model=ValidateResponse)
+async def validate_route(
+    client_id: str = Form(...),
+    project_id: str = Form(...)
+) -> ValidateResponse:
     """
-    Compatibility entrypoint for registries.
-    Alias for run().
+    Controleer of client/project bestaat en of er een index is.
     """
-    return run(*args, **kwargs)
+    exists = metadata_exists(client_id, project_id)
+    indexed = exists and index_exists(client_id, project_id)
+    found = 0
+
+    if indexed:
+        # retrieve met lege embedding geeft aantal beschikbare chunks
+        sample = retrieve(client_id, project_id, q_emb=[], top_k=0)
+        found = len(sample)
+
+    return ValidateResponse(exists=exists, indexed=indexed, found_chunks=found)
 
 
-def main(*args: Any, **kwargs: Any) -> Any:
+@app.get("/run-ui")
+async def run_ui() -> Any:
+    """Expose UI entrypoint via HTTP voor local development."""
+    return ui_run()
+
+
+@app.post("/query")
+async def query_route(
+    client_id: str = Form(...),
+    project_id: str = Form(...),
+    question: str = Form(...)
+):
     """
-    Alias for script execution. Equivalent to run().
+    Embedding van de vraag, retrieval en doorsturen naar LLM.
+    Vervang '...' door je eigen embed-logica.
     """
-    return run(*args, **kwargs)
-
-
-# Some frameworks expect 'render' as the entrypoint name
-render = run
+    q_emb = ...  # embed vraag hier
+    results = retrieve(client_id, project_id, q_emb)
+    return {"answers": results}
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
