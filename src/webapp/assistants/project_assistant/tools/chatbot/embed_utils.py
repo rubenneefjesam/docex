@@ -8,7 +8,8 @@ Robuuste embedder wrapper:
 Retourneert altijd Python-lijsten van floats.
 """
 import os
-from typing import List, Optional
+from typing import Dict, List, Optional, Any, Tuple
+
 
 # optionele libs
 try:

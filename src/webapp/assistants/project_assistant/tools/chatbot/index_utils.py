@@ -9,7 +9,7 @@ from pathlib import Path
 import json
 import re
 import hashlib
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 
 try:
     import numpy as np
