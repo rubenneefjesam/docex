@@ -1,36 +1,44 @@
-# test_index_builder.py
+# /workspaces/docex/tests/unit/test_index_builder.py
 """
-Testscript voor index_builder.py
-Controleert of indexeren werkt en of indexbestanden bestaan.
+Definitieve test voor chatbot.index_builder
+-------------------------------------------
+End-to-end test die controleert of de indexbuilder draait en output oplevert.
+Gebruik:
+    pytest tests/unit/test_index_builder.py -s
 """
 
 from pathlib import Path
 import json
 import numpy as np
-from index_builder import build_index
-
-DATA_DIR = Path("./chatbot/data")
-OUTPUT_DIR = Path("./chatbot/index/test_run")
-
-def test_index_builder():
-    print("🚀 Test indexeren gestart...")
-    build_index(DATA_DIR, OUTPUT_DIR)
-
-    npy_files = list(OUTPUT_DIR.glob("*.npy"))
-    json_files = list(OUTPUT_DIR.glob("*.json"))
-
-    assert npy_files, "Geen .npy-bestand gevonden!"
-    assert json_files, "Geen .json-bestand gevonden!"
-
-    print(f"✅ Gevonden indexbestanden: {len(npy_files)} NPY, {len(json_files)} JSON")
-
-    meta = json.load(open(json_files[0], "r", encoding="utf-8"))
-    embeddings = np.load(npy_files[0])
-
-    print(f"📊 Aantal chunks: {len(meta)}")
-    print(f"📏 Embedding shape: {embeddings.shape}")
-    print("🎉 Test succesvol afgerond!")
+from chatbot.index_builder import build_index  # ✅ vaste pakketimport
 
 
-if __name__ == "__main__":
-    test_index_builder()
+def test_index_builder(tmp_path):
+    """End-to-end test voor index_builder."""
+    project_root = Path(__file__).resolve().parents[2]
+    data_dir = project_root / "chatbot" / "data"
+    output_dir = tmp_path / "index_out"
+
+    print(f"\n🚀 Test start: indexeren vanuit {data_dir.resolve()}")
+
+    # Bouw de index
+    build_index(data_dir, output_dir)
+
+    # Controleer of output bestaat
+    npy_files = list(output_dir.glob("*.npy"))
+    json_files = list(output_dir.glob("*.json"))
+
+    assert npy_files, "❌ Geen .npy-bestanden aangemaakt!"
+    assert json_files, "❌ Geen .json-bestanden aangemaakt!"
+
+    with open(json_files[0], "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    arr = np.load(npy_files[0])
+
+    print(f"✅ Index succesvol: {len(meta)} chunks, embeddings shape = {arr.shape}")
+
+    assert len(meta) == arr.shape[0], "Mismatch tussen aantal metadata-records en embeddings"
+    assert arr.shape[1] > 10, "Embedding vector lijkt te klein"
+    assert all("source" in m for m in meta), "Metadata mist 'source'-velden"
+
+    print("🎉 Alles werkt zoals verwacht!\n")
