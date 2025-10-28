@@ -1,11 +1,24 @@
 # chatbot_app.py
+"""
+Chatbot applicatiemodule — start de lokale Streamlit-UI,
+en beheert indexering, validatie en query-functionaliteit.
+
+Automatische padcorrectie voorkomt dubbele 'src/webapp' problemen.
+"""
 
 from typing import Any, Dict, List
+from pathlib import Path
+import subprocess
+
 from .index_utils import build_index
 from .embed_utils import index_exists, retrieve
 from .utils import metadata_exists
 from .ui import run as ui_run
 
+
+# -------------------------------------------------------
+# Core functies
+# -------------------------------------------------------
 def index(client_id: str, project_id: str) -> Dict[str, Any]:
     """
     Indexeer alle documenten voor de gegeven client/project.
@@ -18,6 +31,7 @@ def index(client_id: str, project_id: str) -> Dict[str, Any]:
         raise FileNotFoundError(f"Geen data-folder voor {client_id}/{project_id}")
     n = build_index(client_id, project_id)
     return {"success": True, "indexed_chunks": n}
+
 
 def validate(client_id: str, project_id: str) -> Dict[str, Any]:
     """
@@ -32,23 +46,47 @@ def validate(client_id: str, project_id: str) -> Dict[str, Any]:
     found = len(retrieve(client_id, project_id, q_emb=[], top_k=0)) if indexed else 0
     return {"exists": exists, "indexed": indexed, "found_chunks": found}
 
+
 def query(client_id: str, project_id: str, question: str) -> List[Dict[str, Any]]:
     """
     Embed de vraag, doe een retrieve en geef de resultaten terug.
     Vervang `...` door je eigen embed-logica.
     """
-    # TODO: embed vraag
-    q_emb: List[float] = ...  
+    # TODO: eigen embedding logica toevoegen
+    q_emb: List[float] = ...
     return retrieve(client_id, project_id, q_emb)
 
+
+# -------------------------------------------------------
+# Streamlit UI Runner
+# -------------------------------------------------------
 def run(*args: Any, **kwargs: Any) -> Any:
     """
-    Primary entrypoint: start de UI. 
-    Alle interacties (index, validate, query) gebeuren via callbacks in ui.py.
+    Start de Streamlit UI.
+    Deze functie zorgt voor een veilig pad naar de hoofd-app,
+    ongeacht de huidige werkdirectory.
     """
-    return ui_run(*args, **kwargs)
+    try:
+        # Gebruik het bestaande ui.py als Streamlit-app
+        ui_file = Path(__file__).resolve().parent / "ui.py"
 
-# alias-namen voor registries
+        if ui_file.exists():
+            subprocess.run(["streamlit", "run", str(ui_file)], check=True)
+        else:
+            # fallback naar de globale webapp/app.py
+            app_path = Path(__file__).resolve().parents[4] / "webapp/app.py"
+            if not app_path.exists():
+                raise FileNotFoundError(f"Geen geldig Streamlit-pad gevonden: {app_path}")
+            subprocess.run(["streamlit", "run", str(app_path)], check=True)
+
+    except Exception as e:
+        print(f"⚠️  Fout bij starten van Streamlit: {e}")
+        raise
+
+
+# -------------------------------------------------------
+# Aliassen voor registry compatibility
+# -------------------------------------------------------
 app = run
 main = run
 render = run
