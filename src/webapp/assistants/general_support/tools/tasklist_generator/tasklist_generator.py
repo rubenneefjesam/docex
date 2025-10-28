@@ -4,7 +4,7 @@ import tempfile
 import re
 import json
 import streamlit as st
-import pdfplumber
+from PyPDF2 import PdfReader
 import pandas as pd
 
 # ------------------------------------------------
@@ -16,18 +16,18 @@ def extract_code_description_pairs_from_pdf(pdf_bytes: bytes) -> list[dict]:
     Extraheert code en bijbehorende omschrijvingen uit een PDF.
 
     Werking:
-    - Opent de PDF met pdfplumber en leest alle tekst.
-    - Zoekt naar codeblokken afgebakend met ```...``` of indented blokken.
+    - Opent de PDF met PyPDF2 en leest alle tekst.
+    - Zoekt naar codeblokken afgebakend met ```...```.
     - Pakt de paragrafen vóór elk codeblok als omschrijving.
 
     Retour:
     - Lijst van dicts met keys 'omschrijving' en 'code'.
     """
     text = ""
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            text += page_text + "\n"
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        text += page_text + "\n"
 
     # Vind codeblokken tussen backticks
     pattern = re.compile(r"(?P<desc>.*?)```(?P<code>.*?)```", re.DOTALL)
