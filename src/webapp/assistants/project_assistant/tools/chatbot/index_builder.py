@@ -5,10 +5,10 @@ Indexeert alle documenten in ./data, inclusief CSV's.
 Koppelt automatisch ClientID ↔ ProjectID via bestandsnaam + mappingbestand.
 
 Gebruik:
-    python -m chatbot.index_builder \
-      --data-dir chatbot/data \
-      --output-dir chatbot/index \
-      --mapping-file chatbot/data/project_mapping.csv
+    python -m src.webapp.assistants.project_assistant.tools.chatbot.index_builder \
+      --data-dir src/webapp/assistants/project_assistant/tools/chatbot/data \
+      --output-dir src/webapp/assistants/project_assistant/tools/chatbot/index \
+      --mapping-file src/webapp/assistants/project_assistant/tools/chatbot/data/project_mapping.csv
 """
 
 import argparse
@@ -61,16 +61,26 @@ def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[st
     name = file_path.name
     cid, pid = parse_ids_from_filename(name)
 
-    if not cid:  # probeer via mapping of map
+    # Probeer client_id te vinden als die nog ontbreekt
+    if not cid:
         match = re.search(r"(C\d{3,})", name.upper())
         if match:
             cid = match.group(1)
+
+    # Probeer project_id te halen uit mapping of mapnaam
     if cid and not pid:
         pid = mapping.get(cid, file_path.parent.name.upper())
+
+    # Fallbacks
     if not cid:
         cid = "LOCAL"
     if not pid:
         pid = "INDEX"
+
+    # ✅ Speciale case: CSV's met mapping of projectinfo krijgen een vaste code
+    if file_path.suffix.lower() == ".csv" and pid == "INDEX":
+        cid, pid = "C000", "P999"
+
     return cid, pid
 
 
