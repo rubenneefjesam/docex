@@ -1,4 +1,3 @@
-# chatbot/index_builder.py
 """
 FINAL INDEX BUILDER
 -------------------
@@ -6,7 +5,9 @@ Indexeert alle documenten in ./data en slaat embeddings + metadata op in ./index
 Gebruikt bestaande hulpfuncties in io_utils, embed_utils en index_utils.
 
 Gebruik:
-    python -m chatbot.index_builder --data-dir ./chatbot/data --output-dir ./chatbot/index
+    python -m src.webapp.assistants.project_assistant.tools.chatbot.index_builder \
+        --data-dir src/webapp/assistants/project_assistant/tools/chatbot/data \
+        --output-dir src/webapp/assistants/project_assistant/tools/chatbot/index
 """
 
 import argparse
@@ -19,13 +20,11 @@ from tqdm import tqdm
 try:
     # pakket-import (aanbevolen)
     from .io_utils import read_text_from_file, chunk_text
-    from .embed_utils import Embedder
-    from .index_utils import save_index
+    from .embed_utils import Embedder, save_index
 except Exception:  # pragma: no cover
     # stand-alone fallback (bijv. direct in repo-root draaien)
     from io_utils import read_text_from_file, chunk_text
-    from embed_utils import Embedder
-    from index_utils import save_index
+    from embed_utils import Embedder, save_index
 
 
 SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".csv"}
@@ -82,15 +81,13 @@ def build_index(data_dir: Path, output_dir: Path) -> None:
             try:
                 chunks = chunk_text(text)
                 if not chunks:
-                    # fallback: één chunk als chunker niets teruggeeft
                     chunks = [text]
             except Exception:
-                # chunker faalt → hele document als 1 chunk
                 chunks = [text]
 
             total = len(chunks)
             for i, chunk in enumerate(chunks):
-                if not chunk or not chunk.strip():
+                if not chunk.strip():
                     continue
                 all_texts.append(chunk)
                 all_meta.append(
@@ -125,7 +122,7 @@ def build_index(data_dir: Path, output_dir: Path) -> None:
         client_id="LOCAL",
         project_id="INDEX",
         chunks=[{"text": t, **m} for t, m in zip(all_texts, all_meta)],
-        embeddings=embeddings
+        embeddings=embeddings,
     )
 
     print(f"\n✅ Indexeren voltooid!")
@@ -133,17 +130,13 @@ def build_index(data_dir: Path, output_dir: Path) -> None:
     print(f"   → Aantal chunks: {len(all_texts)}\n")
 
 
+# -------------------------------------------------------------------------
+# MAIN SCRIPT
+# -------------------------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexeer documenten in een opgegeven map.")
     parser.add_argument("--data-dir", type=Path, required=True, help="Pad naar de map met documenten.")
     parser.add_argument("--output-dir", type=Path, required=True, help="Pad waar de index wordt opgeslagen.")
     args = parser.parse_args()
-    build_index(args.data_dir, args.output_dir)
 
-# index opslaan (dummy client/project om compatibel te zijn met embed_utils)
-save_index(
-    client_id="LOCAL",
-    project_id="INDEX",
-    chunks=[{"text": t, **m} for t, m in zip(all_texts, all_meta)],
-    embeddings=embeddings
-)
+    build_index(args.data_dir, args.output_dir)
