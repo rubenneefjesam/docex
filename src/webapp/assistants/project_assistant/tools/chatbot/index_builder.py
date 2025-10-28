@@ -120,8 +120,13 @@ def build_index(data_dir: Path, output_dir: Path) -> None:
     # embeddings maken
     embeddings = embedder.embed_texts(all_texts)
 
-    # index opslaan
-    save_index(output_dir, embeddings, all_meta)
+    # index opslaan — compatibel met embed_utils.save_index()
+    save_index(
+        client_id="LOCAL",
+        project_id="INDEX",
+        chunks=[{"text": t, **m} for t, m in zip(all_texts, all_meta)],
+        embeddings=embeddings
+    )
 
     print(f"\n✅ Indexeren voltooid!")
     print(f"   → Embeddings & metadata opgeslagen in: {output_dir.resolve()}")
@@ -134,3 +139,11 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=Path, required=True, help="Pad waar de index wordt opgeslagen.")
     args = parser.parse_args()
     build_index(args.data_dir, args.output_dir)
+
+# index opslaan (dummy client/project om compatibel te zijn met embed_utils)
+save_index(
+    client_id="LOCAL",
+    project_id="INDEX",
+    chunks=[{"text": t, **m} for t, m in zip(all_texts, all_meta)],
+    embeddings=embeddings
+)
