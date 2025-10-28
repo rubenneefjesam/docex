@@ -1,5 +1,3 @@
-# io_utils.py
-
 import os
 import re
 import csv
@@ -71,24 +69,30 @@ def _read_docx_text(path: Path) -> str:
 
 
 def _read_csv_text(path: Path) -> str:
+    """Voeg alle rijen samen tot leesbare tekst."""
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             reader = csv.reader(f)
-            rows = [" ".join(r) for r in reader]
+            rows = [" | ".join(r) for r in reader if any(r)]
         return "\n".join(rows)
     except Exception:
         return ""
 
 
 def parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
-    """Zoekt naar C#### en P#### patronen in bestandsnaam."""
+    """Zoekt naar C#### en P#### patronen in bestandsnaam of mapnaam."""
     if not name:
         return None, None
     s = name.upper()
     m = re.search(r"(C\d{1,6}).*?(P\d{1,6})", s)
     if m:
         return m.group(1), m.group(2)
-    return None, None
+
+    # Fallback: alleen client_id gevonden → gebruik mapnaam als project_id
+    c = re.search(r"(C\d{1,6})", s)
+    client_id = c.group(1) if c else None
+    project_id = Path(name).parent.name.upper() if Path(name).parent else "INDEX"
+    return client_id, project_id
 
 
 def chunk_text(text: str, size: int = 600, overlap: int = 100) -> List[str]:

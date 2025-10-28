@@ -1,16 +1,14 @@
-# chatbot/index_builder.py
 """
-INDEX BUILDER (met Excel/CSV mapping)
--------------------------------------
-Indexeert alle documenten in ./data, koppelt automatisch ClientID ↔ ProjectID
-via een mappingbestand (CSV of Excel), en slaat embeddings + metadata per
-(client, project) op in ./index.
+Verbeterde INDEX BUILDER
+------------------------
+Indexeert alle documenten in ./data, inclusief CSV's.
+Koppelt automatisch ClientID ↔ ProjectID via bestandsnaam + mappingbestand.
 
 Gebruik:
-    python -m src.webapp.assistants.project_assistant.tools.chatbot.index_builder \
-      --data-dir src/webapp/assistants/project_assistant/tools/chatbot/data \
-      --output-dir src/webapp/assistants/project_assistant/tools/chatbot/index \
-      --mapping-file project_mapping.csv
+    python -m chatbot.index_builder \
+      --data-dir chatbot/data \
+      --output-dir chatbot/index \
+      --mapping-file chatbot/data/project_mapping.csv
 """
 
 import argparse
@@ -21,12 +19,11 @@ from pathlib import Path
 from typing import List, Dict, Any
 from tqdm import tqdm
 
-# Imports (werken in module- en standalone-modus)
 try:
-    from .io_utils import read_text_from_file, chunk_text
+    from .io_utils import read_text_from_file, chunk_text, parse_ids_from_filename
     from .embed_utils import Embedder, save_index
 except Exception:
-    from io_utils import read_text_from_file, chunk_text
+    from io_utils import read_text_from_file, chunk_text, parse_ids_from_filename
     from embed_utils import Embedder, save_index
 
 
@@ -51,32 +48,35 @@ def load_mapping(mapping_path: Path) -> Dict[str, str]:
     if "KlantID" not in df.columns or "ProjectID" not in df.columns:
         raise ValueError("Mappingbestand mist kolommen 'KlantID' en/of 'ProjectID'.")
 
-    mapping = {row["KlantID"].strip().upper(): row["ProjectID"].strip().upper() for _, row in df.iterrows()}
+    mapping = {
+        str(row["KlantID"]).strip().upper(): str(row["ProjectID"]).strip().upper()
+        for _, row in df.iterrows()
+    }
     print(f"📖 Mapping geladen ({len(mapping)} regels). Voorbeeld: {list(mapping.items())[:3]}")
     return mapping
 
 
-def parse_client_project_with_mapping(filename: str, mapping: Dict[str, str]) -> tuple[str, str]:
-    """Zoekt client_id in bestandsnaam en koppelt project_id via mapping."""
-    fname = filename.upper()
-    c = re.search(r"C\d{3,}", fname)
-    client_id = c.group(0) if c else "LOCAL"
-    project_id = mapping.get(client_id, "INDEX")
-    return client_id, project_id
+def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[str, str]:
+    """Combineert bestandsnaam + mapping om client_id en project_id te bepalen."""
+    name = file_path.name
+    cid, pid = parse_ids_from_filename(name)
+
+    if not cid:  # probeer via mapping of map
+        match = re.search(r"(C\d{3,})", name.upper())
+        if match:
+            cid = match.group(1)
+    if cid and not pid:
+        pid = mapping.get(cid, file_path.parent.name.upper())
+    if not cid:
+        cid = "LOCAL"
+    if not pid:
+        pid = "INDEX"
+    return cid, pid
 
 
 def _count_file(counters: Dict[str, int], ext: str) -> None:
     ext = ext.lower()
-    if ext == ".pdf":
-        counters["pdf"] += 1
-    elif ext == ".docx":
-        counters["docx"] += 1
-    elif ext == ".csv":
-        counters["csv"] += 1
-    elif ext == ".txt":
-        counters["txt"] += 1
-    else:
-        counters["other"] += 1
+    counters[ext] = counters.get(ext, 0) + 1
 
 
 # -----------------------------------------------------
@@ -89,15 +89,15 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
     mapping_path = Path(mapping_file)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"🚀 Start multi-indexering in: {data_dir.resolve()}")
+    print(f"🚀 Start indexering in: {data_dir.resolve()}")
     mapping = load_mapping(mapping_path)
 
     embedder = Embedder()
     all_files = [p for p in data_dir.rglob("*") if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS]
     print(f"📂 {len(all_files)} bestanden gevonden...\n")
 
-    # counters per client/project
     stats: Dict[str, int] = {}
+    unknowns: List[str] = []
 
     for file_path in tqdm(all_files, desc="Bestanden verwerken"):
         try:
@@ -105,7 +105,10 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
             if not text.strip():
                 continue
 
-            client_id, project_id = parse_client_project_with_mapping(file_path.name, mapping)
+            client_id, project_id = resolve_client_project(file_path, mapping)
+            if project_id in {"INDEX", "UNKNOWN"}:
+                unknowns.append(f"{file_path.name} → {client_id}/{project_id}")
+
             chunks = chunk_text(text) or [text]
             embeddings = embedder.embed_texts(chunks)
 
@@ -123,13 +126,23 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
             print(f"⚠️  Fout bij {file_path.name}: {e}")
             traceback.print_exc()
 
+    # ----------------------------
+    # Rapportage
+    # ----------------------------
     print("\n✅ Indexatieoverzicht:")
     total = 0
-    for k, v in stats.items():
-        print(f"   • {k:<15} → {v} chunks opgeslagen")
+    for k, v in sorted(stats.items()):
+        print(f"   • {k:<20} → {v} chunks opgeslagen")
         total += v
 
-    print(f"\n📊 Totaal {total} chunks geïndexeerd over {len(stats)} client/project-combinaties.\n")
+    print(f"\n📊 Totaal {total} chunks geïndexeerd over {len(stats)} client/project-combinaties.")
+
+    if unknowns:
+        print("\n⚠️  Waarschuwing: bestanden met onduidelijk project_id:")
+        for u in unknowns:
+            print(f"   - {u}")
+    else:
+        print("\n✅ Geen onduidelijke client/project combinaties gevonden.")
 
 
 # -----------------------------------------------------
