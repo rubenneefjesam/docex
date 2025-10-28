@@ -1,8 +1,12 @@
 """
-Index utilities met metadata-ondersteuning:
-- index_<SAFE>.jsonl
-- emb_<SAFE>.npy of .json fallback
-- veilige cosine similarity (leeg input = lege array)
+index_utils.py
+---------------
+Beheert indexering van embeddings en metadata-bestanden.
+
+Kenmerken:
+- Automatische padherkenning (voorkomt dubbele 'src/webapp' niveaus)
+- Ondersteunt JSONL + NPY of JSON fallback
+- Robuuste cosine similarity
 """
 
 from pathlib import Path
@@ -13,10 +17,31 @@ from typing import Dict, List, Optional, Any, Tuple
 
 try:
     import numpy as np
-except Exception:
+except ImportError:
     np = None
 
-BASE = Path(__file__).parent.resolve()
+
+# -------------------------------------------------------
+# Basismapherkenning
+# -------------------------------------------------------
+def _resolve_base_dir() -> Path:
+    """Bepaalt de juiste chatbot-rootmap, ongeacht werkdirectory."""
+    here = Path(__file__).resolve()
+    parts = list(here.parts)
+
+    try:
+        idx = parts.index("chatbot")
+        root = Path(*parts[: idx + 1])
+        if root.exists():
+            return root
+    except ValueError:
+        pass
+
+    # fallback — parentmap
+    return here.parent
+
+
+BASE = _resolve_base_dir()
 INDEX_DIR = BASE / "index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -24,7 +49,6 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 # -------------------------------------------------------
 # Helpers
 # -------------------------------------------------------
-
 def safe_name(client_id: str, project_id: str) -> str:
     s = f"{client_id}_{project_id}"
     return re.sub(r"[^A-Z0-9_]+", "_", s.upper())
@@ -43,26 +67,24 @@ def emb_json_path(client_id: str, project_id: str) -> Path:
 
 
 def index_exists(client_id: str, project_id: str) -> bool:
+    """Controleert of index en embeddings bestaan."""
     p = index_path(client_id, project_id)
-    e = emb_path(client_id, project_id)
-    j = emb_json_path(client_id, project_id)
-    return p.exists() and (e.exists() or j.exists())
+    return p.exists() and (
+        emb_path(client_id, project_id).exists()
+        or emb_json_path(client_id, project_id).exists()
+    )
 
 
 # -------------------------------------------------------
 # Opslag
 # -------------------------------------------------------
-
-def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: List[List[float]]):
-    """
-    Sla index en embeddings op.
-    Elke chunk mag extra metadata bevatten: doc_type, source_path, chunk_id.
-    """
+def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], embeddings: List[List[float]]) -> None:
+    """Slaat tekstchunks en embeddings op in JSONL + NPY/JSON."""
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    with open(p, "w", encoding="utf-8") as fh:
+    with p.open("w", encoding="utf-8") as fh:
         for c in chunks:
             row = {
                 "client_id": client_id,
@@ -70,56 +92,66 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: 
                 "text": c.get("text", ""),
                 "doc_type": c.get("doc_type"),
                 "source_path": str(c.get("source_path", "")),
-                "chunk_id": c.get("chunk_id") or hashlib.md5(c.get("text", "").encode()).hexdigest()[:8],
+                "chunk_id": c.get("chunk_id")
+                or hashlib.md5(c.get("text", "").encode()).hexdigest()[:8],
             }
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     # embeddings
-    if np is not None:
+    if np:
         np.save(e, np.array(embeddings, dtype=np.float32))
-        if j.exists():
-            j.unlink(missing_ok=True)
+        j.unlink(missing_ok=True)
     else:
-        with open(j, "w", encoding="utf-8") as fh:
+        with j.open("w", encoding="utf-8") as fh:
             json.dump(embeddings, fh, ensure_ascii=False)
-        if e.exists():
-            e.unlink(missing_ok=True)
+        e.unlink(missing_ok=True)
 
 
 # -------------------------------------------------------
 # Laden & retrieval
 # -------------------------------------------------------
-
-def load_index(client_id: str, project_id: str) -> Tuple[List[Dict], Optional[object]]:
+def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
+    """Laadt indexgegevens met automatische fallback bij foutieve paden."""
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    rows = []
+    # Fallback voor verkeerde padstructuur
+    if not p.exists():
+        for parent in BASE.parents:
+            candidate = parent / "index" / p.name
+            if candidate.exists():
+                p = candidate
+                e = candidate.with_name(e.name)
+                j = candidate.with_name(j.name)
+                break
+
+    rows: List[Dict[str, Any]] = []
     if p.exists():
-        with open(p, "r", encoding="utf-8") as fh:
+        with p.open("r", encoding="utf-8") as fh:
             for line in fh:
                 try:
                     rows.append(json.loads(line))
-                except Exception:
+                except json.JSONDecodeError:
                     continue
 
     emb = None
-    if e.exists() and np is not None:
+    if np and e.exists():
         emb = np.load(e)
     elif j.exists():
-        with open(j, "r", encoding="utf-8") as fh:
+        with j.open("r", encoding="utf-8") as fh:
             emb = json.load(fh)
-        if np is not None and isinstance(emb, list):
+        if np and isinstance(emb, list):
             emb = np.array(emb, dtype=np.float32)
+
     return rows, emb
 
 
-def _cosine_sim(a, b):
-    """
-    Robuuste cosine similarity.
-    Retourneert lege array bij lege input.
-    """
+# -------------------------------------------------------
+# Cosine similarity
+# -------------------------------------------------------
+def _cosine_sim(a: Any, b: Any) -> Any:
+    """Veilige cosine similarity."""
     if np is None:
         raise RuntimeError("Numpy ontbreekt.")
     if a is None or b is None:
@@ -127,7 +159,6 @@ def _cosine_sim(a, b):
 
     a = np.asarray(a, dtype=np.float32)
     b = np.asarray(b, dtype=np.float32)
-
     if a.size == 0 or b.size == 0:
         return np.array([])
 
@@ -140,13 +171,16 @@ def _cosine_sim(a, b):
     return sims
 
 
-def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6) -> List[Dict]:
+def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6) -> List[Dict[str, Any]]:
+    """Zoekt de meest vergelijkbare chunks in de index."""
     rows, emb = load_index(client_id, project_id)
     if not rows or emb is None or np is None:
         return []
+
     sims = _cosine_sim(emb, q_emb)
     if sims.size == 0:
         return []
+
     idx = np.argsort(-sims)[:top_k]
     results = []
     for i in idx:
@@ -155,9 +189,12 @@ def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6
         results.append(r)
     return results
 
+
+# -------------------------------------------------------
+# Stub (legacy compatibiliteit)
+# -------------------------------------------------------
 def build_index(client_id: str, project_id: str) -> int:
-    """Tijdelijke stub zodat de import werkt."""
-    from .index_utils import save_index
+    """Stubfunctie om legacy imports te behouden."""
     fake_chunks = [{"text": "Demo", "doc_type": "txt", "source_path": "demo.txt"}]
     fake_embs = [[0.1, 0.2, 0.3]]
     save_index(client_id, project_id, fake_chunks, fake_embs)
