@@ -1,19 +1,19 @@
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Optional
 import importlib
 import sys
 
-# Try importing the UI module from both relative and absolute paths
-_UI_MODULE_NAME = "your_package.ui"
+# Determine the package for relative import
+_package = __package__ if __package__ else Path(__file__).stem
+_ui_module_name = f"{_package}.ui"
 
 try:
-    ui_module = importlib.import_module(_UI_MODULE_NAME)
+    ui_module = importlib.import_module(_ui_module_name)
     run_ui = getattr(ui_module, "run")
-except (ImportError, AttributeError) as e:
+    _IMPORT_ERROR: Optional[Exception] = None
+except Exception as e:
     run_ui = None
     _IMPORT_ERROR = e
-else:
-    _IMPORT_ERROR = None
 
 
 def run(*args: Any, **kwargs: Any) -> Any:
@@ -25,14 +25,15 @@ def run(*args: Any, **kwargs: Any) -> Any:
     """
     if run_ui is None:
         raise RuntimeError(
-            f"Failed to load UI module '{_UI_MODULE_NAME}'. Reason: {_IMPORT_ERROR}"
+            f"Failed to load UI module '{_ui_module_name}'. Reason: {_IMPORT_ERROR}"
         )
     return run_ui(*args, **kwargs)
 
 
 def app(*args: Any, **kwargs: Any) -> Any:
     """
-    Compatibility entrypoint for registries. Alias for run().
+    Compatibility entrypoint for registries.
+    Alias for run().
     """
     return run(*args, **kwargs)
 
@@ -49,5 +50,4 @@ render = run
 
 
 if __name__ == "__main__":
-    import sys
     main(*sys.argv[1:])
