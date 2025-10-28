@@ -17,7 +17,7 @@ from .io_utils import (
     chunk_text,
     download_bytes_json,
 )
-from .embed_utils import Embedder
+from .embed_utils import Embedder, load_index, save_index, retrieve as idx_retrieve
 from .index_utils import load_index, save_index, retrieve as idx_retrieve
 from .llm_utils import get_groq_client, call_llm_system_prompt
 
