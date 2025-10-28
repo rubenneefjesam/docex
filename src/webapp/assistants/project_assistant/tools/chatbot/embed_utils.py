@@ -133,3 +133,12 @@ def retrieve(
         entry['_score'] = float(similarities[idx])
         results.append(entry)
     return results
+
+class Embedder:
+    """Tijdelijke stub, voorkomt importfouten."""
+    def __init__(self):
+        pass
+
+    def embed(self, text: str):
+        # TODO: vervang dit later door echte embed-logica (bijv. OpenAI, HuggingFace)
+        return [0.1, 0.2, 0.3]
