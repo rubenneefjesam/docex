@@ -4,7 +4,7 @@ import sys
 import base64
 from pathlib import Path
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit_pdf_viewer import pdf_viewer
 from typing import List, Dict, Any
 
 # Zorg dat deze map importeerbaar is
@@ -54,7 +54,7 @@ def run():
         "Upload bestanden en start een gesprek op basis van client_id + project_id. Geen centrale DB nodig."
     )
 
-    # Sidebar: ingestie & modelconfig
+    # Sidebar
     st.sidebar.header("Ingestie & Config")
     up = st.sidebar.file_uploader(
         "Upload document (.docx of .txt)",
@@ -81,7 +81,6 @@ def run():
                 project_id.strip().upper() if project_id else "",
             )
 
-    # fallback op globale index (LOCAL/INDEX)
     ci, pi = st.session_state.get("client_project", ("LOCAL", "INDEX"))
 
     # Ingest flow
@@ -126,13 +125,12 @@ def run():
             total += len(metas)
         st.success(f"Ingestie klaar — toegevoegd ~{total} chunks")
 
-    # ✅ Contextstatus met visueel vinkje
+    # ✅ Contextstatus
     if ci and pi:
         rows, _ = load_index(ci, pi)
         indexed = len(rows) > 0
         status_icon = "✅" if indexed else "❌"
         status_text = "Geïndexeerd" if indexed else "Niet geïndexeerd"
-
         st.markdown(
             f"**Actieve context:** {ci} / {pi} — gevonden chunks: {len(rows)} "
             f"&nbsp;&nbsp;{status_icon} "
@@ -158,9 +156,7 @@ def run():
             try:
                 q_emb = embedder.embed_texts([q])[0]
             except Exception as e:
-                st.error(
-                    "Embedding niet beschikbaar: installeer sentence-transformers of zet OPENAI_API_KEY."
-                )
+                st.error("Embedding niet beschikbaar: installeer sentence-transformers of zet OPENAI_API_KEY.")
                 st.write(str(e))
                 return
 
@@ -172,18 +168,15 @@ def run():
                     f"[source={r.get('filename','?')}#chunk={r.get('chunk_index','?')}]\n{r.get('text','')}"
                     for r in results
                 )
-                system = (
-                    "Je bent een behulpzame assistent. Gebruik uitsluitend de gestructureerde context "
-                    "en geef geen informatie die niet expliciet in deze context staat."
-                )
+                system = "Je bent een behulpzame assistent. Gebruik uitsluitend de gestructureerde context."
                 prompt = f"Context (client={ci} project={pi}):\n{context}\n\nBeantwoord de vraag: {q}"
                 answer = call_llm_system_prompt(prompt, system, groq_client)
+
                 st.markdown("**Antwoord:**")
                 st.write(answer)
 
-                                # ✅ Toon nu unieke PDF-bronnen (met veilige viewer)
+                # ✅ Toon nu unieke PDF-bronnen via streamlit-pdf-viewer
                 st.markdown("**Gebruikte bronnen (top-k):**")
-
                 shown_sources = set()
                 for r in results:
                     source = r.get("source_path", r.get("filename", "Onbekend bestand"))
@@ -197,14 +190,15 @@ def run():
                         unsafe_allow_html=True,
                     )
 
+                    # 📚 PDF tonen (met viewer)
                     if str(source).lower().endswith(".pdf") and Path(source).exists():
-                        # 🔒 Veiliger: gebruik lokale bestands-URL ipv data:base64 (werkt in Chrome)
-                        pdf_path = Path(source).resolve().as_uri()
-                        pdf_display = f"""
-                        <iframe src="{pdf_path}" width="100%" height="700px"
-                                style="border:1px solid #ccc; border-radius:8px;"></iframe>
-                        """
-                        components.html(pdf_display, height=750)
+                        pdf_viewer(str(Path(source).resolve()))
+                        st.download_button(
+                            "📥 Download PDF",
+                            data=open(source, "rb").read(),
+                            file_name=Path(source).name,
+                            mime="application/pdf"
+                        )
                     else:
                         st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
 
