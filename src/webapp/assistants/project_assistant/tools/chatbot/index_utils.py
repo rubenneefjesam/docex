@@ -154,3 +154,11 @@ def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6
         r["_score"] = float(sims[i])
         results.append(r)
     return results
+
+def build_index(client_id: str, project_id: str) -> int:
+    """Tijdelijke stub zodat de import werkt."""
+    from .index_utils import save_index
+    fake_chunks = [{"text": "Demo", "doc_type": "txt", "source_path": "demo.txt"}]
+    fake_embs = [[0.1, 0.2, 0.3]]
+    save_index(client_id, project_id, fake_chunks, fake_embs)
+    return len(fake_chunks)
