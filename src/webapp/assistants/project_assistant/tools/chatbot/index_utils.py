@@ -1,16 +1,15 @@
-# chatbot/index_utils.py
 """
 Index utilities met metadata-ondersteuning:
-- index files: index_<SAFE>.jsonl
-- embeddings: emb_<SAFE>.npy
-- bevat extra velden: doc_type, source_path, chunk_id
+- index_<SAFE>.jsonl
+- emb_<SAFE>.npy of .json fallback
+- veilige cosine similarity (leeg input = lege array)
 """
 
 from pathlib import Path
 import json
 import re
-from typing import List, Dict, Optional, Tuple
 import hashlib
+from typing import List, Dict, Optional, Tuple
 
 try:
     import numpy as np
@@ -54,37 +53,26 @@ def index_exists(client_id: str, project_id: str) -> bool:
 # Opslag
 # -------------------------------------------------------
 
-def save_index(
-    client_id: str,
-    project_id: str,
-    chunks: List[Dict],
-    embeddings: List[List[float]],
-):
+def save_index(client_id: str, project_id: str, chunks: List[Dict], embeddings: List[List[float]]):
     """
     Sla index en embeddings op.
-    Elke chunk moet minimaal velden bevatten:
-      - text
-      - doc_type
-      - source_path
-      - chunk_id
+    Elke chunk mag extra metadata bevatten: doc_type, source_path, chunk_id.
     """
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # schrijf jsonl index
     with open(p, "w", encoding="utf-8") as fh:
         for c in chunks:
-            # forceer basisvelden
-            base = {
+            row = {
                 "client_id": client_id,
                 "project_id": project_id,
+                "text": c.get("text", ""),
                 "doc_type": c.get("doc_type"),
                 "source_path": str(c.get("source_path", "")),
                 "chunk_id": c.get("chunk_id") or hashlib.md5(c.get("text", "").encode()).hexdigest()[:8],
-                "text": c.get("text", ""),
             }
-            fh.write(json.dumps(base, ensure_ascii=False) + "\n")
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     # embeddings
     if np is not None:
@@ -128,14 +116,27 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict], Optional[ob
 
 
 def _cosine_sim(a, b):
+    """
+    Robuuste cosine similarity.
+    Retourneert lege array bij lege input.
+    """
     if np is None:
         raise RuntimeError("Numpy ontbreekt.")
+    if a is None or b is None:
+        return np.array([])
+
     a = np.asarray(a, dtype=np.float32)
     b = np.asarray(b, dtype=np.float32)
+
+    if a.size == 0 or b.size == 0:
+        return np.array([])
+
     if a.ndim == 1:
         a = a.reshape(1, -1)
+
     eps = 1e-12
-    sims = (a @ b) / (np.linalg.norm(a, axis=1) * np.linalg.norm(b) + eps)
+    denom = np.linalg.norm(a, axis=1) * np.linalg.norm(b) + eps
+    sims = (a @ b) / denom
     return sims
 
 
@@ -144,6 +145,8 @@ def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6
     if not rows or emb is None or np is None:
         return []
     sims = _cosine_sim(emb, q_emb)
+    if sims.size == 0:
+        return []
     idx = np.argsort(-sims)[:top_k]
     results = []
     for i in idx:
