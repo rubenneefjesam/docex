@@ -23,22 +23,22 @@ except ImportError:
 # Basispad
 # ---------------------------------------------------------------------
 def _resolve_base_dir() -> Path:
-    """Bepaalt de juiste basismap van de chatbot-tool zonder cwd aan te passen."""
+    """
+    Bepaalt de juiste basismap van de chatbot-tool, ongeacht vanaf waar Streamlit draait.
+    Loopt omhoog in de mappenstructuur totdat 'tools/chatbot' wordt gevonden.
+    """
     here = Path(__file__).resolve()
-    parts = list(here.parts)
-    try:
-        idx = parts.index("chatbot")
-        root = Path(*parts[: idx + 1])
-        if root.exists():
-            return root
-    except ValueError:
-        pass
+    for parent in here.parents:
+        if (parent / "tools" / "chatbot").exists():
+            return parent / "tools" / "chatbot"
     return here.parent
 
 
 BASE_DIR = _resolve_base_dir()
 INDEX_DIR = BASE_DIR / "index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
+
+print(f"📁 [embed_utils] Index directory ingesteld op: {INDEX_DIR.resolve()}")
 
 
 # ---------------------------------------------------------------------
@@ -60,10 +60,12 @@ def alt_index_path(client_id: str, project_id: str) -> Path:
 
 
 def emb_path(client_id: str, project_id: str) -> Path:
+    """Pad naar Numpy-embeddings (.npy)."""
     return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.npy"
 
 
 def emb_json_path(client_id: str, project_id: str) -> Path:
+    """Pad naar JSON-embeddings (fallback als Numpy niet beschikbaar is)."""
     return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.json"
 
 
@@ -133,6 +135,8 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
                             continue
         except Exception as e:
             print(f"⚠️  Fout bij laden index {p.name}: {e}")
+    else:
+        print(f"⚠️  Geen indexbestand gevonden voor {client_id}/{project_id}")
 
     # Embeddings
     emb_data = None
@@ -144,6 +148,7 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
         if np and isinstance(emb_data, list):
             emb_data = np.array(emb_data, dtype=np.float32)
 
+    print(f"🔍 [load_index] {client_id}/{project_id} → {len(rows)} chunks geladen uit {p.name}")
     return rows, emb_data
 
 
@@ -151,6 +156,7 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
 # Similarity & retrieval
 # ---------------------------------------------------------------------
 def cosine_sim(a: Any, b: Any) -> Any:
+    """Bereken cosine similarity tussen twee vectorsets."""
     if np is None:
         raise RuntimeError("Numpy is required for similarity calculations.")
     arr_a = np.atleast_2d(np.array(a, dtype=np.float32))
