@@ -205,3 +205,6 @@ class Embedder:
             vec = rng.random(self.dim, dtype=np.float32)
             vecs.append(vec)
         return np.stack(vecs)
+
+print(f"📡 [DEBUG] embed_utils geladen vanuit: {__file__}")
+print(f"📦 [DEBUG] INDEX_DIR = {INDEX_DIR.resolve()}")
