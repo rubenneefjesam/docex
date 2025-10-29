@@ -104,11 +104,9 @@ def run():
                 project_id.strip().upper() if project_id else "",
             )
 
-    # --- ✅ FIX: normaliseer altijd naar hoofdletters ---
     ci, pi = st.session_state.get("client_project", ("LOCAL", "INDEX"))
     ci = ci.strip().upper()
     pi = pi.strip().upper()
-    # ----------------------------------------------------
 
     # -----------------------------------------------------------------
     # 📄 Ingest flow
@@ -216,31 +214,32 @@ def run():
                 st.markdown("**Antwoord:**")
                 st.write(answer)
 
-                # 📚 Toon gebruikte bronnen
-                st.markdown("**Gebruikte bronnen (top-k):**")
-                shown_sources = set()
-                for r in results:
-                    source = r.get("source_path", r.get("filename", "Onbekend bestand"))
-                    if not source or source in shown_sources:
-                        continue
-                    shown_sources.add(source)
+                # 📚 Toon alleen de best scorende bron (één PDF)
+                st.markdown("**Gebruikte bron:**")
 
+                best = results[0]
+                source = best.get("source_path", best.get("filename", "Onbekend bestand"))
+
+                if source:
                     st.markdown(
                         f"### 📄 {Path(source).name}\n"
                         f"<small>{source}</small>",
                         unsafe_allow_html=True,
                     )
 
-                    if str(source).lower().endswith(".pdf") and Path(source).exists():
-                        pdf_viewer(str(Path(source).resolve()))
+                    pdf_path = Path(source)
+                    if pdf_path.suffix.lower() == ".pdf" and pdf_path.exists():
+                        pdf_viewer(str(pdf_path.resolve()))
                         st.download_button(
                             "📥 Download PDF",
-                            data=open(source, "rb").read(),
-                            file_name=Path(source).name,
-                            mime="application/pdf"
+                            data=open(pdf_path, "rb").read(),
+                            file_name=pdf_path.name,
+                            mime="application/pdf",
                         )
                     else:
                         st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
+                else:
+                    st.warning("Geen bronpad gevonden voor deze context.")
 
                 # 📥 Context downloaden
                 ctx_b = download_bytes_json(results)
