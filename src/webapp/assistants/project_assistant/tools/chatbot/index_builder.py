@@ -1,19 +1,17 @@
+# src/webapp/assistants/project_assistant/tools/chatbot/index_builder.py
 """
-Verbeterde INDEX BUILDER — finale versie
-----------------------------------------
-Indexeert alle documenten in ./data, inclusief CSV's.
-Koppelt automatisch ClientID ↔ ProjectID via:
- • bestandsnaam
- • mappingbestand
- • tekstinhoud (regex-detectie in PDF/DOCX/TXT)
+Verbeterde INDEX BUILDER (accumulerend per client/project)
+----------------------------------------------------------
+Voorkomt dat indexbestanden bij elke file-iteratie worden overschreven.
 """
 
 import argparse
 import traceback
 import re
-import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Any
+from collections import defaultdict
+import pandas as pd
 from tqdm import tqdm
 
 try:
@@ -27,15 +25,10 @@ except Exception:
 SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".csv"}
 
 
-# -----------------------------------------------------
-# Helpers
-# -----------------------------------------------------
 def load_mapping(mapping_path: Path) -> Dict[str, str]:
-    """Lees KlantID → ProjectID mapping uit CSV of Excel."""
     if not mapping_path.exists():
         print(f"⚠️  Geen mappingbestand gevonden op {mapping_path}, gebruik INDEX als fallback.")
         return {}
-
     if mapping_path.suffix.lower() == ".csv":
         df = pd.read_csv(mapping_path)
     else:
@@ -54,20 +47,17 @@ def load_mapping(mapping_path: Path) -> Dict[str, str]:
 
 
 def detect_ids_in_text(text: str) -> tuple[str | None, str | None]:
-    """Zoek ClientID (C###) en ProjectID (P####) in documentinhoud."""
     client_match = re.search(r"\bC\d{3,}\b", text.upper())
     project_match = re.search(r"\bP\d{4,}\b", text.upper())
-    cid = client_match.group(0) if client_match else None
-    pid = project_match.group(0) if project_match else None
-    return cid, pid
+    return (
+        client_match.group(0) if client_match else None,
+        project_match.group(0) if project_match else None,
+    )
 
 
 def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[str, str]:
-    """Combineert bestandsnaam + mapping + inhoudsdetectie om client_id en project_id te bepalen."""
     name = file_path.name
     cid, pid = parse_ids_from_filename(name)
-
-    # Probeer IDs uit de bestandsnaam
     if not cid:
         m = re.search(r"(C\d{3,})", name.upper())
         if m:
@@ -77,7 +67,6 @@ def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[st
         if m:
             pid = m.group(1)
 
-    # Als nog onbekend: lees stuk tekst en probeer te detecteren
     if not cid or not pid:
         try:
             preview_text = read_text_from_file(file_path)[:5000]
@@ -87,28 +76,18 @@ def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[st
         except Exception:
             pass
 
-    # Mapping fallback
     if cid and not pid:
         pid = mapping.get(cid, file_path.parent.name.upper())
-
-    # Default fallbacks
     if not cid:
         cid = "LOCAL"
     if not pid:
         pid = "INDEX"
-
-    # Speciale case: CSV's met mapping of projectinfo krijgen vaste code
     if file_path.suffix.lower() == ".csv" and pid == "INDEX":
         cid, pid = "C000", "P999"
-
     return cid, pid
 
 
-# -----------------------------------------------------
-# Hoofdproces
-# -----------------------------------------------------
 def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
-    """Doorzoekt alle bestanden in data_dir, koppelt client/project via mapping of tekst, embedt, en slaat op."""
     data_dir = Path(data_dir)
     output_dir = Path(output_dir)
     mapping_path = Path(mapping_file)
@@ -122,6 +101,7 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
     print(f"📂 {len(all_files)} bestanden gevonden...\n")
 
     stats: Dict[str, int] = {}
+    aggregated: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"chunks": [], "embs": []})
     unknowns: List[str] = []
 
     for file_path in tqdm(all_files, desc="Bestanden verwerken"):
@@ -137,19 +117,21 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
             chunks = chunk_text(text) or [text]
             embeddings = embedder.embed_texts(chunks)
 
-            save_index(
-                client_id=client_id,
-                project_id=project_id,
-                chunks=[{"text": c, "source_path": str(file_path)} for c in chunks],
-                embeddings=embeddings,
-            )
-
             key = f"{client_id}/{project_id}"
+            aggregated[key]["chunks"].extend(
+                [{"text": c, "source_path": str(file_path)} for c in chunks]
+            )
+            aggregated[key]["embs"].extend(embeddings)
             stats[key] = stats.get(key, 0) + len(chunks)
 
         except Exception as e:
             print(f"⚠️  Fout bij {file_path.name}: {e}")
             traceback.print_exc()
+
+    # 🔥 Schrijf alle combinaties pas hier weg
+    for key, data in aggregated.items():
+        cid, pid = key.split("/")
+        save_index(cid, pid, data["chunks"], data["embs"])
 
     # Rapportage
     print("\n✅ Indexatieoverzicht:")
@@ -157,7 +139,6 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
     for k, v in sorted(stats.items()):
         print(f"   • {k:<20} → {v} chunks opgeslagen")
         total += v
-
     print(f"\n📊 Totaal {total} chunks geïndexeerd over {len(stats)} client/project-combinaties.")
 
     if unknowns:
@@ -168,14 +149,10 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
         print("\n✅ Geen onduidelijke client/project combinaties gevonden.")
 
 
-# -----------------------------------------------------
-# CLI
-# -----------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Indexeer documenten met Client/Project mapping of tekstdetectie.")
-    parser.add_argument("--data-dir", type=Path, required=True, help="Map met documenten (PDF/DOCX/TXT/CSV).")
-    parser.add_argument("--output-dir", type=Path, required=True, help="Map waar index wordt opgeslagen.")
-    parser.add_argument("--mapping-file", type=Path, required=True, help="Pad naar CSV/Excel mappingbestand.")
+    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--mapping-file", type=Path, required=True)
     args = parser.parse_args()
-
     build_index(args.data_dir, args.output_dir, args.mapping_file)
