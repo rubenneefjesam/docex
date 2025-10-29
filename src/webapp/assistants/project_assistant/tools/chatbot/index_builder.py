@@ -2,7 +2,10 @@
 Verbeterde INDEX BUILDER
 ------------------------
 Indexeert alle documenten in ./data, inclusief CSV's.
-Koppelt automatisch ClientID ↔ ProjectID via bestandsnaam + mappingbestand.
+Koppelt automatisch ClientID ↔ ProjectID via:
+ • bestandsnaam
+ • mappingbestand
+ • tekstinhoud (regex-detectie in PDF/DOCX/TXT)
 
 Gebruik:
     python -m src.webapp.assistants.project_assistant.tools.chatbot.index_builder \
@@ -56,44 +59,62 @@ def load_mapping(mapping_path: Path) -> Dict[str, str]:
     return mapping
 
 
+def detect_ids_in_text(text: str) -> tuple[str | None, str | None]:
+    """Zoek ClientID (C###) en ProjectID (P####) in documentinhoud."""
+    client_match = re.search(r"\bC\d{3,}\b", text.upper())
+    project_match = re.search(r"\bP\d{4,}\b", text.upper())
+    cid = client_match.group(0) if client_match else None
+    pid = project_match.group(0) if project_match else None
+    return cid, pid
+
+
 def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[str, str]:
-    """Combineert bestandsnaam + mapping om client_id en project_id te bepalen."""
+    """Combineert bestandsnaam + mapping + inhoudsdetectie om client_id en project_id te bepalen."""
     name = file_path.name
     cid, pid = parse_ids_from_filename(name)
 
-    # Probeer client_id te vinden als die nog ontbreekt
+    # Probeer IDs uit de bestandsnaam
     if not cid:
         match = re.search(r"(C\d{3,})", name.upper())
         if match:
             cid = match.group(1)
+    if not pid:
+        match = re.search(r"(P\d{4,})", name.upper())
+        if match:
+            pid = match.group(1)
 
-    # Probeer project_id te halen uit mapping of mapnaam
+    # Als nog onbekend: lees stuk tekst en probeer te detecteren
+    if not cid or not pid:
+        try:
+            preview_text = read_text_from_file(file_path)[:5000]  # alleen eerste deel scannen
+            t_cid, t_pid = detect_ids_in_text(preview_text)
+            cid = cid or t_cid
+            pid = pid or t_pid
+        except Exception:
+            pass
+
+    # Mapping fallback
     if cid and not pid:
         pid = mapping.get(cid, file_path.parent.name.upper())
 
-    # Fallbacks
+    # Default fallbacks
     if not cid:
         cid = "LOCAL"
     if not pid:
         pid = "INDEX"
 
-    # ✅ Speciale case: CSV's met mapping of projectinfo krijgen een vaste code
+    # Speciale case: CSV's met mapping of projectinfo krijgen vaste code
     if file_path.suffix.lower() == ".csv" and pid == "INDEX":
         cid, pid = "C000", "P999"
 
     return cid, pid
 
 
-def _count_file(counters: Dict[str, int], ext: str) -> None:
-    ext = ext.lower()
-    counters[ext] = counters.get(ext, 0) + 1
-
-
 # -----------------------------------------------------
 # Hoofdproces
 # -----------------------------------------------------
 def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
-    """Doorzoekt alle bestanden in data_dir, koppelt client/project via mapping, embedt, en slaat op."""
+    """Doorzoekt alle bestanden in data_dir, koppelt client/project via mapping of tekst, embedt, en slaat op."""
     data_dir = Path(data_dir)
     output_dir = Path(output_dir)
     mapping_path = Path(mapping_file)
@@ -136,9 +157,7 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
             print(f"⚠️  Fout bij {file_path.name}: {e}")
             traceback.print_exc()
 
-    # ----------------------------
     # Rapportage
-    # ----------------------------
     print("\n✅ Indexatieoverzicht:")
     total = 0
     for k, v in sorted(stats.items()):
@@ -159,7 +178,7 @@ def build_index(data_dir: Path, output_dir: Path, mapping_file: Path) -> None:
 # CLI
 # -----------------------------------------------------
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Indexeer documenten met Client/Project mapping.")
+    parser = argparse.ArgumentParser(description="Indexeer documenten met Client/Project mapping of tekstdetectie.")
     parser.add_argument("--data-dir", type=Path, required=True, help="Map met documenten (PDF/DOCX/TXT/CSV).")
     parser.add_argument("--output-dir", type=Path, required=True, help="Map waar index wordt opgeslagen.")
     parser.add_argument("--mapping-file", type=Path, required=True, help="Pad naar CSV/Excel mappingbestand.")
