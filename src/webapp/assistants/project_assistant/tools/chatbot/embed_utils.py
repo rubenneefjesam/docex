@@ -1,7 +1,10 @@
 """
-embed_utils.py — definitieve versie
------------------------------------
-Laadt automatisch JSON of JSONL indexen en leest ALLE chunks correct in.
+embed_utils.py — definitieve stabiele versie
+--------------------------------------------
+Bevat functies voor:
+- Laden & opslaan van indexen (JSON of JSONL)
+- Similarity & retrieval
+- Deterministische dummy-embeddings (voor lokale test)
 """
 
 from pathlib import Path
@@ -20,6 +23,7 @@ except ImportError:
 # Basispad
 # ---------------------------------------------------------------------
 def _resolve_base_dir() -> Path:
+    """Bepaalt de juiste basismap van de chatbot-tool zonder cwd aan te passen."""
     here = Path(__file__).resolve()
     parts = list(here.parts)
     try:
@@ -41,14 +45,17 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 # Naamgeving en paden
 # ---------------------------------------------------------------------
 def safe_name(client_id: str, project_id: str) -> str:
+    """Maakt veilige bestandsnaam (alleen hoofdletters, cijfers en underscores)."""
     return re.sub(r"[^A-Z0-9_]+", "_", f"{client_id}_{project_id}".upper())
 
 
 def index_path(client_id: str, project_id: str) -> Path:
+    """Hoofdpad voor indexbestand (.json)."""
     return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.json"
 
 
 def legacy_index_path(client_id: str, project_id: str) -> Path:
+    """Fallback voor oude .jsonl-bestanden."""
     return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.jsonl"
 
 
@@ -58,6 +65,17 @@ def emb_path(client_id: str, project_id: str) -> Path:
 
 def emb_json_path(client_id: str, project_id: str) -> Path:
     return INDEX_DIR / f"emb_{safe_name(client_id, project_id)}.json"
+
+
+# ---------------------------------------------------------------------
+# Bestaan controleren
+# ---------------------------------------------------------------------
+def index_exists(client_id: str, project_id: str) -> bool:
+    """Controleer of indexbestanden bestaan (JSON of JSONL + embeddings)."""
+    return (
+        index_path(client_id, project_id).exists()
+        or legacy_index_path(client_id, project_id).exists()
+    )
 
 
 # ---------------------------------------------------------------------
@@ -103,9 +121,9 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
         try:
             with p.open("r", encoding="utf-8") as fh:
                 text = fh.read().strip()
-                if text.startswith("["):
+                if text.startswith("["):  # JSON-array
                     rows = json.loads(text)
-                else:
+                else:  # JSONL
                     for line in text.splitlines():
                         line = line.strip()
                         if not line:
@@ -147,6 +165,7 @@ def cosine_sim(a: Any, b: Any) -> Any:
 
 
 def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6) -> List[Dict[str, Any]]:
+    """Zoek de meest vergelijkbare chunks."""
     rows, embs = load_index(client_id, project_id)
     if not rows or embs is None or q_emb is None:
         return []
@@ -173,6 +192,7 @@ class Embedder:
             raise RuntimeError("Numpy is vereist voor de Embedder-stub.")
 
     def embed_texts(self, texts: List[str]) -> Any:
+        """Genereer stabiele pseudo-embeddings uit tekst (deterministisch)."""
         vecs = []
         for t in texts:
             seed = int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % (2**32)
