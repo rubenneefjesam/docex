@@ -199,65 +199,56 @@ def run():
                 return
 
             results = idx_retrieve(ci, pi, q_emb, top_k=TOP_K)
-
-            # ✅ Filter resultaten strikt op huidige client en project
-            results = [
-                r for r in results
-                if str(r.get("client_id", "")).upper() == ci
-                and str(r.get("project_id", "")).upper() == pi
-            ]
             if not results:
-                st.warning("Geen relevante resultaten binnen deze client/projectcombinatie.")
+                st.warning("Geen relevante documenten gevonden voor deze client/project.")
                 _log_missing_context(ci, pi)
-                return
-
-            # Bouw context
-            context = "\n\n---\n\n".join(
-                f"[source={r.get('filename','?')}#chunk={r.get('chunk_index','?')}]\n{r.get('text','')}"
-                for r in results
-            )
-            system = "Je bent een behulpzame assistent. Gebruik uitsluitend de gestructureerde context."
-            prompt = f"Context (client={ci} project={pi}):\n{context}\n\nBeantwoord de vraag: {q}"
-            answer = call_llm_system_prompt(prompt, system, groq_client)
-
-            st.markdown("**Antwoord:**")
-            st.write(answer)
-
-            # 📚 Toon alleen de best scorende bron (één PDF)
-            st.markdown("**Gebruikte bron:**")
-
-            best = results[0]
-            source = best.get("source_path", best.get("filename", "Onbekend bestand"))
-
-            if source:
-                st.markdown(
-                    f"### 📄 {Path(source).name}\n"
-                    f"<small>{source}</small>",
-                    unsafe_allow_html=True,
-                )
-
-                pdf_path = Path(source)
-                if pdf_path.suffix.lower() == ".pdf" and pdf_path.exists():
-                    pdf_viewer(str(pdf_path.resolve()))
-                    st.download_button(
-                        "📥 Download PDF",
-                        data=open(pdf_path, "rb").read(),
-                        file_name=pdf_path.name,
-                        mime="application/pdf",
-                    )
-                else:
-                    st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
             else:
-                st.warning("Geen bronpad gevonden voor deze context.")
+                context = "\n\n---\n\n".join(
+                    f"[source={r.get('filename','?')}#chunk={r.get('chunk_index','?')}]\n{r.get('text','')}"
+                    for r in results
+                )
+                system = "Je bent een behulpzame assistent. Gebruik uitsluitend de gestructureerde context."
+                prompt = f"Context (client={ci} project={pi}):\n{context}\n\nBeantwoord de vraag: {q}"
+                answer = call_llm_system_prompt(prompt, system, groq_client)
 
-            # 📥 Context downloaden
-            ctx_b = download_bytes_json(results)
-            st.download_button(
-                "⬇️ Download gebruikte context (JSON)",
-                data=ctx_b,
-                file_name=f"context_{ci}_{pi}.json",
-                mime="application/json",
-            )
+                st.markdown("**Antwoord:**")
+                st.write(answer)
+
+                # 📚 Toon alleen de best scorende bron (één PDF)
+                st.markdown("**Gebruikte bron:**")
+
+                best = results[0]
+                source = best.get("source_path", best.get("filename", "Onbekend bestand"))
+
+                if source:
+                    st.markdown(
+                        f"### 📄 {Path(source).name}\n"
+                        f"<small>{source}</small>",
+                        unsafe_allow_html=True,
+                    )
+
+                    pdf_path = Path(source)
+                    if pdf_path.suffix.lower() == ".pdf" and pdf_path.exists():
+                        pdf_viewer(str(pdf_path.resolve()))
+                        st.download_button(
+                            "📥 Download PDF",
+                            data=open(pdf_path, "rb").read(),
+                            file_name=pdf_path.name,
+                            mime="application/pdf",
+                        )
+                    else:
+                        st.info("Geen PDF-viewer beschikbaar voor dit bestandstype.")
+                else:
+                    st.warning("Geen bronpad gevonden voor deze context.")
+
+                # 📥 Context downloaden
+                ctx_b = download_bytes_json(results)
+                st.download_button(
+                    "⬇️ Download gebruikte context (JSON)",
+                    data=ctx_b,
+                    file_name=f"context_{ci}_{pi}.json",
+                    mime="application/json",
+                )
 
 
 if __name__ == "__main__":
