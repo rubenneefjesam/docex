@@ -3,12 +3,11 @@
 Chatbot applicatiemodule — start de lokale Streamlit-UI,
 en beheert indexering, validatie en query-functionaliteit.
 
-Automatische padcorrectie voorkomt dubbele 'src/webapp' problemen.
+Deze versie voorkomt dubbele Streamlit-processen.
 """
 
 from typing import Any, Dict, List
 from pathlib import Path
-import subprocess
 
 from .index_utils import build_index
 from .embed_utils import index_exists, retrieve
@@ -20,13 +19,7 @@ from .ui import run as ui_run
 # Core functies
 # -------------------------------------------------------
 def index(client_id: str, project_id: str) -> Dict[str, Any]:
-    """
-    Indexeer alle documenten voor de gegeven client/project.
-    Retourneert dict met:
-      - success: bool
-      - indexed_chunks: int
-    Gooit FileNotFoundError als client/project niet bestaat.
-    """
+    """Indexeer alle documenten voor de gegeven client/project."""
     if not metadata_exists(client_id, project_id):
         raise FileNotFoundError(f"Geen data-folder voor {client_id}/{project_id}")
     n = build_index(client_id, project_id)
@@ -34,13 +27,7 @@ def index(client_id: str, project_id: str) -> Dict[str, Any]:
 
 
 def validate(client_id: str, project_id: str) -> Dict[str, Any]:
-    """
-    Controleer of client/project bestaat en of er een index is.
-    Retourneert dict met:
-      - exists: bool
-      - indexed: bool
-      - found_chunks: int
-    """
+    """Controleer of client/project bestaat en of er een index is."""
     exists = metadata_exists(client_id, project_id)
     indexed = exists and index_exists(client_id, project_id)
     found = len(retrieve(client_id, project_id, q_emb=[], top_k=0)) if indexed else 0
@@ -48,12 +35,8 @@ def validate(client_id: str, project_id: str) -> Dict[str, Any]:
 
 
 def query(client_id: str, project_id: str, question: str) -> List[Dict[str, Any]]:
-    """
-    Embed de vraag, doe een retrieve en geef de resultaten terug.
-    Vervang `...` door je eigen embed-logica.
-    """
-    # TODO: eigen embedding logica toevoegen
-    q_emb: List[float] = ...
+    """Haal resultaten op voor een vraag."""
+    q_emb: List[float] = []  # TODO: vervang door echte embeddinglogica
     return retrieve(client_id, project_id, q_emb)
 
 
@@ -62,23 +45,20 @@ def query(client_id: str, project_id: str, question: str) -> List[Dict[str, Any]
 # -------------------------------------------------------
 def run(*args: Any, **kwargs: Any) -> Any:
     """
-    Start de Streamlit UI.
-    Deze functie zorgt voor een veilig pad naar de hoofd-app,
-    ongeacht de huidige werkdirectory.
+    Start de UI, tenzij deze module al door een Streamlit-proces
+    wordt aangestuurd (zoals via src/webapp/app.py).
     """
+    import os
+
+    if os.environ.get("STREAMLIT_ACTIVE") == "1":
+        # We draaien al binnen Streamlit — roep enkel de UI aan.
+        return ui_run(*args, **kwargs)
+
+    # Anders (losse uitvoering, bij handmatig `python chatbot_app.py`)
     try:
-        # Gebruik het bestaande ui.py als Streamlit-app
+        import subprocess
         ui_file = Path(__file__).resolve().parent / "ui.py"
-
-        if ui_file.exists():
-            subprocess.run(["streamlit", "run", str(ui_file)], check=True)
-        else:
-            # fallback naar de globale webapp/app.py
-            app_path = Path(__file__).resolve().parents[4] / "webapp/app.py"
-            if not app_path.exists():
-                raise FileNotFoundError(f"Geen geldig Streamlit-pad gevonden: {app_path}")
-            subprocess.run(["streamlit", "run", str(app_path)], check=True)
-
+        subprocess.run(["streamlit", "run", str(ui_file)], check=True)
     except Exception as e:
         print(f"⚠️  Fout bij starten van Streamlit: {e}")
         raise
