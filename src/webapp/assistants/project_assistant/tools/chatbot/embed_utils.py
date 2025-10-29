@@ -50,13 +50,13 @@ def safe_name(client_id: str, project_id: str) -> str:
 
 
 def index_path(client_id: str, project_id: str) -> Path:
-    """Hoofdpad voor indexbestand (.json)."""
-    return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.json"
-
-
-def legacy_index_path(client_id: str, project_id: str) -> Path:
-    """Fallback voor oude .jsonl-bestanden."""
+    """Hoofdpad voor indexbestand (.jsonl als standaard)."""
     return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.jsonl"
+
+
+def alt_index_path(client_id: str, project_id: str) -> Path:
+    """Fallback voor .json-bestanden."""
+    return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.json"
 
 
 def emb_path(client_id: str, project_id: str) -> Path:
@@ -74,7 +74,7 @@ def index_exists(client_id: str, project_id: str) -> bool:
     """Controleer of indexbestanden bestaan (JSON of JSONL + embeddings)."""
     return (
         index_path(client_id, project_id).exists()
-        or legacy_index_path(client_id, project_id).exists()
+        or alt_index_path(client_id, project_id).exists()
     )
 
 
@@ -87,7 +87,7 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], em
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # ✅ Schrijf als JSONL (één object per regel)
+    # JSONL schrijven (1 regel per chunk)
     with p.open("w", encoding="utf-8") as fh:
         for row in chunks:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -107,15 +107,14 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], em
 def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
     """Laad alle chunks (JSON of JSONL) en bijbehorende embeddings."""
     p = index_path(client_id, project_id)
-    legacy_p = legacy_index_path(client_id, project_id)
+    alt_p = alt_index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # Fallback
-    if not p.exists() and legacy_p.exists():
-        p = legacy_p
+    # Fallback voor .json-bestanden
+    if not p.exists() and alt_p.exists():
+        p = alt_p
 
-    # 🧠 Lees alle regels veilig in, of JSON-lijst
     rows: List[Dict[str, Any]] = []
     if p.exists():
         try:
@@ -135,7 +134,7 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
         except Exception as e:
             print(f"⚠️  Fout bij laden index {p.name}: {e}")
 
-    # 🧠 Embeddings
+    # Embeddings
     emb_data = None
     if np and e.exists():
         emb_data = np.load(e)

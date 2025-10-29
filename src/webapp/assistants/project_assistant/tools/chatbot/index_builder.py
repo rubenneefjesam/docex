@@ -1,17 +1,11 @@
 """
-Verbeterde INDEX BUILDER
-------------------------
+Verbeterde INDEX BUILDER — finale versie
+----------------------------------------
 Indexeert alle documenten in ./data, inclusief CSV's.
 Koppelt automatisch ClientID ↔ ProjectID via:
  • bestandsnaam
  • mappingbestand
  • tekstinhoud (regex-detectie in PDF/DOCX/TXT)
-
-Gebruik:
-    python -m src.webapp.assistants.project_assistant.tools.chatbot.index_builder \
-      --data-dir src/webapp/assistants/project_assistant/tools/chatbot/data \
-      --output-dir src/webapp/assistants/project_assistant/tools/chatbot/index \
-      --mapping-file src/webapp/assistants/project_assistant/tools/chatbot/data/project_mapping.csv
 """
 
 import argparse
@@ -75,18 +69,18 @@ def resolve_client_project(file_path: Path, mapping: Dict[str, str]) -> tuple[st
 
     # Probeer IDs uit de bestandsnaam
     if not cid:
-        match = re.search(r"(C\d{3,})", name.upper())
-        if match:
-            cid = match.group(1)
+        m = re.search(r"(C\d{3,})", name.upper())
+        if m:
+            cid = m.group(1)
     if not pid:
-        match = re.search(r"(P\d{4,})", name.upper())
-        if match:
-            pid = match.group(1)
+        m = re.search(r"(P\d{4,})", name.upper())
+        if m:
+            pid = m.group(1)
 
     # Als nog onbekend: lees stuk tekst en probeer te detecteren
     if not cid or not pid:
         try:
-            preview_text = read_text_from_file(file_path)[:5000]  # alleen eerste deel scannen
+            preview_text = read_text_from_file(file_path)[:5000]
             t_cid, t_pid = detect_ids_in_text(preview_text)
             cid = cid or t_cid
             pid = pid or t_pid
