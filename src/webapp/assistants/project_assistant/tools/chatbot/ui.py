@@ -104,7 +104,11 @@ def run():
                 project_id.strip().upper() if project_id else "",
             )
 
+    # --- ✅ FIX: normaliseer altijd naar hoofdletters ---
     ci, pi = st.session_state.get("client_project", ("LOCAL", "INDEX"))
+    ci = ci.strip().upper()
+    pi = pi.strip().upper()
+    # ----------------------------------------------------
 
     # -----------------------------------------------------------------
     # 📄 Ingest flow
