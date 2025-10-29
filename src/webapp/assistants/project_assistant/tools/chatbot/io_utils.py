@@ -1,3 +1,16 @@
+"""
+io_utils.py
+------------
+I/O utilities voor documentextractie en chunking.
+
+Ondersteunde formaten:
+- .pdf (via PyMuPDF of pdfplumber)
+- .docx
+- .txt
+- .csv (alle tekst samengevoegd)
+Geeft metadata terug voor indexering (client_id, project_id, doc_type, source_path, chunk_id).
+"""
+
 import os
 import re
 import csv
@@ -5,7 +18,9 @@ import tempfile
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
 
-# optionele libs
+# -------------------------------------------------------
+# Optionele libs
+# -------------------------------------------------------
 try:
     import fitz  # PyMuPDF
 except Exception:
@@ -22,10 +37,14 @@ except Exception:
     docx = None
 
 
+# -------------------------------------------------------
+# Bestand lezen
+# -------------------------------------------------------
 def read_text_from_file(path: Path) -> str:
     """Leest tekstinhoud uit .pdf, .docx, .txt of .csv."""
     if not path.exists():
         return ""
+
     ext = path.suffix.lower()
     try:
         if ext == ".pdf":
@@ -41,11 +60,12 @@ def read_text_from_file(path: Path) -> str:
 
 
 def _read_pdf_text(path: Path) -> str:
+    """Extraheer tekst uit PDF via PyMuPDF of pdfplumber."""
     text = ""
     if fitz:
         try:
             with fitz.open(path) as doc:
-                text = "\n".join(page.get_text() for page in doc)
+                text = "\n".join(page.get_text("text") for page in doc)
         except Exception:
             pass
     elif pdfplumber:
@@ -58,6 +78,7 @@ def _read_pdf_text(path: Path) -> str:
 
 
 def _read_docx_text(path: Path) -> str:
+    """Lees tekst uit DOCX-bestand."""
     if not docx:
         return ""
     try:
@@ -69,7 +90,7 @@ def _read_docx_text(path: Path) -> str:
 
 
 def _read_csv_text(path: Path) -> str:
-    """Voeg alle rijen samen tot leesbare tekst."""
+    """Voeg alle rijen uit CSV samen tot één leesbare tekst."""
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             reader = csv.reader(f)
@@ -79,10 +100,14 @@ def _read_csv_text(path: Path) -> str:
         return ""
 
 
+# -------------------------------------------------------
+# ID-herkenning
+# -------------------------------------------------------
 def parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
     """Zoekt naar C#### en P#### patronen in bestandsnaam of mapnaam."""
     if not name:
         return None, None
+
     s = name.upper()
     m = re.search(r"(C\d{1,6}).*?(P\d{1,6})", s)
     if m:
@@ -95,25 +120,48 @@ def parse_ids_from_filename(name: str) -> Tuple[Optional[str], Optional[str]]:
     return client_id, project_id
 
 
-def chunk_text(text: str, size: int = 600, overlap: int = 100) -> List[str]:
-    """Splits tekst in overlappende stukken."""
-    if not text:
+# -------------------------------------------------------
+# Verbeterde CHUNKING
+# -------------------------------------------------------
+def chunk_text(text: str, max_chars: int = 800, overlap: int = 100) -> List[str]:
+    """
+    Splits tekst slim in overlappende chunks van max_chars.
+    Werkt op zins- en paragraafniveau zodat PDF-tekst natuurlijk wordt verdeeld.
+    """
+    import re
+
+    if not text or not text.strip():
         return []
-    text = text.strip()
-    chunks: List[str] = []
-    start = 0
-    L = len(text)
-    while start < L:
-        end = min(L, start + size)
-        slice_ = text[start:end]
-        last_space = slice_.rfind(" ")
-        if last_space > int(size * 0.6):
-            end = start + last_space
-        chunks.append(text[start:end].strip())
-        start = max(end - overlap, end)
-    return [c for c in chunks if c]
+
+    # Schoon tekst op
+    text = re.sub(r"\s+", " ", text.strip())
+
+    # Splits op zinsafscheiding (punten, vraagtekens, enz.)
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9])', text)
+
+    chunks, current = [], ""
+
+    for sent in sentences:
+        if len(current) + len(sent) + 1 > max_chars:
+            # Voeg huidige chunk toe
+            chunks.append(current.strip())
+            # Start nieuwe met overlap
+            current = current[-overlap:] + " " + sent
+        else:
+            current += " " + sent
+
+    if current.strip():
+        chunks.append(current.strip())
+
+    # Verwijder te korte of lege chunks
+    chunks = [c for c in chunks if len(c.split()) > 3]
+
+    return chunks or [text]
 
 
+# -------------------------------------------------------
+# Documenttype
+# -------------------------------------------------------
 def infer_doc_type(path: Path) -> Optional[str]:
     name = path.stem.lower()
     if "technische" in name:
@@ -127,13 +175,18 @@ def infer_doc_type(path: Path) -> Optional[str]:
     return None
 
 
+# -------------------------------------------------------
+# Chunk-naar-records
+# -------------------------------------------------------
 def chunk_to_records(text: str, path: Path) -> List[Dict[str, Any]]:
     """Zet chunks om naar indexrecords met metadata."""
     if not text:
         return []
+
     cid, pid = parse_ids_from_filename(path.name)
     doc_type = infer_doc_type(path)
     chunks = chunk_text(text)
+
     records: List[Dict[str, Any]] = []
     for i, chunk in enumerate(chunks):
         records.append({
@@ -147,6 +200,9 @@ def chunk_to_records(text: str, path: Path) -> List[Dict[str, Any]]:
     return records
 
 
+# -------------------------------------------------------
+# Upload & download helpers
+# -------------------------------------------------------
 def read_uploaded_text(uploaded) -> str:
     """Compatibiliteitsstub voor oude UI-componenten."""
     try:
@@ -167,4 +223,4 @@ def read_uploaded_text(uploaded) -> str:
 def download_bytes_json(results: List[Dict[str, Any]]) -> bytes:
     """Serialiseer resultaten naar JSON-bytes voor download."""
     import json
-    return json.dumps(results).encode("utf-8")
+    return json.dumps(results, ensure_ascii=False, indent=2).encode("utf-8")
