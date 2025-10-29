@@ -26,13 +26,9 @@ except ImportError:
 # Basispad — veilig dynamisch herkend
 # ---------------------------------------------------------------------
 def _resolve_base_dir() -> Path:
-    """
-    Bepaalt de juiste basismap van de chatbot-tool zonder cwd aan te passen.
-    Voorkomt fouten met dubbele 'src/webapp' in het pad.
-    """
+    """Bepaalt de juiste basismap van de chatbot-tool zonder cwd aan te passen."""
     here = Path(__file__).resolve()
     parts = list(here.parts)
-
     try:
         idx = parts.index("chatbot")
         root = Path(*parts[: idx + 1])
@@ -40,7 +36,6 @@ def _resolve_base_dir() -> Path:
             return root
     except ValueError:
         pass
-
     return here.parent
 
 
@@ -53,6 +48,7 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 # Naamgeving en paden
 # ---------------------------------------------------------------------
 def safe_name(client_id: str, project_id: str) -> str:
+    """Maakt veilige bestandsnaam (alleen hoofdletters, cijfers en underscores)."""
     return re.sub(r"[^A-Z0-9_]+", "_", f"{client_id}_{project_id}".upper())
 
 
@@ -75,6 +71,7 @@ def emb_json_path(client_id: str, project_id: str) -> Path:
 
 
 def index_exists(client_id: str, project_id: str) -> bool:
+    """Controleer of index voor combinatie bestaat."""
     return (
         index_path(client_id, project_id).exists()
         or legacy_index_path(client_id, project_id).exists()
@@ -84,13 +81,18 @@ def index_exists(client_id: str, project_id: str) -> bool:
 # ---------------------------------------------------------------------
 # Index opslaan / laden
 # ---------------------------------------------------------------------
-def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], embeddings: List[List[float]]) -> None:
+def save_index(
+    client_id: str,
+    project_id: str,
+    chunks: List[Dict[str, Any]],
+    embeddings: List[List[float]],
+) -> None:
     """Sla chunks en embeddings op in JSON + NPY/JSON."""
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # JSON schrijven
+    # JSON schrijven (volledige lijst, geen JSONL)
     with p.open("w", encoding="utf-8") as fh:
         json.dump(chunks, fh, ensure_ascii=False, indent=2)
 
@@ -104,34 +106,8 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], em
         e.unlink(missing_ok=True)
 
 
-def _load_json_or_jsonl(path: Path) -> List[Dict[str, Any]]:
-    """Laadt JSON of JSONL afhankelijk van bestandsstructuur."""
-    rows: List[Dict[str, Any]] = []
-    if not path.exists():
-        return rows
-
-    with path.open("r", encoding="utf-8") as fh:
-        first_char = fh.read(1)
-        fh.seek(0)
-        if first_char == "[":  # standaard JSON-lijst
-            try:
-                rows = json.load(fh)
-            except Exception:
-                rows = []
-        else:  # JSONL
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return rows
-
-
 def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
-    """Laad chunks en embeddings uit index, met padherkenning en fallback."""
+    """Laad alle chunks en embeddings uit index."""
     p = index_path(client_id, project_id)
     legacy_p = legacy_index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
@@ -141,7 +117,7 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
     if not p.exists() and legacy_p.exists():
         p = legacy_p
 
-    # Alternatieve zoekroute (andere map)
+    # Alternatieve zoekroute (bijv. andere mapstructuur)
     if not p.exists():
         for parent in BASE_DIR.parents:
             candidate = parent / "index" / p.name
@@ -151,7 +127,25 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
                 j = candidate.with_name(j.name)
                 break
 
-    rows = _load_json_or_jsonl(p)
+    rows: List[Dict[str, Any]] = []
+    if p.exists():
+        try:
+            with p.open("r", encoding="utf-8") as fh:
+                first_char = fh.read(1)
+                fh.seek(0)
+                if first_char == "[":  # normale JSON-lijst
+                    rows = json.load(fh)
+                else:  # legacy JSONL
+                    for line in fh:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rows.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            print(f"⚠️  Fout bij laden van index {p.name}: {e}")
 
     emb_data = None
     if np and e.exists():
@@ -183,7 +177,10 @@ def cosine_sim(a: Any, b: Any) -> Any:
     return sims.flatten()
 
 
-def retrieve(client_id: str, project_id: str, q_emb: List[float], top_k: int = 6) -> List[Dict[str, Any]]:
+def retrieve(
+    client_id: str, project_id: str, q_emb: List[float], top_k: int = 6
+) -> List[Dict[str, Any]]:
+    """Zoek de meest vergelijkbare chunks."""
     rows, embs = load_index(client_id, project_id)
     if not rows or embs is None or q_emb is None:
         return []
@@ -213,6 +210,7 @@ class Embedder:
             raise RuntimeError("Numpy is vereist voor de Embedder-stub.")
 
     def embed_texts(self, texts: List[str]) -> Any:
+        """Genereer stabiele pseudo-embeddings uit tekst (deterministisch)."""
         vecs = []
         for t in texts:
             seed = int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % (2**32)
