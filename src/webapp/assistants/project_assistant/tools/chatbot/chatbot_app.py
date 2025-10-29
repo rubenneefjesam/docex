@@ -1,4 +1,3 @@
-# chatbot_app.py
 """
 Chatbot applicatiemodule — beheert indexering, validatie en queryfunctionaliteit
 voor de Client/Project Chat tool.
@@ -6,7 +5,7 @@ voor de Client/Project Chat tool.
 Deze versie:
 - voorkomt dubbele Streamlit-processen;
 - detecteert automatisch of ze binnen Streamlit draait;
-- kan standalone of via registry worden gestart.
+- start enkel de UI als onderdeel van het hoofdproces.
 """
 
 from typing import Any, Dict, List
@@ -59,33 +58,23 @@ def query(client_id: str, project_id: str, question: str) -> List[Dict[str, Any]
 
 
 # -------------------------------------------------------
-# UI runner
+# UI runner (enkel via bestaande Streamlit sessie)
 # -------------------------------------------------------
 def run(*args: Any, **kwargs: Any) -> Any:
     """
     Start de Streamlit UI.
-    - Als we al binnen Streamlit draaien (STREAMLIT_ACTIVE=1): alleen de UI starten.
-    - Anders: zelfstandig via `streamlit run ui.py`.
+
+    Detecteert automatisch of we al binnen Streamlit draaien
+    (via omgevingsvariabelen). Zo ja: voer enkel de UI uit.
     """
-    if os.environ.get("STREAMLIT_ACTIVE") == "1":
-        # Binnen Streamlit — alleen de UI uitvoeren.
+    if any(k in os.environ for k in ["STREAMLIT_SERVER_PORT", "STREAMLIT_RUNTIME", "STREAMLIT_ACTIVE"]):
+        os.environ["STREAMLIT_ACTIVE"] = "1"
         return ui_run(*args, **kwargs)
 
-    try:
-        import subprocess
-
-        ui_file = Path(__file__).resolve().parent / "ui.py"
-        if not ui_file.exists():
-            raise FileNotFoundError(f"UI-bestand niet gevonden: {ui_file}")
-
-        print("🚀 Start Chatbot UI (standalone)...")
-        subprocess.run(["streamlit", "run", str(ui_file)], check=True)
-
-    except KeyboardInterrupt:
-        print("🛑 Chatbot UI handmatig gestopt.")
-    except Exception as e:
-        print(f"⚠️  Fout bij starten van Streamlit UI: {e}")
-        raise
+    # Als iemand dit script direct uitvoert (zeldzaam): fallback
+    print("ℹ️  Chatbot wordt binnen app.py verwacht — geen tweede proces gestart.")
+    os.environ["STREAMLIT_ACTIVE"] = "1"
+    return ui_run(*args, **kwargs)
 
 
 # -------------------------------------------------------
