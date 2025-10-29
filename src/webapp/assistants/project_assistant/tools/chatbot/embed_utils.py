@@ -33,7 +33,6 @@ def _resolve_base_dir() -> Path:
     here = Path(__file__).resolve()
     parts = list(here.parts)
 
-    # Zoek naar de kernstructuur 'assistants/project_assistant/tools/chatbot'
     try:
         idx = parts.index("chatbot")
         root = Path(*parts[: idx + 1])
@@ -42,7 +41,6 @@ def _resolve_base_dir() -> Path:
     except ValueError:
         pass
 
-    # Als fallback: gebruik de parent-map
     return here.parent
 
 
@@ -59,6 +57,12 @@ def safe_name(client_id: str, project_id: str) -> str:
 
 
 def index_path(client_id: str, project_id: str) -> Path:
+    """Hoofdpad voor indexbestand (.json)."""
+    return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.json"
+
+
+def legacy_index_path(client_id: str, project_id: str) -> Path:
+    """Fallback voor oude .jsonl-bestanden."""
     return INDEX_DIR / f"index_{safe_name(client_id, project_id)}.jsonl"
 
 
@@ -71,10 +75,9 @@ def emb_json_path(client_id: str, project_id: str) -> Path:
 
 
 def index_exists(client_id: str, project_id: str) -> bool:
-    p = index_path(client_id, project_id)
-    return p.exists() and (
-        emb_path(client_id, project_id).exists()
-        or emb_json_path(client_id, project_id).exists()
+    return (
+        index_path(client_id, project_id).exists()
+        or legacy_index_path(client_id, project_id).exists()
     )
 
 
@@ -82,24 +85,14 @@ def index_exists(client_id: str, project_id: str) -> bool:
 # Index opslaan / laden
 # ---------------------------------------------------------------------
 def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], embeddings: List[List[float]]) -> None:
-    """Sla chunks en embeddings op in JSONL + NPY/JSON."""
+    """Sla chunks en embeddings op in JSON + NPY/JSON."""
     p = index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # JSONL schrijven
+    # JSON schrijven
     with p.open("w", encoding="utf-8") as fh:
-        for c in chunks:
-            row = {
-                "client_id": client_id,
-                "project_id": project_id,
-                "text": c.get("text", ""),
-                "doc_type": c.get("doc_type"),
-                "source_path": str(c.get("source_path", "")),
-                "chunk_id": c.get("chunk_id")
-                or hashlib.md5(c.get("text", "").encode()).hexdigest()[:8],
-            }
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        json.dump(chunks, fh, ensure_ascii=False, indent=2)
 
     # Embeddings schrijven
     if np:
@@ -111,13 +104,44 @@ def save_index(client_id: str, project_id: str, chunks: List[Dict[str, Any]], em
         e.unlink(missing_ok=True)
 
 
+def _load_json_or_jsonl(path: Path) -> List[Dict[str, Any]]:
+    """Laadt JSON of JSONL afhankelijk van bestandsstructuur."""
+    rows: List[Dict[str, Any]] = []
+    if not path.exists():
+        return rows
+
+    with path.open("r", encoding="utf-8") as fh:
+        first_char = fh.read(1)
+        fh.seek(0)
+        if first_char == "[":  # standaard JSON-lijst
+            try:
+                rows = json.load(fh)
+            except Exception:
+                rows = []
+        else:  # JSONL
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return rows
+
+
 def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], Optional[Any]]:
-    """Laad chunks en embeddings uit index, met padherkenning."""
+    """Laad chunks en embeddings uit index, met padherkenning en fallback."""
     p = index_path(client_id, project_id)
+    legacy_p = legacy_index_path(client_id, project_id)
     e = emb_path(client_id, project_id)
     j = emb_json_path(client_id, project_id)
 
-    # Als file niet bestaat, probeer in hogere mappen te zoeken
+    # Fallback naar legacy .jsonl
+    if not p.exists() and legacy_p.exists():
+        p = legacy_p
+
+    # Alternatieve zoekroute (andere map)
     if not p.exists():
         for parent in BASE_DIR.parents:
             candidate = parent / "index" / p.name
@@ -127,14 +151,7 @@ def load_index(client_id: str, project_id: str) -> Tuple[List[Dict[str, Any]], O
                 j = candidate.with_name(j.name)
                 break
 
-    rows: List[Dict[str, Any]] = []
-    if p.exists():
-        with p.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+    rows = _load_json_or_jsonl(p)
 
     emb_data = None
     if np and e.exists():
