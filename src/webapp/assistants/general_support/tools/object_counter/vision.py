@@ -11,37 +11,19 @@ def encode_image_to_base64(image_bytes: bytes) -> str:
 
 
 def build_prompt(object_description: str) -> str:
-    """
-    Bouwt de telling-prompt, inclusief speciale regels voor hekpanelen.
-    """
-    obj = object_description.lower()
-    extra_rules = ""
-
-    if "hek" in obj or "fence" in obj:
-        extra_rules = """
-Specific rules for construction fence panels:
-- Count EACH INDIVIDUAL fence panel.
-- A fence panel stored sideways has ONE large vertical tube visible.
-- Count the number of vertical tubes = number of panels.
-- A stack is NOT 1 object.
-"""
-
-    prompt = f"""
-You are an expert AI VISION model that counts INDIVIDUAL construction objects.
+    return f"""
+You are an AI vision model. Count the INDIVIDUAL objects in the image.
 
 Object to count: {object_description}
 
-General rules:
-- Count each physically separate object as ONE.
-- If objects are stacked, aligned or touching: still count individually.
-- A stack is NOT one object.
-- Return your best estimate.
+Rules:
+- Each physically separate item counts as 1.
+- Stacked, aligned, touching or overlapping items are still multiple items.
+- Never treat a stack as a single object.
+- Use your best visual estimate.
 
-{extra_rules}
-
-Output format:
-ONLY return JSON:
-{{"count": <number_of_objects>}}
+Return ONLY this JSON:
+{{"count": <number>}}
 """
     return prompt
 
