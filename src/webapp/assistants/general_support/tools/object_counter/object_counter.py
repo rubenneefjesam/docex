@@ -14,10 +14,6 @@ from groq import Groq
 def get_groq_client() -> Groq:
     """
     Maak en retourneer een Groq-client gebaseerd op een API key.
-
-    - Eerst kijken naar env var GROQ_API_KEY
-    - Anders proberen uit .streamlit/secrets.toml > [groq].api_key
-    - Bij fouten of ontbrekende key: nette foutmelding + st.stop()
     """
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if api_key:
@@ -54,15 +50,16 @@ def get_groq_client() -> Groq:
 
 
 # -----------------------------
-# Core helpers
+# Base64 helper
 # -----------------------------
 
 def encode_image_to_base64(image_bytes: bytes) -> str:
-    """
-    Converteer rauwe image bytes naar een base64-string.
-    """
     return base64.b64encode(image_bytes).decode("utf-8")
 
+
+# -----------------------------
+# Object counting via Groq Vision
+# -----------------------------
 
 def count_objects_in_image(
     groq_client: Groq,
@@ -71,18 +68,9 @@ def count_objects_in_image(
     object_description: str,
 ) -> int:
     """
-    Tel het aantal objecten op een afbeelding met een Groq vision-model.
-
-    Parameters:
-    - groq_client: Groq client instance
-    - image_bytes: ruwe bytes van de geüploade afbeelding
-    - image_mime: mimetype, bijv. "image/jpeg" of "image/png"
-    - object_description: beschrijving van het type object dat geteld moet worden
-      (bijv. "buizen", "rode veiligheidshelmen", "blauwe emmers")
-
-    Retour:
-    - Integer met het aantal gevonden objecten (0 bij fout).
+    Tel het aantal objecten op een afbeelding via Groq Scout vision model.
     """
+
     if not image_bytes:
         return 0
 
@@ -90,17 +78,37 @@ def count_objects_in_image(
     mime = image_mime or "image/jpeg"
     data_url = f"data:{mime};base64,{image_b64}"
 
-    # Prompt: model in JSON-modus laten tellen
-    prompt = (
-        "You are an AI vision model that counts objects in images.\n"
-        "Task: Count how many objects of a specific type appear in the image.\n\n"
-        f"Only count objects that match this description: {object_description}.\n"
-        "If you are unsure, return your best estimate.\n\n"
-        "Respond strictly as a JSON object with this schema:\n"
-        '{"count": <number_of_objects>}\n'
-        "Do not include any extra keys or explanations."
-    )
+    # Specifieke domeinregels voor hekpanelen
+    extra_rules = ""
+    obj = object_description.lower()
+    if "hek" in obj or "fence" in obj:
+        extra_rules = """
+Specific rules for construction fence panels:
+- Count EACH INDIVIDUAL fence panel.
+- A fence panel stored sideways has ONE large vertical tube visible.
+- Therefore: count the number of vertical tubes = number of fence panels.
+- A stack of panels is NEVER counted as 1 object.
+"""
 
+    prompt = f"""
+You are an expert AI VISION model specialized in counting INDIVIDUAL construction objects.
+
+Object type to count: {object_description}
+
+General rules:
+- Count each physically separate object as ONE.
+- If objects are stacked, aligned, touching, or partially occluded: still count each one.
+- A stack is NOT one object.
+- Always return your BEST ESTIMATE based on the visible visual cues.
+
+{extra_rules}
+
+Output:
+Return ONLY a JSON object in this exact format:
+{{"count": <number_of_objects>}}
+"""
+
+    # Vision call
     try:
         completion = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -125,13 +133,8 @@ def count_objects_in_image(
 
     content = completion.choices[0].message.content
 
-    # content zou een JSON-string moeten zijn door response_format=json_object
     try:
-        if isinstance(content, str):
-            data = json.loads(content)
-        else:
-            # fallback: als het een lijst/dict is, naar string converteren
-            data = json.loads(str(content))
+        data = json.loads(content)
         count = int(data.get("count", 0))
         if count < 0:
             count = 0
@@ -143,19 +146,10 @@ def count_objects_in_image(
 
 
 # -----------------------------
-# Streamlit UI - hoofdfunctie
+# Streamlit UI
 # -----------------------------
 
 def run(show_nav: bool = True):
-    """
-    Entrypoint voor de Streamlit-app voor objecttelling.
-
-    Flow:
-    - Upload een afbeelding (JPEG/JPG/PNG)
-    - Beschrijf wat je wilt laten tellen (bijv. 'buizen', 'rode helmen')
-    - Klik op 'Tel objecten'
-    - Resultaat: het getelde aantal
-    """
     st.set_page_config(
         page_title="Object Counter",
         layout="wide",
@@ -165,7 +159,7 @@ def run(show_nav: bool = True):
     st.markdown(
         """
         <style>
-        .stButton>button, .stDownloadButton>button {
+        .stButton>button {
             font-size:18px;
             font-weight:bold;
             padding:0.6em 1.2em;
@@ -198,7 +192,6 @@ def run(show_nav: bool = True):
     image_bytes = None
     image_mime = None
 
-    # --- Linkerkolom: afbeelding uploaden ---
     with col1:
         st.markdown("<div class='section-header'>📸 Afbeelding uploaden</div>", unsafe_allow_html=True)
         img_file = st.file_uploader(
@@ -212,15 +205,14 @@ def run(show_nav: bool = True):
             st.image(
                 image_bytes,
                 caption=f"Geüploade afbeelding: {img_file.name}",
-                use_container_width=True,   # i.p.v. use_column_width (deprecated)
+                use_container_width=True,
             )
 
-    # --- Rechterkolom: objectbeschrijving + actie ---
     with col2:
         st.markdown("<div class='section-header'>🎯 Wat wil je laten tellen?</div>", unsafe_allow_html=True)
         object_description = st.text_input(
             "Beschrijf het object dat geteld moet worden",
-            placeholder="Bijv. 'buizen', 'rode veiligheidshelmen', 'blauwe emmers'",
+            placeholder="Bijv. 'hekpanelen', 'individuele hekpanelen', 'buizen', 'rode helmen'",
             key="obj_desc",
         )
 
@@ -252,9 +244,6 @@ if __name__ == "__main__":
 
 
 def app():
-    """
-    Optionele wrapper voor een multi-page Streamlit setup.
-    """
     st.header("🔢 Object Counter")
     st.write("Upload een afbeelding en laat Groq het aantal objecten tellen.")
     run(show_nav=False)
