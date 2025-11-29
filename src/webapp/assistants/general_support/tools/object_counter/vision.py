@@ -24,7 +24,6 @@ Rules:
 
 Return ONLY this JSON:
 {{"count": <number>}}
-"""
     return prompt
 
 
