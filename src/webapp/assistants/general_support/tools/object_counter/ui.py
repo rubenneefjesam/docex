@@ -17,11 +17,11 @@ def run(show_nav: bool = True):
         unsafe_allow_html=True,
     )
     st.write(
-        "Upload een afbeelding. Het model detecteert automatisch wat er te zien is. "
-        "Daarna kun je het object laten tellen of zelf aanpassen."
+        "Upload een afbeelding. De app detecteert automatisch wat er te zien is. "
+        "Daarna kun je het waargenomen object direct laten tellen of een aangepast object invoeren."
     )
 
-    # OpenAI client ophalen
+    # OpenAI client
     try:
         openai_client = get_openai_client()
     except Exception as e:
@@ -34,11 +34,12 @@ def run(show_nav: bool = True):
 
     col_left, col_right = st.columns([1.2, 1])
 
-    # -----------------------------
-    # Upload sectie
-    # -----------------------------
+    # --------------------------------------------------
+    # LINKERKOLOM: Afbeelding uploaden + automatische analyse
+    # --------------------------------------------------
     with col_left:
         st.subheader("📸 Afbeelding uploaden")
+
         img = st.file_uploader(
             "Kies een afbeelding (JPEG, JPG, PNG)",
             type=["jpg", "jpeg", "png"],
@@ -52,23 +53,30 @@ def run(show_nav: bool = True):
             image_bytes = img.read()
             image_mime = img.type or "image/jpeg"
 
-            st.image(image_bytes, use_container_width=True, caption=f"Geüploade afbeelding: {img.name}")
+            st.image(
+                image_bytes,
+                use_container_width=True,
+                caption=f"Geüploade afbeelding: {img.name}",
+            )
 
-            # Automatisch analyseren
+            # Automatische AI-analyse
             with st.spinner("🔍 AI analyseert de afbeelding..."):
-                detected_text = describe_image(openai_client, image_bytes, image_mime)
+                detected_text = describe_image(
+                    openai_client=openai_client,
+                    image_bytes=image_bytes,
+                    image_mime=image_mime,
+                )
 
-            # Opslaan
-            st.session_state.auto_detect = detected_text
+            st.session_state.auto_detect = detected_text or ""
 
-    # -----------------------------
-    # Rechterkolom: detectie + invoerveld + tellen
-    # -----------------------------
+    # --------------------------------------------------
+    # RECHTERKOLOM: Waargenomen object + twee tell-flows
+    # --------------------------------------------------
     with col_right:
-        st.subheader("🎯 Wat wil je laten tellen?")
+        st.subheader("🎯 Waargenomen object")
 
+        # Kaart met AI-waarneming
         if st.session_state.auto_detect:
-            # AI detectie kaart
             st.markdown(
                 f"""
                 <div style="
@@ -76,7 +84,7 @@ def run(show_nav: bool = True):
                     border: 1px solid #d3d3d3;
                     border-radius: 8px;
                     background: #f8f9fa;
-                    margin-bottom: 12px;
+                    margin-bottom: 16px;
                 ">
                     <strong>🔍 AI detecteert:</strong><br>
                     {st.session_state.auto_detect}
@@ -84,35 +92,73 @@ def run(show_nav: bool = True):
                 """,
                 unsafe_allow_html=True,
             )
+        else:
+            st.info(
+                "Upload een afbeelding om automatisch te laten detecteren welk object er op staat."
+            )
 
-        # Input met autosuggestie
-        desc_input = st.text_input(
-            "Beschrijf het object dat geteld moet worden",
-            value=st.session_state.auto_detect,
-            placeholder="Bijv. 'vierkanten', 'buizen', 'containers'",
-            key="object_input",
-        )
+        # ------------------------------
+        # 1. Automatisch waargenomen object tellen
+        # ------------------------------
+        st.markdown("#### 1. Automatisch waargenomen object tellen")
 
-        # Tel-knop
-        if st.button("🔢 Tel objecten", use_container_width=True):
+        auto_button_disabled = not (img and st.session_state.auto_detect)
+
+        if st.button(
+            "🔢 Tel waargenomen object",
+            use_container_width=True,
+            disabled=auto_button_disabled,
+        ):
             if not img:
                 st.error("❌ Upload eerst een afbeelding.")
-            elif not desc_input.strip():
-                st.error("❌ Voer een objectbeschrijving in.")
+            elif not st.session_state.auto_detect:
+                st.error("❌ Er is nog geen automatisch waargenomen object.")
             else:
-                with st.spinner("Objecten tellen..."):
+                with st.spinner("Objecten tellen op basis van AI-waarneming..."):
                     count = count_objects_in_image(
                         openai_client=openai_client,
                         image_bytes=image_bytes,
                         image_mime=image_mime,
-                        object_description=desc_input.strip(),
+                        object_description=st.session_state.auto_detect,
                     )
 
-                # Resultaat
                 st.markdown("### ✅ Resultaat")
                 st.write(
-                    f"**AI waarneming:** {st.session_state.auto_detect}\n\n"
-                    f"**Aantal getelde objecten voor ‘{desc_input}’:** {count}"
+                    f"**AI-waarneming:** {st.session_state.auto_detect}\n\n"
+                    f"**Aantal getelde objecten (waargenomen object):** {count}"
+                )
+
+        st.markdown("---")
+
+        # ------------------------------
+        # 2. Aangepast object tellen
+        # ------------------------------
+        st.markdown("#### 2. Ander object tellen")
+
+        custom_desc = st.text_input(
+            "Beschrijf het object dat je wilt laten tellen",
+            placeholder="Bijv. 'buizen', 'betonnen platen', 'haken'",
+            key="custom_object_input",
+        )
+
+        if st.button("📏 Aangepast object tellen", use_container_width=True):
+            if not img:
+                st.error("❌ Upload eerst een afbeelding.")
+            elif not custom_desc.strip():
+                st.error("❌ Voer een objectbeschrijving in.")
+            else:
+                with st.spinner("Objecten tellen op basis van aangepaste beschrijving..."):
+                    count = count_objects_in_image(
+                        openai_client=openai_client,
+                        image_bytes=image_bytes,
+                        image_mime=image_mime,
+                        object_description=custom_desc.strip(),
+                    )
+
+                st.markdown("### ✅ Resultaat")
+                st.write(
+                    f"**AI-waarneming:** {st.session_state.auto_detect or 'onbekend'}\n\n"
+                    f"**Aantal getelde objecten voor ‘{custom_desc.strip()}’:** {count}"
                 )
 
 
