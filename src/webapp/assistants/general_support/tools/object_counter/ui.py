@@ -2,7 +2,7 @@
 
 import streamlit as st
 from .client import get_openai_client
-from .vision import count_objects_in_image
+from .vision import describe_image, count_objects_in_image
 
 
 def run(show_nav: bool = True):
@@ -14,7 +14,8 @@ def run(show_nav: bool = True):
 
     st.markdown("<h1>🔢 Object Counter (OpenAI Vision)</h1>", unsafe_allow_html=True)
     st.write(
-        "Upload een afbeelding en laat het OpenAI Vision-model individuele objecten tellen."
+        "Upload een afbeelding. OpenAI analyseert automatisch wat er te zien is "
+        "en je kunt daarna aangeven welk object je wilt laten tellen."
     )
 
     # OpenAI client ophalen
@@ -28,6 +29,7 @@ def run(show_nav: bool = True):
 
     image_bytes = None
     image_mime = None
+    auto_desc = None
 
     # -----------------------------
     # Afbeelding upload
@@ -37,20 +39,35 @@ def run(show_nav: bool = True):
         img = st.file_uploader(
             "Kies een afbeelding (JPEG/JPG/PNG)",
             type=["jpg", "jpeg", "png"],
+            key="image_upload",
         )
         if img:
             image_bytes = img.read()
             image_mime = img.type or "image/jpeg"
             st.image(image_bytes, use_container_width=True)
 
+            # 🔥 Automatische Vision analyse
+            with st.spinner("Automatische visuele analyse..."):
+                auto_desc = describe_image(openai_client, image_bytes, image_mime)
+
+            st.success(f"🔍 Automatische analyse: {auto_desc}")
+
+            # Suggestie opslaan in session_state
+            st.session_state["auto_suggest"] = auto_desc
+
     # -----------------------------
-    # Objectbeschrijving
+    # Objectbeschrijving + Count
     # -----------------------------
     with col2:
         st.subheader("🎯 Wat wil je laten tellen?")
+
+        # Haal auto-suggestie op als automatisch gevuld veld
+        suggested = st.session_state.get("auto_suggest", "")
+
         desc = st.text_input(
             "Objectbeschrijving",
-            placeholder="Bijv. 'hekpanelen', 'buizen', 'rode helmen'"
+            value=suggested,
+            placeholder="Bijv. 'containers', 'pallets', 'buizen', 'helmen'"
         )
 
         if st.button("🔍 Tel objecten"):
@@ -68,7 +85,9 @@ def run(show_nav: bool = True):
                     )
 
                 st.subheader("✅ Resultaat")
-                st.write(f"Ik heb **{count}** object(en) gevonden voor: **{desc}**")
+                st.write(
+                    f"Ik heb **{count}** object(en) gevonden voor: **{desc}**"
+                )
 
 
 def app():
