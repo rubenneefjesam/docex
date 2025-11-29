@@ -58,14 +58,18 @@ def run(show_nav: bool = True):
                 use_container_width=True,
                 caption=f"Geüploade afbeelding: {img.name}",
             )
-
             # Automatische AI-analyse
-            with st.spinner("🔍 AI analyseert de afbeelding..."):
-                detected_text = describe_image(
-                    openai_client=openai_client,
-                    image_bytes=image_bytes,
-                    image_mime=image_mime,
-                )
+            try:
+                with st.spinner("🔍 AI analyseert de afbeelding..."):
+                    detected_text = describe_image(
+                        openai_client=openai_client,
+                        image_bytes=image_bytes,
+                        image_mime=image_mime,
+                    )
+                st.success("Detectie uitgevoerd!")
+            except Exception as e:
+                st.error(f"❌ Fout bij detectie: {e}")
+                detected_text = ""
 
             st.session_state.auto_detect = detected_text or ""
 
@@ -129,7 +133,7 @@ def run(show_nav: bool = True):
                 )
 
         st.markdown("---")
-
+        st.write("DEBUG - Afbeelding geüpload:", bool(img)) 
         # ------------------------------
         # 2. Aangepast object tellen
         # ------------------------------
