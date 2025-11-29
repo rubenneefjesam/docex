@@ -14,8 +14,8 @@ def run(show_nav: bool = True):
 
     st.markdown("<h1>🔢 Object Counter (OpenAI Vision)</h1>", unsafe_allow_html=True)
     st.write(
-        "Upload een afbeelding. OpenAI analyseert automatisch wat er te zien is "
-        "en je kunt daarna aangeven welk object je wilt laten tellen."
+        "Upload een afbeelding. Het model analyseert automatisch wat er op staat, "
+        "en je kunt daarna het gewenste object laten tellen."
     )
 
     # OpenAI client ophalen
@@ -29,7 +29,10 @@ def run(show_nav: bool = True):
 
     image_bytes = None
     image_mime = None
-    auto_desc = None
+
+    # Hou automatische tekst in session state
+    if "auto_detect" not in st.session_state:
+        st.session_state.auto_detect = ""
 
     # -----------------------------
     # Afbeelding upload
@@ -46,34 +49,33 @@ def run(show_nav: bool = True):
             image_mime = img.type or "image/jpeg"
             st.image(image_bytes, use_container_width=True)
 
-            # 🔥 Automatische Vision analyse
-            with st.spinner("Automatische visuele analyse..."):
-                auto_desc = describe_image(openai_client, image_bytes, image_mime)
+            # Automatisch analyseren
+            with st.spinner("🔍 Automatische analyse..."):
+                desc = describe_image(openai_client, image_bytes, image_mime)
 
-            st.success(f"🔍 Automatische analyse: {auto_desc}")
+            # Save in session state
+            st.session_state.auto_detect = desc
 
-            # Suggestie opslaan in session_state
-            st.session_state["auto_suggest"] = auto_desc
+            st.success(f"**AI herkent op de afbeelding:**  
+                        {desc}")
 
     # -----------------------------
-    # Objectbeschrijving + Count
+    # Objectbeschrijving
     # -----------------------------
     with col2:
         st.subheader("🎯 Wat wil je laten tellen?")
 
-        # Haal auto-suggestie op als automatisch gevuld veld
-        suggested = st.session_state.get("auto_suggest", "")
-
-        desc = st.text_input(
+        desc_input = st.text_input(
             "Objectbeschrijving",
-            value=suggested,
-            placeholder="Bijv. 'containers', 'pallets', 'buizen', 'helmen'"
+            value=st.session_state.auto_detect,
+            placeholder="Bijv. 'containers', 'buizen', 'helmen'",
+            key="object_desc",
         )
 
         if st.button("🔍 Tel objecten"):
             if not image_bytes:
                 st.error("Upload eerst een afbeelding.")
-            elif not desc.strip():
+            elif not desc_input.strip():
                 st.error("Voer een objectbeschrijving in.")
             else:
                 with st.spinner("Bezig met tellen..."):
@@ -81,12 +83,12 @@ def run(show_nav: bool = True):
                         openai_client=openai_client,
                         image_bytes=image_bytes,
                         image_mime=image_mime,
-                        object_description=desc.strip(),
+                        object_description=desc_input.strip(),
                     )
 
                 st.subheader("✅ Resultaat")
                 st.write(
-                    f"Ik heb **{count}** object(en) gevonden voor: **{desc}**"
+                    f"Ik heb **{count}** object(en) gevonden voor: **{desc_input}**"
                 )
 
 
