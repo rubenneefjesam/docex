@@ -1,8 +1,8 @@
 # tools/object_counter/object_counter.py
 
 import streamlit as st
-from tools.object_counter.client import get_openai_client
-from tools.object_counter.vision import count_objects_in_image
+from .client import get_openai_client
+from .vision import count_objects_in_image
 
 
 # -----------------------------------
