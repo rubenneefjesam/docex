@@ -1,26 +1,31 @@
 # tools/object_counter/client.py
 
 import os
-import streamlit as st
-from groq import Groq
+from openai import OpenAI
 
-def get_groq_client() -> Groq:
-    """
-    Haalt de Groq-client op via env of .streamlit/secrets.toml.
-    """
-    api_key = os.environ.get("GROQ_API_KEY", "").strip()
-    if not api_key:
-        try:
-            api_key = st.secrets.get("groq", {}).get("api_key", "").strip()
-        except Exception:
-            api_key = ""
 
+def get_openai_client() -> OpenAI:
+    """
+    Haalt de OpenAI client op via Codespaces environment variables.
+    Verwacht: OPENAI_KEY (en optioneel OPENAI_ORG_ID, OPENAI_PROJECT_ID)
+    """
+
+    api_key = os.getenv("OPENAI_KEY", "").strip()
     if not api_key:
-        st.sidebar.error("❌ Geen Groq API key gevonden.")
-        st.stop()
+        raise RuntimeError(
+            "❌ OPENAI_KEY is niet gevonden in de environment variables. "
+            "Zorg dat je Codespaces secret 'OPENAI_KEY' hebt ingesteld."
+        )
+
+    # optioneel (alleen invullen als je deze gebruikt)
+    org = os.getenv("OPENAI_ORG_ID", None)
+    project = os.getenv("OPENAI_PROJECT_ID", None)
 
     try:
-        return Groq(api_key=api_key)
+        return OpenAI(
+            api_key=api_key,
+            organization=org,
+            project=project,
+        )
     except Exception as e:
-        st.sidebar.error(f"❌ Fout bij verbinden met Groq API: {e}")
-        st.stop()
+        raise RuntimeError(f"❌ Fout bij initialiseren van OpenAI-client: {e}")
