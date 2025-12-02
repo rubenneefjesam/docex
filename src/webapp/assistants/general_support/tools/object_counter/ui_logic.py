@@ -84,8 +84,9 @@ def render_object_counter_ui():
             )
 
         # Tel automatisch waargenomen object
-        st.markdown("#### 1. Waargenomen object tellen")
-        if st.button("🔢 Tel waargenomen object", use_container_width=True):
+        st.markdown("#### Objecten tellen")
+
+        if st.button("🔢 Tel objecten", use_container_width=True):
             if not image_bytes:
                 st.error("Upload eerst een afbeelding.")
             else:
@@ -96,29 +97,5 @@ def render_object_counter_ui():
                         image_mime=image_mime,
                         object_description=st.session_state.auto_detect,
                     )
-                st.success(f"Aantal (waargenomen object): {count}")
 
-        st.markdown("---")
-
-        # Aangepast object
-        st.markdown("#### 2. Aangepast object tellen")
-
-        custom_desc = st.text_input(
-            "Aangepaste objectbeschrijving",
-            placeholder="Bijv. 'buizen', 'platen', 'haken'",
-        )
-
-        if st.button("📏 Aangepast object tellen", use_container_width=True):
-            if not image_bytes:
-                st.error("Upload eerst een afbeelding.")
-            elif not custom_desc.strip():
-                st.error("Voer eerst een object in.")
-            else:
-                with st.spinner("Objecten tellen..."):
-                    count = count_objects_in_image(
-                        openai_client=client,
-                        image_bytes=image_bytes,
-                        image_mime=image_mime,
-                        object_description=custom_desc.strip(),
-                    )
-                st.success(f"Aantal (‘{custom_desc}’): {count}")
+                st.success(f"Aantal objecten: {count}")
