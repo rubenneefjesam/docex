@@ -110,3 +110,18 @@ def render_object_counter_ui():
             """,
             unsafe_allow_html=True,
         )
+        st.markdown(
+            f"""
+            <div style="
+                padding: 12px;
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                background: #fff4e6;
+                margin-bottom: 16px;
+            ">
+                <strong>🔧 Geadviseerd onderhoud:</strong><br>
+                {result['maintenance_advice']}
+            </div>
+            """,
+            unsafe_allow_html=True
+)

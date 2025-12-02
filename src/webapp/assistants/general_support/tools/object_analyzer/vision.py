@@ -19,39 +19,45 @@ def encode_image_to_base64(image_bytes: bytes) -> str:
 def analyze_image(openai_client: OpenAI, image_bytes: bytes, image_mime: str) -> dict:
     """
     Herkent:
-    - objectnaam (kort)
+    - objectnaam (1–3 woorden)
     - confidence (%)
-    - status (gekozen uit vaste lijst)
-    - status toelichting
+    - status (uit vaste lijst STATUS_DEFINITIONS)
+    - status toelichting (1 zin)
+    - onderhoudsadvies (1 zin)
     """
 
     b64 = encode_image_to_base64(image_bytes)
     mime = image_mime or "image/jpeg"
 
-    # Maak een nette lijst voor de AI (alleen labels)
+    # AI moet kiezen uit exacte labels
     status_labels = [v["label"] for v in STATUS_DEFINITIONS.values()]
 
     prompt = f"""
-Je bent een AI Vision-inspectiemodel. Analyseer de afbeelding en geef ALLEEN terug in JSON.
+Je bent een professioneel AI Vision-inspectiemodel. Analyseer de afbeelding
+en geef ALLEEN geldige JSON terug.
 
-Taak:
-1. Herken het object in de afbeelding in maximaal 1–3 woorden.
-2. Geef een confidence percentage: hoe zeker ben je dat dit het object is?
-3. Bepaal de status van het object. Kies *uitsluitend* één van deze statussen:
+Je voert de volgende stappen uit:
+
+1. Herken het object (maximaal 1–3 woorden).
+2. Geef een confidence-percentage (0–100).
+3. Bepaal de status van het object. Kies *exact* één van:
    {status_labels}
-4. Geef een korte status-toelichting (exact 1 zin), passend bij de gekozen status.
+4. Geef een status-toelichting in één zin.
+5. Geef geadviseerd onderhoud in één zin.
 
 Regels:
-- Maak de objectnaam kort en concreet, geen zinnetjes.
-- Confidence is een integer (0–100).
-- Toelichting moet nuttig, duidelijk en visueel afleidbaar zijn.
-- Retourneer STRIKT geldige JSON:
+- Korte, concrete objectnaam. Geen zinnen.
+- Confidence is een integer.
+- Toelichting is visueel afleidbaar.
+- Onderhoudsadvies is praktisch en toepasbaar.
+- Retourneer STRICT JSON in dit formaat:
 
 {{
   "object": "<1-3 woorden>",
   "confidence": <integer>,
-  "status": "<één van de statussen hierboven>",
-  "status_description": "<1 zin>"
+  "status": "<één van de statussen>",
+  "status_description": "<1 zin>",
+  "maintenance_advice": "<1 zin>"
 }}
 """
 
@@ -80,8 +86,10 @@ Regels:
             "object": data.get("object", "").strip(),
             "confidence": int(data.get("confidence", 0)),
             "status": data.get("status", "").strip(),
-            "status_description": data.get("status_description", "").strip()
+            "status_description": data.get("status_description", "").strip(),
+            "maintenance_advice": data.get("maintenance_advice", "").strip(),
         }
+
     except Exception:
         print("⚠️ Vision output was geen valide JSON:")
         print(raw)
@@ -89,12 +97,13 @@ Regels:
             "object": "onbekend",
             "confidence": 0,
             "status": "Onherkenbaar",
-            "status_description": "De afbeelding is onvoldoende duidelijk om een status te bepalen."
+            "status_description": "De afbeelding is onvoldoende duidelijk om een status te bepalen.",
+            "maintenance_advice": "Geen onderhoudsadvies beschikbaar door onduidelijke afbeelding."
         }
 
 
 # ----------------------------
-# 2) OBJECTEN TELLEN (onveranderd maar opgeschoond)
+# 2) OBJECTEN TELLEN
 # ----------------------------
 def count_objects_in_image(
     openai_client: OpenAI,
@@ -115,8 +124,8 @@ Je bent een AI Vision model. Tel het aantal INDIVIDUELE objecten in de afbeeldin
 Object: "{object_description}"
 
 Regels:
-- Tel elke afzonderlijke visueel herkenbare eenheid als 1 object.
-- Objecten mogen overlappen, gestapeld zijn of deels zichtbaar zijn.
+- Tel elke afzonderlijke visueel herkenbare eenheid als één object.
+- Objecten mogen overlappen, gestapeld zijn of deels zichtbaar.
 - Gebruik uitsluitend zichtbare kenmerken.
 - Retourneer STRICT JSON:
 {{"count": <integer>}}
@@ -143,6 +152,7 @@ Regels:
     try:
         data = json.loads(raw)
         return int(data.get("count", 0))
+
     except Exception:
         print("⚠️ Vision output was geen JSON:")
         print(raw)
