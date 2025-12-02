@@ -110,19 +110,3 @@ def render_object_counter_ui():
             """,
             unsafe_allow_html=True,
         )
-
-        # Automated telling
-        st.markdown("#### 🔢 Objecten tellen")
-
-        if st.button("Tel objecten", use_container_width=True):
-            if not image_bytes:
-                st.error("Upload eerst een afbeelding.")
-            else:
-                with st.spinner("Objecten tellen..."):
-                    count = count_objects_in_image(
-                        openai_client=client,
-                        image_bytes=image_bytes,
-                        image_mime=image_mime,
-                        object_description=result["object"],
-                    )
-                st.success(f"Aantal objecten: {count}")
